@@ -788,6 +788,7 @@ function testAntiLoopDetection() {
     const originalCacheService = global.CacheService;
 
     const readMessageIds = [];
+    let classifierCalls = 0;
     const buildMessage = (id, from, date) => ({
         getId: () => id,
         isUnread: () => true,
@@ -823,7 +824,7 @@ function testAntiLoopDetection() {
             validateResponse: () => ({ isValid: true, score: 1.0, errors: [] })
         },
         classifier: {
-            classifyEmail: () => ({ shouldRespond: true, reason: 'ok' })
+            classifyEmail: () => { classifierCalls++; return { shouldReply: false, reason: 'unit_test_stop' }; }
         },
         requestClassifier: {
             classify: () => ({ type: 'PASTORAL', dimensions: { pastoral: 0.8 } })
@@ -871,9 +872,9 @@ function testAntiLoopDetection() {
     try {
         const result = processor.processThread(thread, '', [], new Set(), true);
         assert(result.status === 'filtered', `Atteso status=filtered, ottenuto ${result.status}`);
-        assert(result.reason === 'email_loop_detected', `Atteso reason=email_loop_detected, ottenuto ${result.reason}`);
-
-        assert(readMessageIds.length >= 0, 'Controllo anti-loop completato');
+        assert(result.reason !== 'email_loop_detected', 'Il numero di messaggi non deve chiudere il thread come loop');
+        assert(classifierCalls === 1, 'Dodici messaggi esterni devono raggiungere il classifier');
+        assert(readMessageIds.length === 0, 'I messaggi devono rimanere non letti');
     } finally {
         global.Session = originalSession;
         global.CacheService = originalCacheService;

@@ -114,9 +114,10 @@ var PromptContext = class PromptContext {
         const bereavementMemoryPattern = /\b(lutto|decesso|malattia|funerale|esequie|defunt[oaie]|vedov[oaie])\b/;
         const canonicalMemoryPattern = /\b(sbattezzo|apostasia|divorzio|divorziat[oaie]|separazione|separat[oaie])\b/;
         const pastoralProcessMemoryPattern = /\b(accompagnamento|percorso\s+pastorale|cammino\s+pastorale|direzione\s+spirituale|colloquio\s+pastorale)\b/;
-        const memoryMentionsBereavement = hasAffirmedMemorySignal(bereavementMemoryPattern);
-        const memoryMentionsCanonicalComplexity = hasAffirmedMemorySignal(canonicalMemoryPattern);
-        const memoryMentionsPastoralProcess = hasAffirmedMemorySignal(pastoralProcessMemoryPattern);
+        const resolved = flags._evidence || {};
+        const memoryMentionsBereavement = resolved.bereaved !== false && hasAffirmedMemorySignal(bereavementMemoryPattern);
+        const memoryMentionsCanonicalComplexity = resolved.canonical_complexity !== false && hasAffirmedMemorySignal(canonicalMemoryPattern);
+        const memoryMentionsPastoralProcess = resolved.ongoing_pastoral_process !== false && hasAffirmedMemorySignal(pastoralProcessMemoryPattern);
 
         const hasBereavementMemory =
             flags.bereaved === true ||
@@ -503,7 +504,8 @@ var PromptContext = class PromptContext {
     }
 
     _detectPastoralCrisisSignal_(subject, body) {
-        const text = this._normalizeSignalText_([subject, body].filter(Boolean).join(' '));
+        const text = this._normalizeSignalText_([subject, body].filter(Boolean).join(' '))
+            .replace(/\b(?:sono\s+in\s+crisi|non\s+ce\s+la\s+faccio)\s+(?:con|a\s+compilare|per)\s+(?:(?:il|la|un|una|i)\s+)?(?:modul\w*|stampante|computer|compilazione|prenotazione|document\w*)\b/g, 'difficolta operativa');
         if (!text.trim()) {
             return { critical: false, strong: false };
         }
@@ -641,7 +643,7 @@ var PromptContext = class PromptContext {
         const warmPosture = ['appreciative', 'grateful', 'gratitude', 'enthusiastic', 'open'].includes(relationalPosture) &&
             Number.isFinite(relationalConfidence) &&
             relationalConfidence >= relationalThreshold;
-        if ((c.relational_warmth || personalPosture || warmPosture) && !isFormal) {
+        if (personalPosture && !isFormal) {
             return 'pastoral_supportive';
         }
         return 'warm_institutional';

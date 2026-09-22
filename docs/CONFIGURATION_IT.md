@@ -11,7 +11,7 @@ Usa `gas_config.example.js` come template nel repository e crea il file locale `
 - **GEMINI_API_KEY**: La tua chiave API Gemini (salvata nelle Proprietà dello Script).
 - **MODEL_NAME**: Modello predefinito per la generazione qualità (attuale `gemini-3.5-flash`).
 - **GEMINI_CONTEXT_CACHE**: Di default è disabilitata per Free Tier. Abilitala solo se AI Studio mostra `cachedContents` disponibile per il progetto; se l'endpoint non è disponibile, il servizio degrada a `generateContent` diretto.
-- **GEMINI_FREE_TIER_NOTES**: Profilo quote locale per i task rapidi su Gemini 3.1 Flash-Lite; per la generazione qualità il sistema parte da Gemini 3.5 Flash. Verifica sempre i limiti effettivi in AI Studio.
+- **GEMINI_FREE_TIER_NOTES**: Valori storici di pianificazione locale, non garanzie del fornitore. `GEMINI_MODELS` configura Gemini 3.7 Flash per la generazione e Gemini 3.5 Flash-Lite per i task ausiliari. Verificare accesso ai modelli e quote del progetto in AI Studio. Vedi [audit operativo e migrazione](RELIABILITY_AUDIT_2026-09-22.md).
 
 ### Gmail e Processamento
 - **LABEL_NAME**: `IA` (Email processate con successo).

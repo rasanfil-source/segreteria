@@ -1,5 +1,7 @@
 # 🏗️ System Architecture - Parish Email AI
 
+> Configurazione locale, non garanzia di quote o disponibilità del fornitore. Consultare il [resoconto aggiornato](RELIABILITY_AUDIT_2026-09-22.md) per limiti, migrazioni e gestione degli invii incerti.
+
 [![Language: EN](https://img.shields.io/badge/Language-English-blue?style=flat-square)](ARCHITECTURE.md)
 
 ## 📖 Overview
@@ -102,7 +104,7 @@ Email Arriva
                v
 ┌──────────────────────────────────────────────────────────┐
 │  QUICK CHECK (Gemini AI)                                 │
-│  - Modello: gemini-3.1-flash-lite (rapido/ausiliario)   │
+│  - Modello: gemini-3.5-flash-lite (rapido/ausiliario)   │
 │  - Risposta necessaria? (true/false)                     │
 │  - Lingua rilevata? (it/en/es/fr/de)                     │
 │  - Categoria? (TECHNICAL/PASTORAL/DOCTRINAL/MIXED)       │
@@ -154,7 +156,7 @@ Email Arriva
 ┌──────────────────────────────────────────────────────────┐
 │  RATE LIMITING (GeminiRateLimiter)                       │
 │  - Selezione automatica modello disponibile              │
-│  - Fallback chain: 3.1 Lite primary → alias/backup       │
+│  - Fallback chain: 3.5 Lite primary → alias/backup       │
 │  - Quota tracking: RPM, TPM, RPD + Search Grounding      │
 │  - Exponential backoff aggressivo su errori              │
 └──────────────┬──────────────────────────────────────────┘
@@ -241,7 +243,7 @@ getSpecialMassTimeRule()// Regole messe giorni festivi
 - ✅ Dinamiche (periodi ferie segretario da Sheet)
 
 **Reset Quota:**
-- 📅 Ore 9:00 italiane (mezzanotte Pacific Time)
+- 📅 00:00 America/Los_Angeles (mezzanotte Pacific Time)
 - 🔄 Automatico giornaliero
 
 ---
@@ -625,40 +627,55 @@ Dopo la generazione, il sistema valida lingua, lunghezza, placeholder, allucinaz
 
 ```javascript
 GEMINI_MODELS = {
-  'flash-2.5': {
-    name: 'gemini-2.5-flash',
-    rpm: 10, tpm: 250000, rpd: 250,
-    useCases: ['generation', 'all']
-  },
-  'flash-2.5-backup': {
-    name: 'gemini-2.5-flash',
-    rpm: 10, tpm: 250000, rpd: 250,
-    useCases: ['generation', 'backup']
-  },
-  'flash-lite': {
-    name: 'gemini-3.1-flash-lite',
-    rpm: 2000, tpm: 2000000, rpd: 3500,
-    useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
-  },
-  'flash-3.1-lite': {
-    name: 'gemini-3.1-flash-lite',
-    rpm: 2000, tpm: 2000000, rpd: 3500,
-    useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
-  },
-  'flash-3.1-lite-backup': {
-    name: 'gemini-3.1-flash-lite',
-    rpm: 2000, tpm: 2000000, rpd: 3500,
-    useCases: ['fallback', 'backup']
+    // Modello principale per la risposta finale: qualita.
+    'flash-3.7': {
+      name: 'gemini-3.7-flash',
+      rpm: 10,
+      tpm: 250000,
+      rpd: 1500,
+      contextWindowTokens: 1048576,
+      ipm: null,
+      useCases: ['generation', 'all']
+    },
+    // Stesso tier qualita su chiave di riserva.
+    'flash-3.7-backup': {
+      name: 'gemini-3.7-flash',
+      rpm: 10,
+      tpm: 250000,
+      rpd: 1500,
+      contextWindowTokens: 1048576,
+      ipm: null,
+      useCases: ['generation', 'backup']
+    },
+    // Modello rapido per categoria, lingua AI, semantica e scarti.
+    'flash-lite': {
+      name: 'gemini-3.5-flash-lite',
+      rpm: 15,
+      tpm: 250000,
+      rpd: 1000,
+      contextWindowTokens: 1048576,
+      ipm: null,
+      useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
+    },
+    // Backup logico Lite per chiave di riserva o fallback controllati.
+    'flash-lite-backup': {
+      name: 'gemini-3.5-flash-lite',
+      rpm: 15,
+      tpm: 250000,
+      rpd: 1000,
+      contextWindowTokens: 1048576,
+      ipm: null,
+      useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback', 'backup']
+    }
   }
-}
 ```
 
 **Selection Strategy:**
 ```javascript
 MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
-  'fallback': ['flash-lite', 'flash-3.1-lite-backup']
+  'generation': ['flash-3.7', 'flash-3.7-backup', 'flash-lite', 'flash-lite-backup'],
+  'fallback': ['flash-lite', 'flash-lite-backup']
 }
 ```
 
@@ -679,7 +696,7 @@ if (rpdUsage > 0.8 * rpdLimit) {
 **Tracking:**
 - **RPM** → Rolling window (ultimi 60 secondi)
 - **TPM** → Rolling window (ultimi 60 secondi)
-- **RPD** → Counter giornaliero (reset 9:00 AM IT)
+- **RPD** → Counter giornaliero (reset 00:00 America/Los_Angeles)
 - **Google Search Grounding** → Counter condiviso opzionale se AI Studio espone una quota
 - **Context cache** → Disattivata di default in Free Tier; nome cache + expireTime persistiti solo se abilitata
 
@@ -755,8 +772,8 @@ Il sistema supporta una chiave API di riserva per massimizzare la qualità delle
 attemptStrategy = [
   { name: 'Primary-Flash2.5', key: primaryKey, model: 'gemini-2.5-flash', skipRateLimit: false },
   { name: 'Backup-Flash2.5', key: backupKey, model: 'gemini-2.5-flash', skipRateLimit: true },
-  { name: 'Primary-Lite', key: primaryKey, model: 'gemini-3.1-flash-lite', skipRateLimit: false },
-  { name: 'Backup-Lite', key: backupKey, model: 'gemini-3.1-flash-lite', skipRateLimit: true }
+  { name: 'Primary-Lite', key: primaryKey, model: 'gemini-3.5-flash-lite', skipRateLimit: false },
+  { name: 'Backup-Lite', key: backupKey, model: 'gemini-3.5-flash-lite', skipRateLimit: true }
 ];
 
 for (plan of attemptStrategy) {
@@ -1113,19 +1130,11 @@ if (territoryResult.addressFound) {
 
 ### Data Flow Security
 
-```
-Email Content
-     │
-     ├─> NEVER stored on external servers
-     ├─> NEVER sent to third parties
-     └─> ONLY used for:
-           ├─ Gemini API (Google-owned, ephemeral)
-           └─ Google Sheets (customer owned)
-```
+Il contenuto email viene inviato a Gemini; la memoria è conservata in Google Sheets e i log possono contenere dati operativi. Conservazione e uso dei dati dipendono dai servizi e dai termini applicabili: vedere [Sicurezza](SECURITY_IT.md).
 
 ### GDPR Compliance
 
-- **No Data Retention by AI**: Gemini non usa i dati per addestramento.
+- **Uso dei dati AI**: verificare i termini applicabili al progetto; nessuna garanzia generale di esclusione da addestramento o revisione umana.
 - **Audit Logs**: Accessibili in Google Cloud logs (se attivati).
 - **Diritto all'Oblio**: Cancellazione manuale row in "ConversationMemory".
 - **Access Control**: Dati accessibili solo via Google Workspace account autorizzati.

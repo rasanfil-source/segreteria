@@ -933,10 +933,10 @@ assert(
 );
 
 console.log('--- Test _normalizeEmailAddress_ (gmail/googlemail + dots + plus) ---');
-const normalizedGooglemail = processor._normalizeEmailAddress_('Info.Parrocchia+archivio@googlemail.com');
-const normalizedGmail = processor._normalizeEmailAddress_('info.parrocchia@gmail.com');
-assert(normalizedGooglemail === 'infoparrocchia@gmail.com', `googlemail con dots/+ deve canonicalizzare a infoparrocchia@gmail.com, ottenuto ${normalizedGooglemail}`);
-assert(normalizedGmail === 'infoparrocchia@gmail.com', `gmail con dots deve canonicalizzare a infoparrocchia@gmail.com, ottenuto ${normalizedGmail}`);
+const normalizedGooglemail = processor._normalizeEmailAddress_('Test.Parish+archivio@googlemail.com');
+const normalizedGmail = processor._normalizeEmailAddress_('test.parish@gmail.com');
+assert(normalizedGooglemail === 'testparish@gmail.com', `googlemail con dots/+ deve canonicalizzare a testparish@gmail.com, ottenuto ${normalizedGooglemail}`);
+assert(normalizedGmail === 'testparish@gmail.com', `gmail con dots deve canonicalizzare a testparish@gmail.com, ottenuto ${normalizedGmail}`);
 assert(
   normalizedGooglemail === normalizedGmail,
   'gmail.com e googlemail.com dello stesso account devono essere equivalenti dopo normalizzazione'
@@ -1831,6 +1831,10 @@ console.log('--- Test processThread: densità bot oltre metà finestra attiva an
 
   const baseDate = new Date('2026-04-01T10:00:00Z');
   const botIndexes = new Set([0, 2, 4, 6, 7, 9, 10]);
+  const reviewLabels = [];
+  antiLoopProcessor.gmailService.addLabelToMessage = (id, label) => {
+    labeled.push(id); reviewLabels.push(label);
+  };
   const messages = Array.from({ length: 12 }, (_, index) => {
     const isBot = botIndexes.has(index);
     return createMessage(
@@ -1847,12 +1851,14 @@ console.log('--- Test processThread: densità bot oltre metà finestra attiva an
     getLabels: () => [],
     getMessages: () => messages
   };
+  messages.forEach(message => { message.getThread = () => thread; });
 
   const result = antiLoopProcessor.processThread(thread, '', [], new Set(), true);
-  assert(result.status === 'filtered', 'il thread con densità bot anomala deve essere filtrato');
-  assert(result.reason === 'email_loop_detected', 'deve usare la reason anti-loop quando i bot superano metà finestra');
+  assert(result.status === 'validation_failed', 'il thread con densità bot anomala richiede revisione');
+  assert(result.reason === 'possible_email_loop', 'il conteggio da solo non dimostra un loop');
   assert(classifierCalls === 0, 'il classifier non deve essere chiamato quando scatta anti-loop');
   assert(labeled.includes('m-bot-density-11'), 'il candidato finale deve essere marcato come gestito');
+  assert(reviewLabels.includes('Verifica') && !reviewLabels.includes('IA'), 'il burst sospetto deve restare in revisione, senza successo dichiarato');
 
   global.Session = originalSession;
   global.GmailApp = originalGmailApp;
@@ -1919,8 +1925,8 @@ console.log('--- Test processThread: anti-loop early-exit marca tutto il burst e
 
   const result = antiLoopBurstProcessor.processThread(thread, '', [], new Set(), true);
   assert(result.status === 'filtered', 'il burst esterno deve essere filtrato dall anti-loop');
-  assert(result.reason === 'email_loop_detected', 'deve scattare l anti-loop prima dello STEP 1');
-  assert(classifierCalls === 0, 'il classifier non deve essere chiamato quando scatta un early-exit anti-loop');
+  assert(result.reason !== 'email_loop_detected', 'i messaggi legittimi non devono essere chiusi come loop');
+  assert(classifierCalls === 1, 'cinque messaggi esterni non sono prova di loop');
   messages.forEach((message) => {
     assert(labeled.includes(message.getId()), `deve marcare tutto il burst, incluso ${message.getId()}`);
   });

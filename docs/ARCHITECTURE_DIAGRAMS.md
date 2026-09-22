@@ -1,5 +1,7 @@
 # 📐 System Architecture Diagrams
 
+> Local configuration, not a guarantee of provider quotas or availability. See the [current audit](RELIABILITY_AUDIT_2026-09-22.md) for limitations, migrations and uncertain-send handling.
+
 [![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](ARCHITECTURE_DIAGRAMS_IT.md)
 
 > **Complete visual representation of SPA (Segreteria Parrocchiale Automatica) architecture**
@@ -30,7 +32,7 @@ graph TB
     end
     
     subgraph "External APIs"
-        GeminiAPI["🧠 Google Gemini API<br/>3.1 Flash-Lite + Context Cache"]
+        GeminiAPI["🧠 Google Gemini API<br/>3.5 Flash-Lite + Context Cache"]
     end
     
     Gmail -->|Read Threads| Main
@@ -153,8 +155,8 @@ graph TD
     end
     
     subgraph "Model Chain"
-        F31["⭐ Flash 3.1 Lite<br/>RPD: 3500"]
-        FLITE["💡 Lite Alias<br/>RPM: 2000 / TPM: 2M"]
+        F31["⭐ Flash 3.5 Lite<br/>RPD locale: 1000"]
+        FLITE["💡 Lite Alias<br/>RPM locale: 15 / TPM: 250K"]
         CACHE["🧠 Context Cache<br/>TTL persisted"]
     end
     

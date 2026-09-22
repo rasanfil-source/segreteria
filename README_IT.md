@@ -81,9 +81,9 @@ graph LR
 | Gmail | Gratis | Account esistente |
 | Google Drive | Gratis | Quota standard sufficiente |
 | Google Apps Script | Gratis | Hosting incluso |
-| API Gemini AI | **Gratis** | Fino a 50 email/giorno con la free tier |
+| API Gemini AI | Quota gratuita dove disponibile | Capacità dipendente da modello, progetto e chiamate per email |
 
-💡 **Nota:** Entro i limiti della free tier (50 email/giorno), il sistema è **completamente gratuito**.
+Il progetto non introduce dipendenze a pagamento. Il costo operativo nullo dipende dalla quota gratuita effettiva dell'account e dalle funzioni abilitate; non è garantito un numero di email al giorno. Vedi [comportamento operativo e migrazione](docs/RELIABILITY_AUDIT_2026-09-22.md).
 
 ---
 
@@ -147,7 +147,7 @@ graph LR
 | Componente | Versione Minima | Versione Testata | Note |
 |------------|-----------------|------------------|------|
 | Google Apps Script Runtime | V8 | V8 | **Obbligatorio** |
-| Gemini API | Gemini 3.1 Flash-Lite | Gemini 3.1 Flash-Lite | Context cache disattivata di default in Free Tier |
+| Gemini API | Configurato: Gemini 3.7 Flash (generazione) | Configurato: Gemini 3.5 Flash-Lite (ausiliari) | Configurazione locale, non garanzia di disponibilità o quota gratuita |
 | Google Sheets API | v4 | v4 | - |
 | Gmail API | v1 | v1 | Advanced Service |
 | Node.js (per clasp) | 14+ | 20 LTS | Solo sviluppo |
@@ -299,7 +299,7 @@ Se l'API usage supera l'80%, il sistema:
 - ✅ **Nessun dato salvato su server esterni** (tutto su Google Workspace)
 - ⚠️ **Contenuto email inviato a Google Gemini** per classificazione e generazione: verificare le condizioni di trattamento dei dati del piano utilizzato prima dell'uso con email reali.
 - ✅ **Memoria conversazionale cancellabile** in qualsiasi momento
-- ✅ **Audit log completo** di tutte le operazioni
+- Log operativi e notifiche di revisione; consegna e completezza non sono garantite
 
 ### Controllo Qualità Multi-Livello
 

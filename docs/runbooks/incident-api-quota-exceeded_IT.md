@@ -1,5 +1,7 @@
 # 🚨 Runbook: Quota API Esaurita
 
+> Configurazione locale, non garanzia di quote o disponibilità del fornitore. Consultare il [resoconto aggiornato](../RELIABILITY_AUDIT_2026-09-22.md) per limiti, migrazioni e gestione degli invii incerti.
+
 > **Procedura quando si riceve errore 429 "Quota Exceeded"**
 
 ---
@@ -9,7 +11,7 @@
 | Campo | Valore |
 |-------|--------|
 | **Severità** | 🟠 ALTA |
-| **Tempo Risoluzione Target** | Immediato (workaround) / Reset ore 9:00 |
+| **Tempo Risoluzione Target** | Immediato (workaround) / Reset 00:00 America/Los_Angeles |
 | **Impatto** | Parziale - email non processate |
 | **Escalation** | Se problema persiste dopo reset quota |
 
@@ -35,9 +37,9 @@ function checkQuotaStatus() {
 
 | Modello | Limite RPD | Reset |
 |---------|------------|-------|
-| Gemini 3.1 Flash-Lite | 3.500/giorno | 9:00 IT |
-| Google Search Grounding | Disabilitato di default; verificare AI Studio se abilitato | 9:00 IT |
-| Creazione context cache | Disabilitata di default in Free Tier; conta come richiesta API se abilitata | 9:00 IT |
+| Gemini 3.5 Flash-Lite | 1.000/giorno (locale) | 00:00 America/Los_Angeles |
+| Google Search Grounding | Disabilitato di default; verificare AI Studio se abilitato | 00:00 America/Los_Angeles |
+| Creazione context cache | Disabilitata di default in Free Tier; conta come richiesta API se abilitata | 00:00 America/Los_Angeles |
 
 ---
 
@@ -49,7 +51,7 @@ function checkQuotaStatus() {
 // In gas_config.js, modifica temporaneamente:
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-2.5', 'flash-lite']  // Qualità prima, fallback conservativo
+  'generation': ['flash-3.7', 'flash-lite']  // Qualità prima, fallback conservativo
 };
 ```
 
@@ -75,7 +77,7 @@ CONFIG.DRY_RUN = true;  // Simula senza chiamate API
 
 ## ⏰ Reset Quota
 
-**La quota si resetta alle 9:00 italiane** (mezzanotte Pacific Time).
+**La quota si resetta al00:00 America/Los_Angeles italiane** (mezzanotte Pacific Time).
 
 ### Calcolo Tempo Residuo
 
@@ -104,12 +106,12 @@ function timeToQuotaReset() {
 ## 🔄 Post-Reset: Ripristino Configurazione
 
 ```javascript
-// Dopo le 9:00, ripristina configurazione normale:
+// Dopo 00:00 America/Los_Angeles, ripristina configurazione normale:
 
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
-  'fallback': ['flash-lite', 'flash-3.1-lite-backup']
+  'generation': ['flash-3.7', 'flash-3.7-backup', 'flash-lite', 'flash-lite-backup'],
+  'fallback': ['flash-lite', 'flash-lite-backup']
 };
 
 CONFIG.MAX_EMAILS_PER_RUN = 2;
@@ -156,7 +158,7 @@ Se quota esaurita frequentemente, valuta:
 
 | Metrica | Soglia Warning | Soglia Critica |
 |---------|---------------|----------------|
-| RPD Gemini 3.1 Flash-Lite | > 2.800/3.500 (80%) | > 3.325/3.500 (95%) |
+| RPD Gemini 3.5 Flash-Lite | > 80% della quota effettiva del progetto | > 95% della quota effettiva del progetto |
 | Google Search Grounding | Monitorare solo se abilitato in AI Studio | Monitorare solo se abilitato in AI Studio |
 | Token/risposta medio | > 20.000 | > 80.000 |
 | Email/ora | > 15 | > 25 |
@@ -191,7 +193,7 @@ function verifyQuotaResolved() {
 
 ## 📞 Escalation
 
-Se dopo reset quota (ore 9:00) il problema persiste:
+Se dopo reset quota (00:00 America/Los_Angeles) il problema persiste:
 
 1. Verifica credenziali API su [Google Cloud Console](https://console.cloud.google.com)
 2. Controlla eventuali restrizioni sull'API key

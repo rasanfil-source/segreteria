@@ -26,16 +26,13 @@ Il sistema è stato progettato per aiutare la parrocchia a rispettare il Regolam
 
 | Tipo di Dato | Come viene trattato | Base Giuridica |
 |--------------|---------------------|----------------|
-| **Email Mittente** | Usata solo per inviare la risposta e verificare la cronologia. | Legittimo Interesse (rispondere alla richiesta) |
-| **Contenuto Email** | Analizzato da Gemini AI per generare la risposta. **Non** usato per addestramento modelli. | Legittimo Interesse / Consenso Implicito |
-| **Dati Sensibili** | Le istruzioni indirizzano le situazioni delicate al parroco quando appropriato. La memoria conversazionale può conservare sintesi e flag contestuali, anche relativi a lutto, situazioni canoniche o impedimenti personali. La durata effettiva è descritta sotto; i flag non hanno una scadenza autonoma. | Protezione speciale (Art. 9 GDPR) |
+| **Email Mittente** | Usata per risposte, filtri, cronologia e log operativi. | Da valutare dal titolare |
+| **Contenuto Email** | Inviato a Gemini con contesto selezionato, cronologia ed estratti degli allegati. L'uso dei dati dipende dai termini del fornitore. | Da valutare dal titolare |
+| **Dati Sensibili** | Sintesi e flag possono contenere informazioni sensibili. I flag sensibili scadono dopo 180 giorni dall'evidenza registrata, per impostazione predefinita; per le righe legacy si usa il timestamp valido dell'interazione. Date sconosciute non dimostrano pertinenza attuale. | Richiede base appropriata e garanzie |
 
-### 2. Nessun Addestramento su Dati Utente
+### 2. Trattamento dei dati da parte del fornitore
 
-Google garantisce che i dati inviati tramite l'API Gemini (Vertex AI / Google AI Studio) nelle versioni a pagamento/enterprise (e con le dovute impostazioni di privacy attive):
--   **NON** vengono utilizzati per addestrare i modelli fondazionali.
--   **NON** vengono accessibili a revisori umani.
--   Vengono conservati solo per il tempo necessario all'elaborazione.
+Un flag locale free-tier non stabilisce garanzie privacy. I [termini Gemini API](https://ai.google.dev/gemini-api/terms), consultati il 22/09/2026, distinguono servizi gratuiti e a pagamento e prevedono disposizioni regionali. Descrivono uso dei dati, possibile revisione umana nei servizi gratuiti e conservazione limitata per prevenzione degli abusi nei servizi a pagamento. Valutare progetto e regione effettivi: il repository non certifica conformità né assenza di conservazione o accesso umano.
 
 ### 3. Diritto all'Oblio (Cancellazione)
 
@@ -72,7 +69,7 @@ Il foglio di calcolo funge da database e Knowledge Base.
 
 ### 3. Log e Monitoraggio
 
--   **Log Mascherati**: Il sistema è configurato per non loggare contenuti sensibili delle email nei log di Apps Script, ma solo metadati (ID messaggio, categoria, status).
+-   **Log**: Alcuni percorsi registrano mittenti, oggetti, motivi di validazione, contesto documentale o anteprime della risposta, anche in dry run. Non esiste una redazione universale. Limitare accesso e conservazione. Le notifiche possono includere oggetto, identificativi e motivi; vedi [comportamento operativo](RELIABILITY_AUDIT_2026-09-22.md).
 -   **Audit Trail**: Mantenere traccia di chi ha accesso allo script e al foglio di calcolo.
 
 ---

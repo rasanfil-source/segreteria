@@ -1441,10 +1441,10 @@ console.log('--- Test extractMainReply: tronca citazione Outlook prima del messa
     '',
     'Da: info@parrocchiasanteugenio.it <info@parrocchiasanteugenio.it>',
     'Inviato: giovedi 28 agosto 2026 08:45',
-    'A: Eugenio Carabba <egcarabba@gmail.com>',
+    'A: Utente Esempio <fixture-user-9@example.org>',
     'Oggetto: certificato di battesimo uso matrimonio',
     '',
-    'Buongiorno Sig. Carabba,',
+    'Buongiorno Sig. Esempio,',
     'in allegato trova il certificato richiesto.'
   ].join('\n');
 
@@ -1465,7 +1465,7 @@ console.log('--- Test extractMainReply: tronca citazione Outlook prima del messa
     'Grazie',
     'Cordialmente',
     '',
-    'Buongiorno Sig. Carabba,',
+    'Buongiorno Sig. Esempio,',
     'in allegato trova il certificato richiesto.'
   ].join('\n');
   const extractedAtSignature = service.extractMainReply(replyWithoutQuotedHeaders);
@@ -1477,7 +1477,7 @@ console.log('--- Test extractMainReply: tronca citazione Outlook prima del messa
     '<div>Buongiorno,</div>',
     '<div>Quali sono i prossimi passi per aggiornare il certificato?</div>',
     '<div>Cordialmente</div>',
-    '<div class="gmail_quote"><div>Buongiorno Sig. Carabba,</div>',
+    '<div class="gmail_quote"><div>Buongiorno Sig. Esempio,</div>',
     '<div>in allegato trova il certificato richiesto.</div></div>'
   ].join('');
   const extractedFromHtml = service._extractCurrentMessageBody_(contaminatedPlainBody, gmailHtml);
@@ -1689,9 +1689,9 @@ console.log('--- Test getThreadHistory: gmail/googlemail e dots equivalenti rest
   service.extractMessageDetails = (message) => message;
 
   const history = service.getThreadHistory(
-    [{ senderEmail: 'info.parrocchia@gmail.com', senderName: 'Info', body: 'Risposta con account Gmail equivalente' }],
+    [{ senderEmail: 'test.parish@gmail.com', senderName: 'Info', body: 'Risposta con account Gmail equivalente' }],
     10,
-    'infoparrocchia@googlemail.com'
+    'Test.Parish@googlemail.com'
   );
 
   assert(
@@ -1905,7 +1905,7 @@ console.log('--- Test sendHtmlReply: doppio fallback fallito rilancia errore ---
       getReplyTo: () => '', getFrom: () => 'utente@example.org',
       reply: () => {
         replyCalls += 1;
-        throw new Error(`reply-fail-${replyCalls}`);
+        throw new Error(`invalid argument: reply-fail-${replyCalls}`);
       }
     };
 
@@ -1920,7 +1920,7 @@ console.log('--- Test sendHtmlReply: doppio fallback fallito rilancia errore ---
         recipientCc: ''
       });
     } catch (e) {
-      threw = /Fallback nativo: reply-fail-2/.test(e.message);
+      threw = /Fallback nativo: invalid argument: reply-fail-2/.test(e.message);
     }
 
     assert(threw, 'se API e fallback nativi falliscono, sendHtmlReply deve rilanciare');

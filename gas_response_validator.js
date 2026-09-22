@@ -298,7 +298,12 @@ var ResponseValidator = class ResponseValidator {
 
     // === SEMANTIC VALIDATION (score basso o rischio di trasferimento acritico dalla KB) ===
     const knowledgeContextualization = validationResult.details.knowledgeContextualization || {};
-    const forceKnowledgeRelevanceReview = knowledgeContextualization.requiresSemanticReview === true;
+    const forceKnowledgeRelevanceReview = knowledgeContextualization.requiresSemanticReview === true ||
+      /\b(?:dispensa|nullit[aà]|invalid[oa]|garantiamo|garantito|non\s+(?:serve|occorre|[eè]\s+necessario)\s+(?:il\s+|un\s+)?(?:certificato|documento|permesso)|(?:pu[oò]|puoi|potete)\s+(?:comunque\s+)?(?:sposar|ricevere\s+il\s+sacramento))\b/i.test(currentResponse);
+    if (forceKnowledgeRelevanceReview && !this.semanticValidator) {
+      validationResult.isValid = false;
+      validationResult.errors.push('Semantica: controllo necessario non disponibile');
+    }
     const validationRequestPurpose = temporalContext &&
       temporalContext.validationContext &&
       typeof temporalContext.validationContext === 'object'
@@ -3628,9 +3633,10 @@ var SemanticValidator = class SemanticValidator {
    * Valida allucinazioni usando similitudine semantica
    */
   validateHallucinations(response, knowledgeBase, regexResult, emailContent, options = {}) {
+    const required = options.forceRelevanceReview === true;
     if (!this.runtimeSemanticAvailable) {
       return {
-        isValid: regexResult.score >= 0.6,
+        isValid: !required && regexResult.score >= 0.6,
         confidence: regexResult.score,
         skipped: true,
         reason: 'Validazione semantica non disponibile nel runtime corrente (UrlFetchApp mancante)'
@@ -3669,7 +3675,7 @@ var SemanticValidator = class SemanticValidator {
       console.warn(`⚠️ API Semantica fallita: ${error.message}`);
       if (!this.fallbackOnError) throw error;
       return {
-        isValid: regexResult.score >= 0.6,
+        isValid: !required && regexResult.score >= 0.6,
         confidence: regexResult.score,
         fallback: true,
         error: error.message

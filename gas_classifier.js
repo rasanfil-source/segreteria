@@ -262,8 +262,8 @@ var Classifier = class Classifier {
     // Marcatori citazione per vari client email
     const quoteMarkers = [
       /^>\s*(?:Da|From|On|Il giorno|Le)\b.*$/im,
-      /^On .* wrote:.*$/m,
-      /^Il giorno .* ha scritto:.*$/m,
+      /^On (?=[^\n]*(?:\d|@))[^\n]* wrote:\s*$/m,
+      /^Il giorno (?=[^\n]*(?:\d|@))[^\n]* ha scritto:\s*$/m,
       /^Il .* alle .* .* ha scritto:.*$/m,
       /^Da:\s*.*<[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}>.*$/m,
       /^From:.*Sent:.*$/m,

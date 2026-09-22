@@ -901,7 +901,7 @@ var EmailProcessor = class EmailProcessor {
       markHandledUnread();
       handledUnreadMarked = true;
     };
-    const markFailureForCurrentBurst = (labelType, reviewContext = {}) => {
+    const markFailureForCurrentBurst = (labelType, reviewContext = {}, markHandled = true) => {
       const targets = (responseContextMessages && responseContextMessages.length > 0)
         ? responseContextMessages
         : (candidate ? [candidate] : []);
@@ -917,7 +917,8 @@ var EmailProcessor = class EmailProcessor {
         } else {
           this._addErrorLabel(message);
         }
-        this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
+        if (markHandled) this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
+        else if (labeledMessageIds) labeledMessageIds.add(message.getId());
       });
     };
     try {
@@ -1605,14 +1606,13 @@ var EmailProcessor = class EmailProcessor {
         }
 
         if (
-          consecutiveExternal >= MAX_CONSECUTIVE_EXTERNAL ||
           botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL ||
           (messages.length > MAX_THREAD_LENGTH && totalBotRepliesInThread > maxBotRepliesInLongThread)
         ) {
           console.log(`   ⊖ Saltato: prevenzione loop email attivata (ping-pong/thread ripetitivo: interventiBot=${totalBotRepliesInThread}, sogliaBot=${maxBotRepliesInLongThread}, consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
-          markHandledUnread();
-          result.status = 'filtered';
-          result.reason = 'email_loop_detected';
+          markFailureForCurrentBurst('validation', { reason: 'possible_email_loop', subject: messageDetails.subject }, false);
+          result.status = 'validation_failed';
+          result.reason = 'possible_email_loop';
           return result;
         }
       }
@@ -1905,9 +1905,7 @@ var EmailProcessor = class EmailProcessor {
         isReply: isReplyBySubject || hasPriorOwnMessage,
         memoryExists: Boolean(ownConversationAnchor.lastMessageDate || memoryContext.lastUpdated),
         lastUpdated: ownConversationAnchor.lastMessageDate || memoryContext.lastUpdated || null,
-        now: messageDetails.date instanceof Date && !isNaN(messageDetails.date.getTime())
-          ? messageDetails.date
-          : processingTimestamp
+        now: processingTimestamp
       });
       console.log(`   📊 Modalità saluto: ${salutationMode}`);
 
@@ -3521,6 +3519,9 @@ ${addressLines.join('\n\n')}
       const sendTxn = this._beginSendTransaction(candidate.getId(), skipLock);
       if (!sendTxn.ok) {
         console.warn(`   ⊖ Invio saltato per idempotenza (${sendTxn.reason})`);
+        if (sendTxn.reason === 'gmail_send_uncertain') {
+          this._addValidationErrorLabel(candidate, { reason: 'gmail_send_uncertain', subject: messageDetails.subject });
+        }
         if (sendTxn.reason === 'already_sent') {
           markHandledUnreadOnce();
           result.status = 'skipped';
@@ -3534,7 +3535,9 @@ ${addressLines.join('\n\n')}
       }
 
       try {
+        messageDetails.sendOperationId = 'reply_' + String(candidate.getId()).replace(/[^a-zA-Z0-9_-]/g, '');
         this.gmailService.sendHtmlReply(candidate, response, messageDetails);
+        replySent = true;
         this._commitSendTransaction(candidate.getId(), sendTxn);
         this._recordConfirmedDuplicateReply_(
           duplicateReplyFingerprintContext,
@@ -3543,21 +3546,28 @@ ${addressLines.join('\n\n')}
         );
         replySent = true;
       } catch (e) {
+        if (replySent) throw e; // Post-send persistence failure must never roll back delivery.
         const errorMessage = e && e.message ? e.message : String(e);
         const classifiedSendError = this._classifyError(e);
         const ambiguousSendOutcome = classifiedSendError.type === 'NETWORK' || classifiedSendError.type === 'TIMEOUT';
         if (!ambiguousSendOutcome) {
           this._rollbackSendTransaction(candidate.getId(), sendTxn);
         } else {
-          // Gmail può aver accettato il messaggio prima che il client riceva un
-          // timeout/errore di rete: promuoviamo l'idempotency marker a `sent`
-          // per evitare un replay automatico alla ripresa del batch.
-          this._commitSendTransaction(candidate.getId(), sendTxn);
-          try {
+          const confirmed = typeof this.gmailService.reconcileSendOperation === 'function' &&
+            this.gmailService.reconcileSendOperation(messageDetails.sendOperationId);
+          if (confirmed) {
+            replySent = true;
+            this._commitSendTransaction(candidate.getId(), sendTxn);
             markHandledUnreadOnce();
-          } catch (markError) {
-            threadLogger.warn(`Errore label dopo invio ambiguo silenziato: ${markError.message}`);
+            result.status = 'replied';
+            result.reason = 'send_reconciled';
+            return result;
           }
+          responseContextMessages.forEach(message => {
+            this.props.setProperty(`send_uncertain_${message.getId()}`, String(Date.now()));
+          });
+          markFailureForCurrentBurst('validation', { reason: 'gmail_send_uncertain', subject: messageDetails.subject }, false);
+          result.reason = 'gmail_send_uncertain';
         }
         console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
 
@@ -3569,7 +3579,7 @@ ${addressLines.join('\n\n')}
             console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
           }
         } else if (ambiguousSendOutcome) {
-          console.warn(`   ↻ Errore invio ambiguo (${classifiedSendError.type}) - idempotenza promossa e messaggio marcato IA`);
+          console.warn('   ⚠️ Esito invio incerto: invio bloccato in attesa di revisione umana');
         } else {
           console.warn(`   ↻ Errore invio retryable (${classifiedSendError.type}) - nessuna marcatura permanente`);
         }
@@ -4452,6 +4462,22 @@ ${addressLines.join('\n\n')}
    * Verifica se l'email deve essere ignorata (blacklist, auto-reply, notifiche)
    * Usa le liste UNIFICATE (Codice + Foglio) presenti in GLOBAL_CACHE
    */
+  _getPersonalIgnoreSenders_() {
+    const props = this.props || PropertiesService.getScriptProperties();
+    const raw = String(props.getProperty('PERSONAL_IGNORE_SENDERS') || '').trim();
+    if (!raw) return [];
+    let entries;
+    try {
+      entries = raw.startsWith('[') ? JSON.parse(raw) : raw.split(/[\n,;]+/);
+      if (!Array.isArray(entries) || entries.some(value => typeof value !== 'string')) throw new Error('invalid');
+      entries = entries.map(value => value.trim().toLowerCase()).filter(Boolean);
+      if (entries.some(value => !/^[^\s<>@]+@(?:[a-z0-9-]+\.)+[a-z]{2,}$/i.test(value))) throw new Error('invalid');
+    } catch (_) {
+      throw new Error('PERSONAL_IGNORE_SENDERS non valido: correggere la Script Property prima di elaborare');
+    }
+    return [...new Set(entries)];
+  }
+
   _shouldIgnoreEmail(messageDetails) {
     const email = this._normalizeEmailAddress_(messageDetails.senderEmail || '');
     const subject = (messageDetails.subject || '').toLowerCase();
@@ -4462,7 +4488,7 @@ ${addressLines.join('\n\n')}
     const ignoreDomainsArray = (typeof GLOBAL_CACHE !== 'undefined' && Array.isArray(GLOBAL_CACHE.ignoreDomains))
       ? GLOBAL_CACHE.ignoreDomains
       : ((typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_DOMAINS)) ? CONFIG.IGNORE_DOMAINS : []);
-    const ignoreDomains = ignoreDomainsArray
+    const ignoreDomains = ignoreDomainsArray.concat(this._getPersonalIgnoreSenders_())
       .map(d => String(d == null ? '' : d).trim().toLowerCase())
       .filter(Boolean);
 
@@ -4478,7 +4504,7 @@ ${addressLines.join('\n\n')}
         senderDomain.endsWith('.' + blacklistDomain);
       return isExactMatch || isDomainMatch || isSubdomainMatch;
     })) {
-      console.log(`🚫 Ignorato: mittente in blacklist (${email})`);
+      console.log('🚫 Ignorato: mittente in blacklist');
       return true;
     }
 
@@ -4997,7 +5023,7 @@ ${addressLines.join('\n\n')}
     const sender = this._normalizeConversationEmailAddress_(messageDetails.senderEmail || messageDetails.sender || '');
     const subject = this._normalizeDuplicateReplyText_(messageDetails.subject || '');
     const body = this._normalizeDuplicateReplyText_(messageDetails.body || '');
-    if (!sender || (!subject && !body)) return null;
+    if (!sender || !body) return null;
 
     const payload = [
       'duplicate-reply-v1',
@@ -5265,6 +5291,14 @@ ${addressLines.join('\n\n')}
         }
       }
 
+      if (!props || typeof props.setProperty !== 'function') {
+        if (lockAcquired) scriptLock.releaseLock();
+        return { ok: false, reason: 'send_state_unavailable' };
+      }
+      if (props.getProperty(`send_uncertain_${messageId}`)) {
+        if (lockAcquired) scriptLock.releaseLock();
+        return { ok: false, reason: 'gmail_send_uncertain' };
+      }
       if (cache.get(sentKey)) {
         if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
           try { scriptLock.releaseLock(); } catch (_) { }
@@ -5306,6 +5340,7 @@ ${addressLines.join('\n\n')}
       }
 
       const nowTs = String(Date.now());
+      props.setProperty(`send_uncertain_${messageId}`, nowTs);
       cache.put(sendingKey, nowTs, sendingTtlSeconds); // 5 minuti
       cache.put(startedKey, nowTs, startedTtlSeconds); // 15 minuti: finestra anti-duplicato per errori ambigui
       if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
@@ -5341,6 +5376,10 @@ ${addressLines.join('\n\n')}
       console.warn(`  Impossibile committare la transazione in cache per ${messageId}: ${e.message}`);
     } finally {
       this._persistSendIdempotencyBackup_(messageId, props);
+      // Do not discard the durable guard if persisting confirmed evidence failed.
+      if (props && typeof props.deleteProperty === 'function' && this._readSendIdempotencyBackup_(messageId, props)) {
+        props.deleteProperty(`send_uncertain_${messageId}`);
+      }
       if (sendTxn && sendTxn.lock && typeof sendTxn.lock.releaseLock === 'function') {
         sendTxn.lock.releaseLock();
       }
@@ -5349,6 +5388,8 @@ ${addressLines.join('\n\n')}
 
   _rollbackSendTransaction(messageId, sendTxn = null) {
     if (!messageId) return;
+    const props = PropertiesService.getScriptProperties();
+    if (props && typeof props.deleteProperty === 'function') props.deleteProperty(`send_uncertain_${messageId}`);
     const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
       ? CacheService.getScriptCache()
       : null;
@@ -7462,8 +7503,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     );
     const isFormal = Boolean(
       isSbattezzo ||
-      category === 'formal' ||
-      requestTypeName === 'formal'
+      subIntents.canonical_complexity === true ||
+      (requestType && requestType.canonical_complexity === true)
     );
 
     if (physicalPresenceConstraint && physicalPresenceConstraint.reconciled) {
@@ -7473,16 +7514,18 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     }
     if (subIntents.bereavement === true) {
       flags.bereaved = true;
+      flags._evidence = Object.assign({}, flags._evidence, { bereaved: new Date().toISOString() });
     }
     if (isFormal) {
       flags.canonical_complexity = true;
+      flags._evidence = Object.assign({}, flags._evidence, { canonical_complexity: new Date().toISOString() });
     }
     if (
       requestTypeName === 'pastoral' ||
-      requestTypeName === 'mixed' ||
-      activeConcerns.pastoral_technical_blend === true
+      subIntents.ongoing_pastoral_process === true
     ) {
       flags.ongoing_pastoral_process = true;
+      flags._evidence = Object.assign({}, flags._evidence, { ongoing_pastoral_process: new Date().toISOString() });
     }
 
     return flags;
@@ -7754,7 +7797,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       /\bsecondo\s+me\b/i,
       /\bmi\s+sembrava\b/i,
       /\bero\s+convint[oa]\b/i,
-      /\bho\s+letto\b/i,
+      /\bho\s+letto\s+(?:che\s+)?[^.!?\n]{0,60}\b(?:alle|ore)\s+\d{1,2}(?:[:.]\d{2})?\b/i,
       /\b(?:fosse|era|sia|sarà|sarebbe|iniziasse|inizia|cominciasse|comincia)\s+(?:alle\s+)?(?:ore\s+)?(?:[01]?\d|2[0-3])[:.][0-5]\d\b/i,
       // English
       /\bi\s+thought\b/i,
@@ -7892,7 +7935,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     };
 
     const lang = String(detectedLanguage || 'it').toLowerCase().split('-')[0];
-    const footer = notes[lang] || notes.it;
+    const footer = notes[lang];
+    if (!footer) return response;
 
     return `${response.trim()}${footer}`;
   }

@@ -3012,9 +3012,33 @@ var GmailService = class GmailService {
 
         const quoteStart = this._findStructuredHtmlQuoteStart_(html);
         if (quoteStart !== -1) {
-            const currentHtml = html.substring(0, quoteStart);
+            // Remove balanced quote containers, preserving bottom-posted replies.
+            let currentHtml = html;
+            let start = quoteStart;
+            while (start !== -1) {
+                const opening = /^<(div|blockquote)\b[^>]*>/i.exec(currentHtml.slice(start));
+                if (!opening) break;
+                if (/\bdivRplyFwdMsg\b/i.test(opening[0])) {
+                    const tail = this._htmlToPlainText(currentHtml.slice(start));
+                    const ps = tail.match(/^\s*P\.?S\.?\s*[:.-]?[\s\S]*/im);
+                    currentHtml = currentHtml.slice(0, start) + (ps ? '<p>' + ps[0] + '</p>' : '');
+                    break;
+                }
+                const tags = new RegExp('<\\/?' + opening[1] + '\\b[^>]*>', 'gi');
+                tags.lastIndex = start;
+                let depth = 0;
+                let end = -1;
+                let tag;
+                while ((tag = tags.exec(currentHtml))) {
+                    depth += /^<\//.test(tag[0]) ? -1 : 1;
+                    if (depth === 0) { end = tags.lastIndex; break; }
+                }
+                if (end < 0) break; // malformed HTML: keep content rather than erase it
+                currentHtml = currentHtml.slice(0, start) + currentHtml.slice(end);
+                start = this._findStructuredHtmlQuoteStart_(currentHtml);
+            }
             const currentPlain = this._htmlToPlainText(currentHtml);
-            if (currentPlain.trim()) source = currentPlain;
+            source = currentPlain;
         }
 
         return this.extractMainReply(source);
@@ -3042,14 +3066,17 @@ var GmailService = class GmailService {
 
     extractMainReply(content) {
         const markers = [
-            /^On .* wrote:/m,
-            /^Il giorno .* ha scritto:/m,
+            /^On (?=[^\n]*(?:\d|@))[^\n]* wrote:\s*$/m,
+            /^Il giorno (?=[^\n]*(?:\d|@))[^\n]* ha scritto:\s*$/m,
             /^Il .{0,200}\s+alle(?:\s+ore)?\s+\d{1,2}[:.]\d{2}.{0,200}\s+ha scritto:/im,
             /^-{3,}.*Original Message/im,
             /^-{3,}.*Messaggio originale/im
         ];
 
         let result = String(content || '').replace(/\r\n?/g, '\n');
+        // Explicitly quoted lines have a reliable boundary. Keep interleaved replies.
+        result = result.replace(/^(?:On [^\n]* wrote:|Il [^\n]*ha scritto:)\s*\n(?=\s*>)/gmi, '')
+            .split('\n').filter(line => !/^\s*>/.test(line)).join('\n');
         let earliestMatch = -1;
 
         for (const marker of markers) {
@@ -3060,7 +3087,8 @@ var GmailService = class GmailService {
         }
 
         if (earliestMatch !== -1) {
-            result = result.substring(0, earliestMatch);
+            const postscript = result.substring(earliestMatch).match(/^\s*P\.?S\.?\s*[:.-]?[\s\S]*/im);
+            result = result.substring(0, earliestMatch) + (postscript ? '\n' + postscript[0] : '');
         }
 
         // Outlook e alcuni client mobili riportano il messaggio precedente come
@@ -3106,7 +3134,8 @@ var GmailService = class GmailService {
             }
         }
         if (earliestSigMatch !== -1) {
-            result = result.substring(0, earliestSigMatch);
+            const postscript = result.substring(earliestSigMatch).match(/^\s*P\.?S\.?\s*[:.-]?[\s\S]*/im);
+            result = result.substring(0, earliestSigMatch) + (postscript ? '\n' + postscript[0] : '');
         }
 
         return result.trim();
@@ -3151,6 +3180,17 @@ var GmailService = class GmailService {
     // ========================================================================
     // INVIO RISPOSTA
     // ========================================================================
+
+    reconcileSendOperation(operationId) {
+        if (!/^[a-zA-Z0-9_-]+$/.test(operationId || '')) return false;
+        try {
+            this._incrementGmailCallCounterOrThrow_('messages.list');
+            const found = Gmail.Users.Messages.list('me', {
+                q: `in:sent rfc822msgid:${operationId}@parish-reply.invalid`, maxResults: 2
+            });
+            return Boolean(found && found.messages && found.messages.length === 1);
+        } catch (_) { return false; }
+    }
 
     sendReply(thread, replyText, messageDetails = {}) {
         const details = (messageDetails && typeof messageDetails === 'object') ? messageDetails : {};
@@ -3214,7 +3254,8 @@ var GmailService = class GmailService {
                 msg.includes('econnreset') ||
                 msg.includes('backend error') ||
                 msg.includes('internal error') ||
-                /\b(500|502|503|504)\b/.test(msg);
+                /\b(500|502|503|504)\b/.test(msg) ||
+                !/\b(?:400|401|403|404|429)\b|invalid argument|invalid recipient|permission|not authorized|quota|daily.*limit|gmail_daily_call_limit_reached/i.test(msg);
         };
 
         const htmlBody = (typeof markdownToHtml === 'function')
@@ -3228,6 +3269,7 @@ var GmailService = class GmailService {
 
         const hasThreadingInfo = messageDetails.rfc2822MessageId;
         let apiSendError = null;
+        let apiSendAttempted = false;
 
         const safeSessionEmail = (getterName) => {
             try {
@@ -3361,6 +3403,7 @@ var GmailService = class GmailService {
                 const safeTo = encodeAddress(String(messageDetails.senderEmail || '').replace(/[\r\n]+/g, '').trim());
                 const rawHeaders = [
                     'MIME-Version: 1.0',
+                    messageDetails.sendOperationId ? `Message-ID: <${messageDetails.sendOperationId}@parish-reply.invalid>` : '',
                     `Date: ${new Date().toUTCString()}`,
                     `From: ${safeFrom}`,
                     `To: ${safeTo}`,
@@ -3399,6 +3442,10 @@ var GmailService = class GmailService {
                 encodedMessage = encodedMessage.replace(/=+$/, '');
 
                 this._incrementGmailCallCounterOrThrow_('messages.send');
+                if (typeof Gmail === 'undefined' || !Gmail.Users || !Gmail.Users.Messages || typeof Gmail.Users.Messages.send !== 'function') {
+                    throw new Error('Gmail RAW API unavailable before send');
+                }
+                apiSendAttempted = true;
                 Gmail.Users.Messages.send({
                     raw: encodedMessage,
                     threadId: threadId
@@ -3410,8 +3457,8 @@ var GmailService = class GmailService {
 
             } catch (apiError) {
                 apiSendError = apiError;
-                if (isAmbiguousSendError(apiError)) {
-                    throw new Error(`Esito invio Gmail API ambiguo: fallback nativo bloccato (${apiError.message})`);
+                if (apiSendAttempted && isAmbiguousSendError(apiError)) {
+                    throw new Error(`Network: esito invio Gmail API ambiguo: fallback nativo bloccato (${apiError.message})`);
                 }
                 console.warn(`⚠️ Gmail API fallita, ripiego su GmailApp: ${apiError.message}`);
             }
@@ -3452,7 +3499,7 @@ var GmailService = class GmailService {
         } catch (error) {
             console.error(`❌ Risposta fallita: ${error.message}`);
             if (isAmbiguousSendError(error)) {
-                throw new Error(`Esito invio GmailApp ambiguo: ulteriori fallback bloccati (${error.message})`);
+                throw new Error(`Network: esito invio GmailApp ambiguo: ulteriori fallback bloccati (${error.message})`);
             }
             try {
                 mailEntity.reply(plainText || this._stripHtmlTags(finalResponse));

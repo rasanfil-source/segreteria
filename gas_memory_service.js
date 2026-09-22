@@ -775,6 +775,19 @@ var MemoryService = class MemoryService {
         normalized[key] = true;
       }
     });
+    if (source._evidence && typeof source._evidence === 'object') {
+      normalized._evidence = {};
+      Object.keys(allowed).forEach(key => {
+        if (source._evidence[key] === false) normalized._evidence[key] = false;
+        else if (Number.isFinite(Date.parse(source._evidence[key]))) normalized._evidence[key] = source._evidence[key];
+      });
+    }
+    Object.keys(allowed).forEach(key => {
+      if (Object.prototype.hasOwnProperty.call(source, key) &&
+          (source[key] === false || source[key] === null || String(source[key]).toLowerCase() === 'false')) {
+        normalized._evidence = Object.assign({}, normalized._evidence, { [key]: false });
+      }
+    });
 
     return normalized;
   }
@@ -797,6 +810,9 @@ var MemoryService = class MemoryService {
 
     if (!source || typeof source !== 'object' || Array.isArray(source)) return merged;
 
+    const incomingEvidence = this._normalizeContextualFlags_(source)._evidence;
+    if (incomingEvidence) merged._evidence = Object.assign({}, merged._evidence, incomingEvidence);
+
     const allowed = {
       remote_user: true,
       bereaved: true,
@@ -809,8 +825,11 @@ var MemoryService = class MemoryService {
       const raw = source[key];
       if (raw === false || raw === null || String(raw).toLowerCase() === 'false') {
         delete merged[key];
+        merged._evidence = Object.assign({}, merged._evidence, { [key]: false });
       } else if (raw === true || String(raw).toLowerCase() === 'true') {
         merged[key] = true;
+        const evidence = source._evidence && source._evidence[key];
+        merged._evidence = Object.assign({}, merged._evidence, { [key]: evidence || new Date().toISOString() });
       }
     });
 
@@ -1883,14 +1902,14 @@ var MemoryService = class MemoryService {
    * @returns {string} timestamp valido
    */
   _validateAndNormalizeTimestamp(timestamp) {
-    const fallback = new Date().toISOString();
+    const fallback = null;
     if (!timestamp) {
       return fallback;
     }
 
     if (timestamp instanceof Date) {
       if (!isNaN(timestamp.getTime())) {
-        return timestamp.toISOString();
+        return this._validateAndNormalizeTimestamp(timestamp.toISOString());
       }
       console.warn('⚠️ Timestamp Date non valido, reset');
       return fallback;
@@ -1899,7 +1918,7 @@ var MemoryService = class MemoryService {
     if (typeof timestamp === 'number' && Number.isFinite(timestamp)) {
       const numericDate = new Date(timestamp);
       if (!isNaN(numericDate.getTime())) {
-        return numericDate.toISOString();
+        return this._validateAndNormalizeTimestamp(numericDate.toISOString());
       }
       console.warn('⚠️ Timestamp numerico non valido, reset');
       return fallback;
@@ -1963,6 +1982,26 @@ var MemoryService = class MemoryService {
     const rawMemorySummary = values[8] || '';
     const parsedMemorySummary = this._parseMemorySummaryState(rawMemorySummary);
     const contextualFlags = this._normalizeContextualFlags_(values[9]);
+    const ttlDays = (typeof CONFIG !== 'undefined' && Number(CONFIG.SENSITIVE_FLAGS_TTL_DAYS) > 0)
+      ? Number(CONFIG.SENSITIVE_FLAGS_TTL_DAYS) : 180;
+    contextualFlags._evidence = contextualFlags._evidence || {};
+    const legacySignals = {
+      bereaved: /\b(lutto|decesso|funerale|esequie|defunt[oaie]|vedov[oaie])\b/i,
+      canonical_complexity: /\b(sbattezzo|apostasia|divorzio|divorziat[oaie]|separazione|separat[oaie])\b/i,
+      ongoing_pastoral_process: /\b(accompagnamento|percorso\s+pastorale|cammino\s+pastorale|direzione\s+spirituale|colloquio\s+pastorale)\b/i
+    };
+    const legacyText = [values[2], rawMemorySummary, values[4]].join(' ');
+    ['bereaved', 'canonical_complexity', 'ongoing_pastoral_process'].forEach(key => {
+      const evidence = contextualFlags._evidence[key];
+      const anchor = evidence === false ? null : (evidence || lastUpdated);
+      if (contextualFlags[key] === true || evidence !== undefined || legacySignals[key].test(legacyText)) {
+        contextualFlags._evidence[key] = anchor || false;
+        if (!anchor || Date.now() - Date.parse(anchor) > ttlDays * 86400000) {
+          contextualFlags[key] = false;
+          contextualFlags._evidence[key] = false;
+        }
+      }
+    });
 
     return {
       exists: true,

@@ -788,6 +788,7 @@ COMPITI:
      "visit_ok" quando l'invito/presenza in segreteria e' appropriato;
      "unknown" se non e' chiaro.
 12. Determina relational_posture basandoti ESCLUSIVAMENTE su marcatori linguistici osservabili, non su stati psicologici:
+   - Una difficolta con moduli, documenti o strumenti non e da sola una crisi personale. Saluti al parroco, ringraziamenti e posture appreciative/open non attivano da soli emotional_distress, bereavement o un percorso pastorale.
    - "direct": richiesta neutra, essenziale o operativa, senza marcatori relazionali forti (DEFAULT).
    - "personal": condivisione esplicita di fatti personali delicati, vissuti intimi, richiesta di ascolto o bisogno pastorale.
    - "appreciative": entusiasmo esplicito, ringraziamenti non rituali, apprezzamento per persone/aspetti della parrocchia, oppure condivisione positiva di un legame personale concreto con la parrocchia, il percorso richiesto o la comunità.

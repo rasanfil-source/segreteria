@@ -1,6 +1,6 @@
 import os
 
-test_file = r"c:\Users\romolo\OneDrive\Documenti\SCRIPT\GMAIL AUTOMATICA\GMAIL PARROCCHIA\Google Script\AG\tests\test_gmail_service.js"
+test_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tests", "test_gmail_service.js")
 
 with open(test_file, 'rb') as f:
     content = f.read()

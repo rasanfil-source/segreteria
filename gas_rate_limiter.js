@@ -1162,27 +1162,68 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   _readWindowFromProperties(windowType, backupKey) {
     const chunkedWindow = this._readChunkedDataWindow(windowType, 'window');
     if (chunkedWindow !== null) {
+      this._clearRecoveredWindowQuarantine_(windowType, chunkedWindow);
       return chunkedWindow;
     }
 
     let windowData = [];
     try {
       windowData = JSON.parse(this.props.getProperty(windowType + '_window') || '[]');
-      if (!Array.isArray(windowData)) {
-        console.warn(`⚠️ ${windowType}_window non è un array, reset a []`);
-        windowData = [];
+      if (!this._validRateWindow_(windowData)) {
+        throw new Error('Invalid rate window');
       }
       if (!windowData.length && backupKey) {
         const backup = this.props.getProperty(backupKey);
         if (backup) {
           const backupData = JSON.parse(backup);
-          windowData = Array.isArray(backupData) ? backupData : [];
+          if (!this._validRateWindow_(backupData)) throw new Error('Invalid backup');
+          windowData = backupData;
         }
       }
     } catch (e) {
-      console.warn(`⚠️ Errore parsing ${windowType}_window da PropertiesService, reset a []`);
+      console.warn(`⚠️ Stato ${windowType} illeggibile: finestra prudenziale di 60 secondi`);
+      return this._quarantineWindow_(windowType);
     }
+    this._clearRecoveredWindowQuarantine_(windowType, windowData);
     return windowData;
+  }
+
+  _clearRecoveredWindowQuarantine_(windowType, entries) {
+    // A later, independent corruption must start its own bounded quarantine.
+    const hasQuarantine = entries.some(entry => String(entry.nonce || '').startsWith('corrupt_'));
+    if (!hasQuarantine && this.props.getProperty(`rate_limit_corrupt_${windowType}_since`) &&
+        typeof this.props.deleteProperty === 'function') {
+      this.props.deleteProperty(`rate_limit_corrupt_${windowType}_since`);
+    }
+  }
+
+  _quarantineWindow_(windowType) {
+    const key = `rate_limit_corrupt_${windowType}_since`;
+    let since = Number(this.props.getProperty(key));
+    if (!since || !Number.isFinite(since) || since > Date.now()) {
+      since = Date.now();
+      this.props.setProperty(key, String(since));
+    }
+    if (Date.now() - since >= 60000) {
+      this.props.setProperty(windowType + '_window', '[]');
+      this.props.setProperty(`rate_limit_window_${windowType}_chunks`, '0');
+      this.props.setProperty(`rate_limit_wal_${windowType}_chunks`, '0');
+      this.props.deleteProperty(`rate_limit_${windowType}_backup`);
+      this.props.deleteProperty(key);
+      return [];
+    }
+    return Object.keys(this.models || {}).flatMap(modelKey => {
+      const model = this.models[modelKey];
+      return Array.from({ length: windowType === 'rpm' ? Math.max(1, model.rpm) : 1 }, (_, i) => ({
+        model: modelKey, modelKey, timestamp: since, tokens: model.tpm,
+        nonce: `corrupt_${windowType}_${modelKey}_${since}_${i}`
+      }));
+    });
+  }
+
+  _validRateWindow_(value) {
+    return Array.isArray(value) && value.every(entry => entry && typeof entry === 'object' &&
+      Number.isFinite(Number(entry.timestamp)) && typeof (entry.modelKey || entry.model) === 'string');
   }
 
   _refreshCache() {
@@ -1438,20 +1479,22 @@ var GeminiRateLimiter = class GeminiRateLimiter {
 
   _readChunkedDataWindow(windowType, scope = 'wal') {
     const prefix = this._getChunkedWindowPrefix_(windowType, scope);
-    const count = parseInt(this.props.getProperty(`${prefix}_chunks`) || '0', 10) || 0;
+    const rawCount = this.props.getProperty(`${prefix}_chunks`);
+    const count = Number(rawCount || 0);
+    if (!Number.isInteger(count) || count < 0 || count > 200) return this._quarantineWindow_(windowType);
     if (count <= 0) return null;
 
     const merged = [];
     for (let i = 0; i < count; i++) {
       const chunkStr = this.props.getProperty(`${prefix}_${i}`);
-      if (!chunkStr) continue;
+      if (!chunkStr) return this._quarantineWindow_(windowType);
       try {
         const chunk = JSON.parse(chunkStr);
-        if (Array.isArray(chunk)) {
+        if (this._validRateWindow_(chunk)) {
           for (const entry of chunk) merged.push(entry);
-        }
+        } else return this._quarantineWindow_(windowType);
       } catch (e) {
-        console.warn(`⚠️ Chunk finestra rate limiter corrotto ignorato (${prefix}_${i}): ${e.message}`);
+        return this._quarantineWindow_(windowType);
       }
     }
     return merged;

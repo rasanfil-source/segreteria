@@ -419,9 +419,32 @@ function isInSuspensionTime(checkDate = new Date()) {
  * permette un ciclo di lavorazione anche durante la sospensione.
  */
 function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackDays = 7) {
+  let cache = null;
+  try { cache = typeof CacheService !== 'undefined' ? CacheService.getScriptCache() : null; } catch (_) { }
+  const mode = typeof GLOBAL_CACHE !== 'undefined' ? GLOBAL_CACHE.languageMode : 'all';
+  const key = `stale_scan_v2_${maxAgeHours}_${searchLimit}_${maxLookbackDays}_${mode || 'all'}`;
+  const read = name => { try { return cache && cache.get(name); } catch (_) { return null; } };
+  const cached = read(key);
+  if (cached === 'yes') return true;
+  if (cached === 'no') return false;
+  if (cached === 'unknown') return null;
+  const state = { offset: Math.max(0, Number(read(key + '_offset')) || 0),
+    messageOffset: Math.max(0, Number(read(key + '_message')) || 0) };
+  const result = scanStaleUnreadThreads_(maxAgeHours, searchLimit, maxLookbackDays, state);
+  try { if (cache) {
+    cache.put(key, result === true ? 'yes' : result === false ? 'no' : 'unknown', 300);
+    cache.put(key + '_offset', String(state.offset), 21600);
+    cache.put(key + '_message', String(state.messageOffset), 21600);
+  } } catch (_) { console.warn('⚠️ Cache scansione sospensione non disponibile'); }
+  return result;
+}
+
+function scanStaleUnreadThreads_(maxAgeHours, searchLimit, maxLookbackDays, state) {
   const safeMaxAgeHours = Number(maxAgeHours) || 12;
   const safeMaxLookbackDays = Number(maxLookbackDays) || 7;
-  const safeSearchLimit = Math.max(15, Number(searchLimit) || 100);
+  const safeSearchLimit = Math.min(100, Math.max(15, Number(searchLimit) || 100));
+  let scanUnknown = false;
+  let inspectedMessages = 0;
   const cutoffMs = Date.now() - (safeMaxAgeHours * 60 * 60 * 1000);
   const oldestRelevantMs = Date.now() - (safeMaxLookbackDays * 24 * 60 * 60 * 1000);
 
@@ -445,6 +468,10 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
       if (typeof GmailService !== 'undefined' && GmailService) {
         staleMetadataService = staleMetadataService || new GmailService();
       }
+      if (!staleMetadataService || typeof staleMetadataService._getOptionalLabelIdByName !== 'function') {
+        scanUnknown = true;
+        return terminalLabelIds;
+      }
       if (staleMetadataService && typeof staleMetadataService._getOptionalLabelIdByName === 'function') {
         const resolvedTerminalLabelIds = terminalLabelNames
           .map(label => staleMetadataService._getOptionalLabelIdByName(label))
@@ -458,6 +485,7 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
       }
     } catch (labelError) {
       console.warn(`⚠️ hasStaleUnreadThreads: impossibile risolvere label terminali (${labelError.message})`);
+      scanUnknown = true;
       terminalLabelIds = [];
     }
     return terminalLabelIds;
@@ -470,13 +498,16 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
       const ids = getTerminalLabelIds();
       if (ids.length === 0 && terminalLabelNames.length > 0) return false; // fail-open: detector backlog, non path di invio
       if (!staleMetadataService || typeof staleMetadataService._getMessageMetadataWithResilience !== 'function') {
+        scanUnknown = true;
         return false;
       }
       const metadata = staleMetadataService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
+      if (!metadata || !Array.isArray(metadata.labelIds)) scanUnknown = true;
       const msgLabelIds = metadata && Array.isArray(metadata.labelIds) ? metadata.labelIds : [];
       return ids.some(id => msgLabelIds.includes(id));
     } catch (metadataError) {
       console.warn(`⚠️ hasStaleUnreadThreads: controllo label messaggio fallito (${metadataError.message})`);
+      scanUnknown = true;
       return false;
     }
   };
@@ -485,6 +516,7 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
     try {
       const date = (message && typeof message.getDate === 'function') ? message.getDate() : null;
       const timeMs = date instanceof Date ? date.getTime() : NaN;
+      if (!Number.isFinite(timeMs)) scanUnknown = true;
       let unread = Boolean(message && typeof message.isUnread === 'function' && message.isUnread());
       if (!unread && message && typeof message.getId === 'function') {
         try {
@@ -493,11 +525,13 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
           }
           if (staleMetadataService && typeof staleMetadataService._getMessageMetadataWithResilience === 'function') {
             const metadata = staleMetadataService._getMessageMetadataWithResilience(message.getId(), { format: 'minimal' }, 1);
+            if (!metadata || !Array.isArray(metadata.labelIds)) scanUnknown = true;
             const labelIds = metadata && Array.isArray(metadata.labelIds) ? metadata.labelIds : [];
             unread = labelIds.includes('UNREAD') && labelIds.includes('INBOX');
           }
         } catch (metadataUnreadError) {
           console.warn(`⚠️ hasStaleUnreadThreads: fallback UNREAD metadata fallito (${metadataUnreadError.message})`);
+          scanUnknown = true;
         }
       }
       return unread &&
@@ -507,6 +541,7 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
         !hasTerminalLabel(message);
     } catch (msgError) {
       console.warn(`⚠️ hasStaleUnreadThreads: messaggio ignorato per errore metadata (${msgError.message})`);
+      scanUnknown = true;
       return false;
     }
   };
@@ -515,40 +550,60 @@ function hasStaleUnreadThreads(maxAgeHours = 12, searchLimit = 100, maxLookbackD
 
   const pageSize = 25;
   try {
-    for (let offset = 0; offset < safeSearchLimit; offset += pageSize) {
+    const startOffset = state.offset;
+    for (let offset = startOffset; offset < startOffset + safeSearchLimit; offset += pageSize) {
       let threads = [];
       try {
-        threads = GmailApp.search(query, offset, Math.min(pageSize, safeSearchLimit - offset));
+        threads = GmailApp.search(query, offset, Math.min(pageSize, startOffset + safeSearchLimit - offset));
       } catch (searchError) {
         console.warn(`⚠️ hasStaleUnreadThreads: GmailApp.search fallita (offset=${offset}): ${searchError.message}`);
-        return false;
+        return null;
       }
 
-      if (!Array.isArray(threads) || threads.length === 0) break;
+      if (!Array.isArray(threads)) return null;
+      if (threads.length === 0) { state.offset = 0; state.messageOffset = 0; return scanUnknown ? null : false; }
+      state.offset = offset + threads.length;
 
       // Fix architetturale: filtra i falsi positivi della query `newer_than`
       // prima di passare al controllo dettagliato per-messaggio.
-      for (const thread of threads) {
+      for (let threadIndex = 0; threadIndex < threads.length; threadIndex++) {
+        const thread = threads[threadIndex];
         try {
           if (thread && typeof thread.refresh === 'function') thread.refresh();
           // Verifichiamo a livello messaggio: un thread può contenere vecchie
           // risposte già terminali e nuovi follow-up ancora elaborabili.
-          const messages = thread && typeof thread.getMessages === 'function' ? thread.getMessages() : [];
-          const hasInternalStale = Array.isArray(messages) && messages.some(isProcessableStaleUnread);
-
-          if (hasInternalStale) return true;
+          const messages = thread && typeof thread.getMessages === 'function' ? thread.getMessages() : null;
+          if (!Array.isArray(messages)) { scanUnknown = true; continue; }
+          for (let index = state.messageOffset || 0; index < messages.length; index++) {
+            if (inspectedMessages >= 200) {
+              state.offset = offset + threadIndex;
+              state.messageOffset = index;
+              return null;
+            }
+            inspectedMessages++;
+            if (isProcessableStaleUnread(messages[index])) {
+              state.offset = 0; state.messageOffset = 0;
+              return scanUnknown ? null : true;
+            }
+          }
+          state.messageOffset = 0;
 
         } catch (threadError) {
           console.warn(`⚠️ hasStaleUnreadThreads: thread ignorato per errore (${threadError.message})`);
+          scanUnknown = true;
         }
+      }
+      if (threads.length < Math.min(pageSize, startOffset + safeSearchLimit - offset)) {
+        state.offset = 0;
+        return scanUnknown ? null : false;
       }
     }
   } catch (e) {
     console.warn(`⚠️ hasStaleUnreadThreads: fallback conservativo per errore inatteso (${e.message})`);
-    return false;
+    return null;
   }
 
-  return false;
+  return null; // Budget exhausted: continue at the cursor, never claim absence.
 }
 
 // ====================================================================
@@ -1908,7 +1963,9 @@ function main() {
         ? CONFIG.SUSPENSION_STALE_UNREAD_HOURS
         : 12;
 
-      if (!hasStaleUnreadThreads(staleHours)) {
+      const staleState = hasStaleUnreadThreads(staleHours);
+      if (staleState !== true) {
+        if (staleState === null) console.warn('⚠️ Stato richieste pendenti sconosciuto: scansione rinviata e sospensione mantenuta.');
         console.log('💤 Sistema in sospensione (orario ufficio/festività).');
         return;
       }

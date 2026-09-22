@@ -79,9 +79,9 @@ graph LR
 | Gmail | Free | Existing account |
 | Google Drive | Free | Standard quota sufficient |
 | Google Apps Script | Free | Hosting included |
-| Gemini AI API | **Free** | Up to 50 emails/day with free tier |
+| Gemini AI API | Free quota where available | Capacity depends on model, project and calls per email |
 
-💡 **Note:** Within the free tier limits (50 emails/day), the system is **completely free**.
+The project introduces no paid dependency. Zero operating cost depends on the account's actual free quota and enabled features; there is no guaranteed email/day allowance. See [current operational behavior and migration](docs/RELIABILITY_AUDIT_2026-09-22.md).
 
 ---
 
@@ -144,7 +144,7 @@ graph LR
 | Component | Minimum Version | Tested Version | Notes |
 |-----------|-----------------|----------------|-------|
 | Google Apps Script Runtime | V8 | V8 | **Required** |
-| Gemini API | Gemini 3.1 Flash-Lite | Gemini 3.1 Flash-Lite | Context cache off by default in Free Tier |
+| Gemini API | Configured: Gemini 3.7 Flash (generation) | Configured: Gemini 3.5 Flash-Lite (auxiliary) | Local configuration, not a guarantee of availability or free quota |
 | Google Sheets API | v4 | v4 | - |
 | Gmail API | v1 | v1 | Advanced Service |
 | Node.js (for clasp) | 14+ | 20 LTS | Development only |
@@ -288,7 +288,7 @@ If API usage exceeds 80%, the system:
 - ✅ **No data saved on external servers** (everything on Google Workspace)
 - ✅ **No emails sent to third parties** for AI training
 - ✅ **Conversational memory deletable** at any time
-- ✅ **Complete audit log** of all operations
+- Operational logs and review notifications; delivery and completeness are not guaranteed
 
 ### Multi-Level Quality Control
 

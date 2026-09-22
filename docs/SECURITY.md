@@ -26,16 +26,13 @@ The system is designed to help the parish comply with the General Data Protectio
 
 | Data Type | How it is processed | Legal Basis |
 |-----------|---------------------|-------------|
-| **Sender Email** | Used only to send the reply and verify history. | Legitimate Interest (replying to request) |
-| **Email Content** | Analyzed by Gemini AI to generate the response. **NOT** used for model training. | Legitimate Interest / Implied Consent |
-| **Sensitive Data** | Instructions refer sensitive situations to the priest when appropriate. Conversation memory may retain summaries and contextual flags concerning bereavement, canonical situations or personal constraints. Actual retention is described below; flags have no independent expiry. | Special Protection (Art. 9 GDPR) |
+| **Sender Email** | Used for replies, filters, history and operational logs. | To be assessed by the controller |
+| **Email Content** | Sent to Gemini with selected context, history and attachment extracts. Provider terms govern data use. | To be assessed by the controller |
+| **Sensitive Data** | Summaries and contextual flags can contain sensitive information. Sensitive flags expire after 180 days from recorded evidence by default; legacy rows use their valid interaction timestamp. Unknown timestamps do not establish current relevance. | Requires an appropriate basis and safeguards |
 
-### 2. No Training on User Data
+### 2. Provider Data Processing
 
-Google guarantees that data sent via the Gemini API (Vertex AI / Google AI Studio) in paid/enterprise versions (and with proper privacy settings active):
--   **IS NOT** used to train foundational models.
--   **IS NOT** accessible to human reviewers.
--   Is retained only for the time necessary for processing.
+Do not infer privacy guarantees from a local free-tier flag. The [Gemini API terms](https://ai.google.dev/gemini-api/terms), checked on 2026-09-22, distinguish unpaid and paid services and include regional provisions. They describe data use, possible human review for unpaid services, and limited retention for abuse prevention for paid services. Assess the actual project and region; this repository does not certify legal compliance or promise absence of retention or human access.
 
 ### 3. Right to be Forgotten (Deletion)
 
@@ -72,7 +69,7 @@ The spreadsheet acts as a database and Knowledge Base.
 
 ### 3. Logs and Monitoring
 
--   **Masked Logs**: The system is configured not to log sensitive email content in Apps Script logs, but only metadata (message ID, category, status).
+-   **Logs**: Some paths log sender addresses, subjects, validation reasons, document context or response previews (including dry run). There is no universal redaction layer. Restrict log access and retention. Review emails may include subject, identifiers and reasons; see [operational behavior](RELIABILITY_AUDIT_2026-09-22.md).
 -   **Audit Trail**: Keep track of who has access to the script and the spreadsheet.
 
 ---

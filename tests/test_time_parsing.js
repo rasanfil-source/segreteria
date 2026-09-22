@@ -447,7 +447,7 @@ console.log('--- Test hasStaleUnreadThreads (label terminali a livello messaggio
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }
 
-console.log('--- Test hasStaleUnreadThreads fail-open se lookup label non disponibile ---');
+console.log('--- Test hasStaleUnreadThreads sconosciuto se lookup label non disponibile ---');
 {
   const originalConfig = global.CONFIG;
   const originalGmailApp = global.GmailApp;
@@ -480,8 +480,8 @@ console.log('--- Test hasStaleUnreadThreads fail-open se lookup label non dispon
 
   assertEqual(
     hasStaleUnreadThreads(12, 25, 7),
-    true,
-    'il detector stale deve restare fail-open quando le label terminali non sono risolvibili'
+    null,
+    'il detector stale deve distinguere stato sconosciuto da presenza o assenza'
   );
 
   global.CONFIG = originalConfig;

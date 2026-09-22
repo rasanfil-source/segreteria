@@ -1,5 +1,7 @@
 # 🚀 Production Deployment
 
+> Local configuration, not a guarantee of provider quotas or availability. See the [current audit](RELIABILITY_AUDIT_2026-09-22.md) for limitations, migrations and uncertain-send handling.
+
 [![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](DEPLOYMENT_IT.md)
 
 > **Complete guide to deploying the system to production securely and professionally**
@@ -274,10 +276,10 @@ Visibility: Private (NOT public)
 
 | Scenario | Recommended Model | RPD Budget | Estimated Cost/Month |
 |----------|-------------------|------------|----------------------|
-| Small parish (<50 emails/week) | 3.5 Flash response + 3.1 Flash-Lite fast tasks | Verify in AI Studio | Free Tier, watch RPD |
-| Medium parish (100-200 emails/week) | 3.5 Flash response + lite fallback | Verify in AI Studio | Free Tier, keep context cache off unless AI Studio enables it |
-| Large parish (>300 emails/week) | 3.5 Flash + backup key + 3.1 Lite fallback | per project | RPD remains the bottleneck |
-| Development/Test | 3.1 Flash-Lite for fast tests, 3.5 Flash for quality tests | Verify in AI Studio | Keep DRY_RUN enabled |
+| Small parish (<50 emails/week) | 3.7 Flash response + 3.5 Flash-Lite fast tasks | Verify in AI Studio | Free Tier, watch RPD |
+| Medium parish (100-200 emails/week) | 3.7 Flash response + lite fallback | Verify in AI Studio | Free Tier, keep context cache off unless AI Studio enables it |
+| Large parish (>300 emails/week) | 3.7 Flash + backup key + 3.5 Lite fallback | per project | RPD remains the bottleneck |
+| Development/Test | 3.5 Flash-Lite for fast tests, 3.7 Flash for quality tests | Verify in AI Studio | Keep DRY_RUN enabled |
 
 ### When to Use Fallback Chain?
 
@@ -285,8 +287,8 @@ Visibility: Private (NOT public)
 // Recommended configuration for production
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],             // Economy for quick checks
-  'generation': ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.5-lite-backup'],
-  'fallback': ['flash-lite', 'flash-3.5-lite-backup']
+  'generation': ['flash-3.7', 'flash-3.7-backup', 'flash-lite', 'flash-lite-backup'],
+  'fallback': ['flash-lite', 'flash-lite-backup']
 };
 ```
 
@@ -294,8 +296,8 @@ CONFIG.MODEL_STRATEGY = {
 
 | Model | ✅ Pros | ❌ Cons |
 |-------|---------|---------|
-| **Gemini 3.5 Flash** | Higher-quality final response path | Lower local throughput profile; use backup/fallback for resilience |
-| **Gemini 3.1 Flash-Lite** | Fast auxiliary path, high local RPM/TPM profile | Use for classification/language/semantic/fallback, not first-choice final quality |
+| **Gemini 3.7 Flash** | Higher-quality final response path | Lower local throughput profile; use backup/fallback for resilience |
+| **Gemini 3.5 Flash-Lite** | Fast auxiliary path, high local RPM/TPM profile | Use for classification/language/semantic/fallback, not first-choice final quality |
 | **Context Cache** | Optional static prompt reuse when AI Studio enables cachedContents | Disabled by default in Free Tier; direct fallback is automatic |
 | **Google Search Grounding** | Real-time facts when explicitly enabled | Disabled by default; use only if AI Studio exposes a quota |
 
@@ -305,7 +307,7 @@ CONFIG.MODEL_STRATEGY = {
 ```javascript
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-3.5', 'flash-lite']
+  'generation': ['flash-3.7', 'flash-lite']
 };
 CONFIG.MAX_EMAILS_PER_RUN = 1;
 ```
@@ -314,7 +316,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 1;
 ```javascript
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-3.5', 'flash-3.5-backup', 'flash-lite']
+  'generation': ['flash-3.7', 'flash-3.7-backup', 'flash-lite']
 };
 CONFIG.MAX_EMAILS_PER_RUN = 2;
 ```
@@ -323,7 +325,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 2;
 ```javascript
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-3.5', 'flash-3.5-backup', 'flash-lite', 'flash-3.5-lite-backup']
+  'generation': ['flash-3.7', 'flash-3.7-backup', 'flash-lite', 'flash-lite-backup']
 };
 CONFIG.MAX_EMAILS_PER_RUN = 3;
 // Consider trigger every 5 minutes
@@ -368,7 +370,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 1;
 // Use cheaper models
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-3.5', 'flash-lite']  // Quality first, lite fallback
+  'generation': ['flash-3.7', 'flash-lite']  // Quality first, lite fallback
 };
 ```
 
@@ -654,7 +656,7 @@ CONFIG.MAX_EMAILS_PER_RUN = 0;  // Suspends processing
 // Or use a minimal quality + lite fallback chain
 CONFIG.MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-3.5', 'flash-lite']
+  'generation': ['flash-3.7', 'flash-lite']
 };
 ```
 

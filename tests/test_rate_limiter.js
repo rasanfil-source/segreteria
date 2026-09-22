@@ -70,7 +70,7 @@ console.log('--- Test _getPacificDate: fallback Intl preserva timezone Pacific -
   }
 }
 
-console.log('--- Test _readChunkedDataWindow: ignora chunk WAL corrotto ---');
+console.log('--- Test _readChunkedDataWindow: chunk WAL corrotto applica quarantena ---');
 {
   const propsData = new Map([
     ['rate_limit_wal_rpm_chunks', '3'],
@@ -81,13 +81,16 @@ console.log('--- Test _readChunkedDataWindow: ignora chunk WAL corrotto ---');
 
   const limiter = Object.create(GeminiRateLimiter.prototype);
   limiter.props = {
-    getProperty: (key) => propsData.has(key) ? propsData.get(key) : null
+    getProperty: (key) => propsData.has(key) ? propsData.get(key) : null,
+    setProperty: (key, value) => propsData.set(key, value),
+    deleteProperty: key => propsData.delete(key)
   };
+  limiter.models = { lite: { rpm: 3, tpm: 100 } };
 
   const windowData = limiter._readChunkedDataWindow('rpm');
   assert(Array.isArray(windowData), 'deve restituire sempre un array');
-  assert(windowData.length === 2, 'deve fondere i chunk validi ignorando quello corrotto');
-  assert(windowData[0].timestamp === 1 && windowData[1].timestamp === 2, 'deve preservare ordine e contenuto dei chunk validi');
+  assert(windowData.length === 3, 'deve saturare RPM quando un chunk è illeggibile');
+  assert(windowData.every(entry => entry.modelKey === 'lite' && Date.now() - entry.timestamp < 60000), 'la quarantena deve essere recente e associata al modello');
 }
 
 console.log('--- Test _chunkWindowForProperties: chunk sotto limite PropertiesService ---');

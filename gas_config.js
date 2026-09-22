@@ -136,6 +136,7 @@ var CONFIG = {
     recipientProperty: 'VALIDATION_REVIEW_EMAIL',
     get email() { return _getScriptProperty('VALIDATION_REVIEW_EMAIL') || ''; }
   },
+  SENSITIVE_FLAGS_TTL_DAYS: 180, // Evidenza per flag; non rinnova con richieste estranee.
   SEMANTIC_VALIDATION: {
     enabled: true,
     activationThreshold: 0.9,
@@ -413,8 +414,6 @@ var CONFIG = {
     'amazon.com', 'eventbrite.com', 'paypal.com', 'ebay.com',
     'subito.it', 'mailchimp.com', 'mailup.com',
     'unclickperlascuolaelosport.it', 'sendinblue.com',
-    'miqueldg63@gmail.com', 'rego.juan@gmail.com',
-    'donraimondo@example.com', 'comunicazioni@example.com'
   ],
   IGNORE_KEYWORDS: [
     'unsubscribe', 'opt-out', 'newsletter',

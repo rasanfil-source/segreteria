@@ -1,5 +1,7 @@
 # 🏗️ System Architecture - Parish Email AI
 
+> Local configuration, not a guarantee of provider quotas or availability. See the [current audit](RELIABILITY_AUDIT_2026-09-22.md) for limitations, migrations and uncertain-send handling.
+
 [![Language: IT](https://img.shields.io/badge/Language-Italian-green?style=flat-square)](ARCHITECTURE_IT.md)
 
 ## 📖 Overview
@@ -100,7 +102,7 @@ Email Arrives
                v
 ┌──────────────────────────────────────────────────────────┐
 │  QUICK CHECK (Gemini AI)                                 │
-│  - Model: gemini-3.1-flash-lite (fast auxiliary path)   │
+│  - Model: gemini-3.5-flash-lite (fast auxiliary path)   │
 │  - Need reply? (true/false)                             │
 │  - Language detected? (it/en/es/fr/de)                  │
 │  - Category? (TECHNICAL/PASTORAL/DOCTRINAL/MIXED)       │
@@ -150,7 +152,7 @@ Email Arrives
 ┌──────────────────────────────────────────────────────────┐
 │  RATE LIMITING (GeminiRateLimiter)                       │
 │  - Automatic available model selection                  │
-│  - Fallback chain: 3.1 Lite primary → lite alias/backup │
+│  - Fallback chain: 3.5 Lite primary → lite alias/backup │
 │  - Quota tracking: RPM, TPM, RPD + Search Grounding     │
 │  - Aggressive exponential backoff on errors             │
 └──────────────┬──────────────────────────────────────────┘
@@ -230,7 +232,7 @@ getSpecialMassTimeRule()// Holiday mass rules
 - ✅ Dynamic (secretary vacation periods from Sheet)
 
 **Quota Reset:**
-- 📅 9:00 AM Italian Time (midnight Pacific Time)
+- 📅 00:00 America/Los_Angeles (midnight Pacific Time)
 - 🔄 Automatic daily
 
 ---
@@ -591,40 +593,55 @@ After generation, the system validates language, length, placeholders, hallucina
 
 ```javascript
 GEMINI_MODELS = {
-  'flash-2.5': {
-    name: 'gemini-2.5-flash',
-    rpm: 10, tpm: 250000, rpd: 250,
-    useCases: ['generation', 'all']
-  },
-  'flash-2.5-backup': {
-    name: 'gemini-2.5-flash',
-    rpm: 10, tpm: 250000, rpd: 250,
-    useCases: ['generation', 'backup']
-  },
-  'flash-lite': {
-    name: 'gemini-3.1-flash-lite',
-    rpm: 2000, tpm: 2000000, rpd: 3500,
-    useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
-  },
-  'flash-3.1-lite': {
-    name: 'gemini-3.1-flash-lite',
-    rpm: 2000, tpm: 2000000, rpd: 3500,
-    useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
-  },
-  'flash-3.1-lite-backup': {
-    name: 'gemini-3.1-flash-lite',
-    rpm: 2000, tpm: 2000000, rpd: 3500,
-    useCases: ['fallback', 'backup']
+    // Modello principale per la risposta finale: qualita.
+    'flash-3.7': {
+      name: 'gemini-3.7-flash',
+      rpm: 10,
+      tpm: 250000,
+      rpd: 1500,
+      contextWindowTokens: 1048576,
+      ipm: null,
+      useCases: ['generation', 'all']
+    },
+    // Stesso tier qualita su chiave di riserva.
+    'flash-3.7-backup': {
+      name: 'gemini-3.7-flash',
+      rpm: 10,
+      tpm: 250000,
+      rpd: 1500,
+      contextWindowTokens: 1048576,
+      ipm: null,
+      useCases: ['generation', 'backup']
+    },
+    // Modello rapido per categoria, lingua AI, semantica e scarti.
+    'flash-lite': {
+      name: 'gemini-3.5-flash-lite',
+      rpm: 15,
+      tpm: 250000,
+      rpd: 1000,
+      contextWindowTokens: 1048576,
+      ipm: null,
+      useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback']
+    },
+    // Backup logico Lite per chiave di riserva o fallback controllati.
+    'flash-lite-backup': {
+      name: 'gemini-3.5-flash-lite',
+      rpm: 15,
+      tpm: 250000,
+      rpd: 1000,
+      contextWindowTokens: 1048576,
+      ipm: null,
+      useCases: ['quick_check', 'classification', 'language', 'semantic', 'newsletter_summary', 'fallback', 'backup']
+    }
   }
-}
 ```
 
 **Selection Strategy:**
 ```javascript
 MODEL_STRATEGY = {
   'quick_check': ['flash-lite'],
-  'generation': ['flash-2.5', 'flash-2.5-backup', 'flash-lite', 'flash-3.1-lite-backup'],
-  'fallback': ['flash-lite', 'flash-3.1-lite-backup']
+  'generation': ['flash-3.7', 'flash-3.7-backup', 'flash-lite', 'flash-lite-backup'],
+  'fallback': ['flash-lite', 'flash-lite-backup']
 }
 ```
 
@@ -645,7 +662,7 @@ if (rpdUsage > 0.8 * rpdLimit) {
 **Tracking:**
 - **RPM** → Rolling window (last 60 seconds)
 - **TPM** → Rolling window (last 60 seconds)
-- **RPD** → Daily counter (reset 9:00 AM IT)
+- **RPD** → Daily counter (reset 00:00 America/Los_Angeles)
 - **Google Search Grounding** → Optional shared daily query counter when AI Studio exposes a quota
 - **Context cache** → Disabled by default in Free Tier; cache name + expireTime persisted only when enabled
 
@@ -721,8 +738,8 @@ The system supports a backup API key for maximum response quality:
 attemptStrategy = [
   { name: 'Primary-Flash2.5', key: primaryKey, model: 'gemini-2.5-flash', skipRateLimit: false },
   { name: 'Backup-Flash2.5', key: backupKey, model: 'gemini-2.5-flash', skipRateLimit: true },
-  { name: 'Primary-Lite', key: primaryKey, model: 'gemini-3.1-flash-lite', skipRateLimit: false },
-  { name: 'Backup-Lite', key: backupKey, model: 'gemini-3.1-flash-lite', skipRateLimit: true }
+  { name: 'Primary-Lite', key: primaryKey, model: 'gemini-3.5-flash-lite', skipRateLimit: false },
+  { name: 'Backup-Lite', key: backupKey, model: 'gemini-3.5-flash-lite', skipRateLimit: true }
 ];
 
 for (plan of attemptStrategy) {
@@ -1093,19 +1110,11 @@ if (territoryResult.addressFound) {
 
 ### Data Flow Security
 
-```
-Email Content
-     │
-     ├─> NEVER stored on external servers
-     ├─> NEVER sent to third parties
-     └─> ONLY used for:
-           ├─ Gemini API (Google-owned, ephemeral)
-           └─ Google Sheets (customer owned)
-```
+Email content is sent to Gemini; memory is stored in Google Sheets and logs may contain operational data. Retention and data use depend on the services and applicable terms: see [Security](SECURITY.md).
 
 ### GDPR Compliance
 
-- **No Data Retention by AI**: Gemini does not use data for training.
+- **AI data use**: verify the terms applicable to the project; there is no blanket guarantee excluding training or human review.
 - **Audit Logs**: Available in Google Cloud logs (if enabled).
 - **Right to be Forgotten**: Manual deletion of row in "ConversationMemory".
 - **Access Control**: Data accessible only via authorized Google Workspace accounts.

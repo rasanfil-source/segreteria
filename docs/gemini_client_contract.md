@@ -1,5 +1,7 @@
 # Contratto Concettuale GeminiClient
 
+> Local configuration, not a guarantee of provider quotas or availability. See the [current audit](RELIABILITY_AUDIT_2026-09-22.md) for limitations, migrations and uncertain-send handling.
+
 Questa nota descrive il contratto ideale verso Gemini dopo i primi refactoring:
 
 - `GeminiContentClient` incapsula gia payload, profili task, safety settings e parsing base.
@@ -52,11 +54,11 @@ const result = geminiClient.runTask({
     classification: null
   },
   error: null,
-  modelUsed: 'gemini-3.5-flash',
+  modelUsed: 'gemini-3.7-flash',
   keyUsed: 'primary',
   attempts: [
     {
-      model: 'gemini-3.5-flash',
+      model: 'gemini-3.7-flash',
       key: 'primary',
       status: 'success',
       errorType: null
@@ -116,7 +118,7 @@ Ogni task dovrebbe avere un profilo e un adapter.
 const GEMINI_TASKS = {
   quickcheck: {
     strategyKey: 'quick_check',
-    defaultModel: 'gemini-3.1-flash-lite',
+    defaultModel: 'gemini-3.5-flash-lite',
     output: 'json',
     profile: 'quick_check',
     buildInput: EmailQuickCheckPolicy.buildPrompt,
@@ -124,13 +126,13 @@ const GEMINI_TASKS = {
   },
   reply: {
     strategyKey: 'generation',
-    defaultModel: 'gemini-3.5-flash',
+    defaultModel: 'gemini-3.7-flash',
     output: 'text',
     profile: 'generation'
   },
   langdetect: {
     strategyKey: 'language',
-    defaultModel: 'gemini-3.1-flash-lite',
+    defaultModel: 'gemini-3.5-flash-lite',
     output: 'json',
     profile: 'language'
   }
@@ -177,7 +179,7 @@ Il chiamante dovrebbe ricevere solo:
 ```js
 {
   success: true,
-  modelUsed: 'gemini-3.5-flash',
+  modelUsed: 'gemini-3.7-flash',
   keyUsed: 'backup'
 }
 ```

@@ -907,7 +907,7 @@ console.log('--- Test normalize conversation email: accorpa plus-tag nel burst -
     'normalizzazione conversazione deve rimuovere +tag anche fuori da Gmail'
   );
   assert(
-    processor._normalizeConversationEmailAddress_('Nome.Cognome+tag@googlemail.com') === 'nomecognome@gmail.com',
+    processor._normalizeConversationEmailAddress_('Test.Fixture+tag@googlemail.com') === 'testfixture@gmail.com',
     'normalizzazione conversazione deve mantenere le regole Gmail/googlemail'
   );
 }
@@ -1157,6 +1157,13 @@ console.log('--- Test processUnreadEmails: lock batch locale propagato a process
 }
 
 console.log('--- Test _beginSendTransaction: skipLock evita riacquisizione ScriptLock ---');
+const sendProperties = new Map();
+global.PropertiesService = { getScriptProperties: () => ({
+  getProperty: key => sendProperties.get(key) || '',
+  setProperty: (key, value) => sendProperties.set(key, value),
+  deleteProperty: key => sendProperties.delete(key),
+  getProperties: () => Object.fromEntries(sendProperties)
+}) };
 {
   const originalLockService = global.LockService;
   cacheStore.clear();
@@ -1560,6 +1567,7 @@ function createDuplicateGuardPropertyStore() {
 function createDuplicateGuardThread(id, { attachments = [], from = 'utente@example.com' } = {}) {
   const message = {
     getId: () => `m-${id}`,
+    getThread: () => ({ getId: () => `t-${id}` }),
     isUnread: () => true,
     getFrom: () => from,
     getDate: () => new Date('2026-09-01T10:00:00Z'),
@@ -1624,12 +1632,12 @@ console.log('--- Test duplicate guard: confronto conservativo, allegati esclusi 
   const withAttachments = { getAttachments: () => [{ getName: () => 'documento.pdf' }] };
   const unreadableAttachments = { getAttachments: () => { throw new Error('metadata non disponibile'); } };
   const baseDetails = {
-    senderEmail: 'Utente+prova@gmail.com',
+    senderEmail: 'testfixture+repeat@gmail.com',
     subject: 'Richiesta informazioni',
     body: 'Buongiorno,\r\n  vorrei sapere gli orari.'
   };
   const equivalentDetails = {
-    senderEmail: 'utente@gmail.com',
+    senderEmail: 'testfixture@gmail.com',
     subject: 'Richiesta   informazioni',
     body: 'Buongiorno,\nvorrei sapere gli orari.'
   };
@@ -5818,7 +5826,7 @@ console.log('--- Test processThread: errore quota invio propaga errorClass senza
   }
 }
 
-console.log('--- Test processThread: timeout invio promuove idempotenza a sent ---');
+console.log('--- Test processThread: timeout invio rimane incerto e richiede revisione ---');
 {
   const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
   const originalErrorTypes = global.ErrorTypes;
@@ -5896,10 +5904,12 @@ console.log('--- Test processThread: timeout invio promuove idempotenza a sent -
     const result = processor.processThread(createDuplicateGuardThread('send-timeout'), 'kb valida', '', new Set(), true);
     assert(result.status === 'error', 'timeout invio deve restituire status error');
     assert(result.errorClass === 'NETWORK', `timeout invio deve essere classificato come NETWORK retryable, ottenuto ${result.errorClass}`);
-    assert(committed === true, 'timeout/network deve promuovere la transazione a sent');
+    assert(committed === false, 'timeout/network senza evidenza non deve diventare sent');
     assert(rolledBack === false, 'timeout/network non deve rimuovere il marker di invio');
     assert(duplicateRecordCalls === 0, 'esito invio ambiguo non deve creare marker cross-message anti-duplicato');
-    assert(labels.some(entry => entry.id === 'm-send-timeout' && entry.label === 'IA'), 'timeout/network ambiguo deve marcare il messaggio IA per evitare replay duplicati');
+    assert(labels.some(entry => entry.id === 'm-send-timeout' && entry.label === 'Verifica'), 'timeout/network deve richiedere revisione');
+    assert(!labels.some(entry => entry.label === 'IA'), 'esito incerto non deve essere dichiarato gestito');
+    assert(sendProperties.has('send_uncertain_m-send-timeout'), 'incertezza persistente deve sopravvivere alla cache');
   } finally {
     global.CONFIG.VALIDATION_ENABLED = originalValidationEnabled;
     global.ErrorTypes = originalErrorTypes;
@@ -6541,7 +6551,9 @@ console.log('--- Test EmailProcessor: sbattezzo indiretto e contextualFlags oper
   assert(flags.remote_user === true, 'vincolo presenza fisica deve promuovere remote_user');
   assert(flags.bereaved === true, 'subIntent bereavement deve promuovere bereaved');
   assert(flags.canonical_complexity === true, 'routing formale deve promuovere canonical_complexity');
-  assert(flags.ongoing_pastoral_process === true, 'pastoral_technical_blend deve promuovere ongoing_pastoral_process');
+  assert(flags.ongoing_pastoral_process !== true, 'un segnale operativo misto non dimostra un percorso pastorale continuativo');
+  assert(processor._deriveContextualFlagsUpdate_({classification:{subIntents:{ongoing_pastoral_process:true}}}).ongoing_pastoral_process === true,
+    'evidenza specifica deve conservare il percorso pastorale');
 
   const genericEmotionalFlags = processor._deriveContextualFlagsUpdate_({
     activeConcerns: { emotional_sensitivity: true },
