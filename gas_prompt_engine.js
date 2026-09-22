@@ -1133,7 +1133,7 @@ Vincoli:
 
     // 9. FOCUS UMANO (Condizionale)
     const shouldAddContinuityFocus =
-      (memoryContext && Object.keys(memoryContext).length > 0) ||
+      hasMeaningfulMemoryContext_(memoryContext) ||
       (salutationMode && salutationMode !== 'full') ||
       templateConcerns.emotional_sensitivity ||
       normalizedConcerns.longitudinal_sensitivity ||
@@ -3449,30 +3449,7 @@ REGOLE DI COERENZA TEMPORALE:
   }
 
   _normalizeRelationalPostureAlias(posture) {
-    const normalized = String(posture || '').trim().toLowerCase();
-    const aliases = {
-      informational: 'direct',
-      procedural: 'complaint',
-      relational: 'personal',
-      open: 'open',
-      appreciative: 'appreciative',
-      grateful: 'appreciative',
-      gratitude: 'appreciative',
-      enthusiastic: 'appreciative',
-      uncertain: 'hesitant'
-    };
-    const canonical = aliases[normalized] || normalized;
-    const allowed = {
-      direct: true,
-      personal: true,
-      hesitant: true,
-      complaint: true,
-      open: true,
-      appreciative: true,
-      urgent: true,
-      none: true
-    };
-    return allowed[canonical] ? canonical : 'direct';
+    return normalizeRelationalPosture_(posture);
   }
 
   _renderPhysicalPresenceConstraintGuideline(constraint, territoryContext = null) {

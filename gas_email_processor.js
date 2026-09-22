@@ -164,13 +164,39 @@ var EmailProcessor = class EmailProcessor {
     return dateValue.toISOString().slice(0, 10);
   }
 
-  _escapeBurstXmlText_(text) {
-    if (typeof text !== 'string') return '';
-    return text.replace(/&/g, '&amp;')
-               .replace(/</g, '&lt;')
-               .replace(/>/g, '&gt;')
-               .replace(/"/g, '&quot;')
-               .replace(/'/g, '&#039;');
+  _getOwnConversationAnchor_(messages, candidate, ownAddresses) {
+    const safeMessages = Array.isArray(messages) ? messages : [];
+    const safeOwnAddresses = ownAddresses instanceof Set ? ownAddresses : new Set();
+    const candidateId = candidate && typeof candidate.getId === 'function' ? candidate.getId() : null;
+    const candidateDate = candidate && typeof candidate.getDate === 'function' ? candidate.getDate() : null;
+    const candidateTimestamp = candidateDate instanceof Date && !isNaN(candidateDate.getTime())
+      ? candidateDate.getTime()
+      : Infinity;
+    let exists = false;
+    let lastMessageDate = null;
+
+    safeMessages.forEach((message) => {
+      if (!message || (candidateId && typeof message.getId === 'function' && message.getId() === candidateId)) return;
+      const rawFrom = typeof message.getFrom === 'function' ? (message.getFrom() || '') : '';
+      const extracted = this.gmailService && typeof this.gmailService._extractEmailAddress === 'function'
+        ? this.gmailService._extractEmailAddress(rawFrom)
+        : rawFrom;
+      const sender = this._normalizeEmailAddress_(extracted || '');
+      if (!sender || !safeOwnAddresses.has(sender)) return;
+
+      const messageDate = typeof message.getDate === 'function' ? message.getDate() : null;
+      const timestamp = messageDate instanceof Date && !isNaN(messageDate.getTime())
+        ? messageDate.getTime()
+        : NaN;
+      if (Number.isFinite(timestamp) && timestamp > candidateTimestamp) return;
+
+      exists = true;
+      if (Number.isFinite(timestamp) && (!lastMessageDate || timestamp > lastMessageDate.getTime())) {
+        lastMessageDate = messageDate;
+      }
+    });
+
+    return { exists: exists, lastMessageDate: lastMessageDate };
   }
 
   _buildGenerationStrategies_(geminiService, options = {}) {
@@ -1288,6 +1314,7 @@ var EmailProcessor = class EmailProcessor {
       // STEP 1: Estrazione dati e pulizia
       console.log('   STEP 1: Estrazione dati e pulizia...');
       const messageDetails = this.gmailService.extractMessageDetails(candidate);
+      let messageBodyForSemanticAnalysis = messageDetails.body || '';
       console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
       console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
 
@@ -1330,6 +1357,7 @@ var EmailProcessor = class EmailProcessor {
         }
         const candidateId = candidate.getId();
         const burstMessages = responseContextMessages;
+        const semanticBodyParts = [];
         const aggregatedBody = burstMessages.map((message) => {
           const details = (message.getId() === candidateId
             ? messageDetails
@@ -1338,11 +1366,13 @@ var EmailProcessor = class EmailProcessor {
           const bodyPart = details && typeof details.body === 'string' && details.body.trim()
             ? details.body.trim()
             : null;
+          if (bodyPart) semanticBodyParts.push(bodyPart);
           return bodyPart ? `--- Messaggio del ${messageDate} ---\n${bodyPart}` : null;
         }).filter(Boolean).join('\n\n');
 
         if (aggregatedBody) {
           messageDetails.body = aggregatedBody;
+          messageBodyForSemanticAnalysis = semanticBodyParts.join('\n\n');
           console.log(`     Burst rilevato: accorpati contestualmente ${burstMessages.length} messaggi precedenti con timestamp`);
         }
       }
@@ -1674,6 +1704,8 @@ var EmailProcessor = class EmailProcessor {
         detectedLanguage
       );
       const memoryContext = this.memoryService.getMemory(threadId) || {};
+      const ownConversationAnchor = this._getOwnConversationAnchor_(messages, candidate, ownAddresses);
+      const hasPriorOwnMessage = ownConversationAnchor.exists === true;
       const memoryMessageCount = Number.isFinite(Number(memoryContext.messageCount))
         ? Number(memoryContext.messageCount)
         : 0;
@@ -1681,7 +1713,7 @@ var EmailProcessor = class EmailProcessor {
         ? memoryContext.contextualFlags
         : {};
       const hasConversationContext = Boolean(
-        messages.length > 1 ||
+        hasPriorOwnMessage ||
         memoryMessageCount > 0 ||
         memoryContext.exists === true ||
         !!memoryContext.lastUpdated ||
@@ -1870,10 +1902,12 @@ var EmailProcessor = class EmailProcessor {
       // ====================================================================
 
       const salutationMode = computeSalutationMode({
-        isReply: isReplyBySubject || messages.length > 1,
-        memoryExists: !!memoryContext.lastUpdated,
-        lastUpdated: memoryContext.lastUpdated || null,
-        now: processingTimestamp
+        isReply: isReplyBySubject || hasPriorOwnMessage,
+        memoryExists: Boolean(ownConversationAnchor.lastMessageDate || memoryContext.lastUpdated),
+        lastUpdated: ownConversationAnchor.lastMessageDate || memoryContext.lastUpdated || null,
+        now: messageDetails.date instanceof Date && !isNaN(messageDetails.date.getTime())
+          ? messageDetails.date
+          : processingTimestamp
       });
       console.log(`   📊 Modalità saluto: ${salutationMode}`);
 
@@ -2455,7 +2489,7 @@ ${addressLines.join('\n\n')}
           email: {
             subject: safeSubject,
             body: messageDetails.body,
-            isReply: isReplyBySubject || messages.length > 1,
+            isReply: isReplyBySubject || hasPriorOwnMessage,
             detectedLanguage: detectedLanguage
           },
           classification: {
@@ -2465,7 +2499,7 @@ ${addressLines.join('\n\n')}
           },
           requestType: requestType,
           memory: {
-            exists: Object.keys(memoryContext).length > 0,
+            exists: hasMeaningfulMemoryContext_(memoryContext),
             providedInfoCount: memoryProvidedInfo.length,
             lastUpdated: memoryContext.lastUpdated || null,
             category: memoryContext.category || null,
@@ -2482,8 +2516,8 @@ ${addressLines.join('\n\n')}
             containsDates: /\b(19|20)\d{2}\b/.test(enrichedKnowledgeBase)
           },
           temporal: {
-            mentionsDates: this._detectTemporalMentions(messageDetails.body, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(messageDetails.body),
-            mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageDetails.body)
+            mentionsDates: this._detectTemporalMentions(messageBodyForSemanticAnalysis, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(messageBodyForSemanticAnalysis),
+            mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageBodyForSemanticAnalysis)
           },
           salutationMode: salutationMode,
           physicalPresenceConstraint: physicalPresenceConstraint,
@@ -3195,7 +3229,7 @@ ${addressLines.join('\n\n')}
           finalResponse,
           detectedLanguage,
           fullValidationKB,
-          messageDetails.body,
+          messageBodyForSemanticAnalysis,
           messageDetails.subject,
           effectiveSalutationMode,
           true,
@@ -3327,7 +3361,7 @@ ${addressLines.join('\n\n')}
             preparedRetryResponse,
             detectedLanguage,
             fullValidationKB,
-            messageDetails.body,
+            messageBodyForSemanticAnalysis,
             messageDetails.subject,
             effectiveSalutationMode,
             true,
@@ -9197,21 +9231,7 @@ Parish Secretariat of Sant'Eugenio`;
   }
 
   _normalizeRelationalPostureAlias_(posture) {
-    const normalized = String(posture || '').trim().toLowerCase();
-    const aliases = {
-      direct: 'informational',
-      personal: 'relational',
-      open: 'open',
-      appreciative: 'appreciative',
-      grateful: 'appreciative',
-      gratitude: 'appreciative',
-      enthusiastic: 'appreciative',
-      hesitant: 'uncertain',
-      complaint: 'procedural'
-    };
-    const canonical = aliases[normalized] || normalized;
-    const allowed = new Set(['informational', 'procedural', 'relational', 'open', 'appreciative', 'urgent', 'uncertain']);
-    return allowed.has(canonical) ? canonical : 'informational';
+    return normalizeRelationalPosture_(posture);
   }
 
   // ====================================================================

@@ -147,7 +147,7 @@ var PromptContext = class PromptContext {
             conversationState.lastRelationalPosture ||
             ''
         ).trim().toLowerCase();
-        const hasRelationalOpening = [
+        const rememberedRelationalOpening = [
             'open',
             'appreciative',
             'grateful',
@@ -156,6 +156,15 @@ var PromptContext = class PromptContext {
             'relational',
             'personal'
         ].includes(rememberedPosture);
+        const currentPosture = normalizeRelationalPosture_(data.currentRelationalPosture);
+        const currentConfidence = Number(data.currentRelationalPostureConfidence);
+        const relationalThreshold = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD)))
+            ? Math.max(0, Math.min(1, Number(CONFIG.RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD)))
+            : 0.70;
+        const currentSupportsRelationalOpening = ['open', 'appreciative', 'personal'].includes(currentPosture) &&
+            Number.isFinite(currentConfidence) &&
+            currentConfidence >= relationalThreshold;
+        const hasRelationalOpening = rememberedRelationalOpening && currentSupportsRelationalOpening;
         if (hasRelationalOpening) addSignal(`conversationState:posture:${rememberedPosture}`);
 
         let key = null;
@@ -297,7 +306,9 @@ var PromptContext = class PromptContext {
         const continuityCase = this._deriveContinuityCase({
             memoryText: memoryText,
             contextualFlags: contextualFlags,
-            conversationState: i.memory?.conversationState
+            conversationState: i.memory?.conversationState,
+            currentRelationalPosture: i.relationalPosture || i.quickCheck?.relational_posture,
+            currentRelationalPostureConfidence: i.relationalPostureConfidence ?? i.quickCheck?.relational_posture_confidence
         });
         this.input._continuityCase = continuityCase;
         const longitudinalSensitivity = Boolean(continuityCase && continuityCase.longitudinal);

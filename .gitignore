@@ -27,4 +27,6 @@ final_test_results.txt
 *_test_results.txt
 smoke_out.txt
 scratch/
+outputs/
 *.log
+

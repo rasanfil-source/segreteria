@@ -11,9 +11,19 @@ function assert(condition, message) {
 
 const gasGeminiServicePath = path.join(__dirname, '..', 'gas_gemini_service.js');
 const gasErrorTypesPath = path.join(__dirname, '..', 'gas_error_types.js');
+const gasResponseStrategyPath = path.join(__dirname, '..', 'gas_response_strategy.js');
 vm.runInThisContext(fs.readFileSync(gasErrorTypesPath, 'utf8'), { filename: gasErrorTypesPath });
+vm.runInThisContext(fs.readFileSync(gasResponseStrategyPath, 'utf8'), { filename: gasResponseStrategyPath });
 const code = fs.readFileSync(gasGeminiServicePath, 'utf8');
 vm.runInThisContext(code, { filename: gasGeminiServicePath });
+
+console.log('--- Test relational posture: tassonomia condivisa preserva open e hesitant ---');
+{
+  assert(EmailQuickCheckPolicy.normalizeRelationalPosture('open', 0.95) === 'open', 'open non deve collassare in appreciative');
+  assert(EmailQuickCheckPolicy.normalizeRelationalPosture('hesitant', 0.95) === 'hesitant', 'hesitant deve restare canonico');
+  assert(EmailQuickCheckPolicy.normalizeRelationalPosture('procedural', 0.95) === 'complaint', 'alias procedural deve convergere sul contratto condiviso');
+  assert(EmailQuickCheckPolicy.normalizeRelationalPosture('open', 0.20) === 'direct', 'postura sotto soglia deve restare direct');
+}
 
 console.log('--- Test _tryBalanceJsonBraces: chiusura corretta oggetti+array annidati ---');
 {
@@ -520,7 +530,7 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
     relational_posture: 'procedural',
     relational_posture_confidence: 0.95
   }, { lang: 'it' });
-  assert(legacyProceduralPosture.relational_posture === 'direct', 'legacy procedural deve normalizzarsi a direct');
+  assert(legacyProceduralPosture.relational_posture === 'complaint', 'legacy procedural deve normalizzarsi a complaint');
 
   const unsafeHint = EmailQuickCheckPolicy.normalizeDecisionData({
     reply_needed: true,

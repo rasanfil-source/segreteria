@@ -829,10 +829,16 @@ forbiddenPhrases = [
   'non ho abbastanza informazioni',
   'non posso rispondere',
   'non sono sicuro',
-  'probabilmente', 'forse', ...
+  ...
 ];
 
 // Se trovato → score *= 0.50
+
+softWarningPhrases = [
+  'probabilmente', 'forse', ...
+];
+
+// Se trovato → warning diagnostico, senza penalità automatica
 ```
 
 **Layer 5: Hallucination Detection**

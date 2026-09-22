@@ -2,6 +2,45 @@
  * Shared response strategy helpers.
  */
 
+function normalizeRelationalPosture_(posture, fallback = 'direct') {
+  const raw = String(posture || '').trim().toLowerCase();
+  const aliases = {
+    informational: 'direct',
+    procedural: 'complaint',
+    relational: 'personal',
+    uncertain: 'hesitant',
+    grateful: 'appreciative',
+    gratitude: 'appreciative',
+    enthusiastic: 'appreciative',
+    frustrated: 'complaint',
+    frustration: 'complaint',
+    angry: 'complaint',
+    upset: 'complaint'
+  };
+  const normalized = aliases[raw] || raw;
+  const allowed = new Set([
+    'direct', 'personal', 'hesitant', 'complaint', 'open',
+    'appreciative', 'urgent', 'none'
+  ]);
+  if (allowed.has(normalized)) return normalized;
+
+  const normalizedFallback = aliases[String(fallback || '').trim().toLowerCase()] ||
+    String(fallback || '').trim().toLowerCase();
+  return allowed.has(normalizedFallback) ? normalizedFallback : 'direct';
+}
+
+function hasMeaningfulMemoryContext_(memoryContext) {
+  if (!memoryContext || typeof memoryContext !== 'object') return false;
+  if (memoryContext.exists === true) return true;
+  if (memoryContext.lastUpdated || memoryContext.memorySummary || memoryContext.conversationState) return true;
+  if (Array.isArray(memoryContext.providedInfo) && memoryContext.providedInfo.length > 0) return true;
+  return Boolean(
+    memoryContext.contextualFlags &&
+    typeof memoryContext.contextualFlags === 'object' &&
+    Object.keys(memoryContext.contextualFlags).length > 0
+  );
+}
+
 function hasStrongerResponseRoutingSignal_(category, requestType, isSbattezzo, physicalPresence, goalContinuity, responseFocus) {
   const normalize = value => String(value || '').trim().toLowerCase();
   return ['formal', 'sbattezzo', 'document_submission', 'document_submission_with_question', 'quotation'].includes(normalize(category)) ||
@@ -10,20 +49,13 @@ function hasStrongerResponseRoutingSignal_(category, requestType, isSbattezzo, p
 }
 
 function mapRelationalPostureToResponseStrategy_(posture) {
-  const normalized = String(posture || '').trim().toLowerCase();
+  const normalized = normalizeRelationalPosture_(posture);
   const mapping = {
     direct: 'provide_information',
-    informational: 'provide_information',
-    procedural: 'guide_next_step',
     personal: 'offer_reassurance',
-    relational: 'offer_reassurance',
     appreciative: 'offer_reassurance',
-    grateful: 'offer_reassurance',
-    gratitude: 'offer_reassurance',
-    enthusiastic: 'offer_reassurance',
     open: 'offer_reassurance',
     hesitant: 'clarify_requirements',
-    uncertain: 'clarify_requirements',
     complaint: 'guide_next_step',
     urgent: 'reduce_user_effort'
   };

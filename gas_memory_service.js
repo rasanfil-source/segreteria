@@ -1046,20 +1046,10 @@ var MemoryService = class MemoryService {
   }
 
   _normalizeConversationPosture_(value) {
-    const raw = String(value || '').trim().toLowerCase();
-    const aliases = { uncertain: 'hesitant', informational: 'direct', procedural: 'complaint',
-      relational: 'personal', grateful: 'appreciative', gratitude: 'appreciative', enthusiastic: 'appreciative' };
-    const normalized = aliases[raw] || raw;
-    const allowed = {
-      urgent: true,
-      hesitant: true,
-      complaint: true,
-      personal: true,
-      open: true,
-      direct: true,
-      appreciative: true
-    };
-    return allowed[normalized] ? normalized : null;
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+    const normalized = normalizeRelationalPosture_(raw, 'none');
+    return normalized === 'none' ? null : normalized;
   }
 
   _normalizeConversationResponseFocusHint_(value) {

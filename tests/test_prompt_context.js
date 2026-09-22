@@ -13,6 +13,8 @@ global.CONFIG = {
   KB_HALLUCINATION_RISK_THRESHOLD: 8000
 };
 
+const responseStrategyPath = path.join(__dirname, '..', 'gas_response_strategy.js');
+vm.runInThisContext(fs.readFileSync(responseStrategyPath, 'utf8'), { filename: responseStrategyPath });
 const promptContextPath = path.join(__dirname, '..', 'gas_prompt_context.js');
 const code = fs.readFileSync(promptContextPath, 'utf8');
 vm.runInThisContext(code, { filename: promptContextPath });
@@ -457,6 +459,8 @@ const relationalOpeningContinuity = createPromptContext({
   },
   requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
   classification: { confidence: 1, category: 'information' },
+  relationalPosture: 'open',
+  relationalPostureConfidence: 0.95,
   memory: {
     exists: true,
     conversationState: {
@@ -478,6 +482,23 @@ assert(
   'la continuità relazionale deve produrre una direttiva leggera e consumabile'
 );
 
+const directAfterRelationalOpening = createPromptContext({
+  email: { isReply: true, detectedLanguage: 'it', subject: 'Orari', body: 'A che ora apre la segreteria?' },
+  requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
+  classification: { confidence: 1, category: 'information' },
+  relationalPosture: 'direct',
+  relationalPostureConfidence: 0.95,
+  memory: {
+    exists: true,
+    conversationState: { currentRelationalPosture: 'open' }
+  }
+});
+assert(
+  directAfterRelationalOpening.concerns.relational_warmth === false &&
+    directAfterRelationalOpening.meta.continuityCase === null,
+  'una richiesta corrente diretta non deve ereditare il calore relazionale del turno precedente'
+);
+
 const relationalOpeningWithBereavement = createPromptContext({
   email: {
     isReply: true,
@@ -488,6 +509,8 @@ const relationalOpeningWithBereavement = createPromptContext({
   requestType: { type: 'technical', needsDiscernment: false, needsDoctrine: false },
   classification: { confidence: 1, category: 'information' },
   subIntents: { bereavement: true },
+  relationalPosture: 'open',
+  relationalPostureConfidence: 0.95,
   memory: {
     exists: true,
     conversationState: {

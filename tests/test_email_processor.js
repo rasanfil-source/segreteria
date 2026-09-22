@@ -314,6 +314,31 @@ console.log('--- Test salutation mode: timestamp invalido/futuro resta safe e di
   }
 }
 
+console.log('--- Test conversation anchor: usa l ultimo messaggio nostro precedente ---');
+{
+  const anchorProcessor = Object.create(EmailProcessor.prototype);
+  anchorProcessor.gmailService = { _extractEmailAddress: (raw) => raw };
+  const makeMessage = (id, from, iso) => ({
+    getId: () => id,
+    getFrom: () => from,
+    getDate: () => new Date(iso)
+  });
+  const firstExternal = makeMessage('external-1', 'utente@example.com', '2026-06-01T08:00:00Z');
+  const humanReply = makeMessage('office-1', 'segreteria@example.com', '2026-06-03T09:30:00Z');
+  const candidate = makeMessage('external-2', 'utente@example.com', '2026-06-05T10:00:00Z');
+  const anchor = anchorProcessor._getOwnConversationAnchor_(
+    [firstExternal, humanReply, candidate],
+    candidate,
+    new Set(['segreteria@example.com'])
+  );
+  assert(anchor.exists === true, 'la risposta manuale deve rendere il thread conversazionale');
+  assert(anchor.lastMessageDate.toISOString() === '2026-06-03T09:30:00.000Z', 'la data della risposta manuale deve diventare ancora temporale');
+  assert(
+    computeSalutationMode({ isReply: true, memoryExists: true, lastUpdated: anchor.lastMessageDate, now: candidate.getDate() }) === 'soft',
+    'il saluto deve misurare il gap tra risposta nostra e messaggio utente, non il ritardo di processing'
+  );
+}
+
 
 console.log('--- Test safety valve: fallback Pacific usa Intl America/Los_Angeles ---');
 {
@@ -1250,6 +1275,7 @@ console.log('--- Test processThread: quick check filtrato marca tutto il burst e
   const originalGmailApp = global.GmailApp;
   const originalLanguageMode = global.GLOBAL_CACHE.languageMode;
   const labeled = [];
+  let capturedQuickIntentContext = null;
 
   global.Session = {
     getEffectiveUser: () => ({ getEmail: () => 'info@example.org' })
@@ -1262,7 +1288,10 @@ console.log('--- Test processThread: quick check filtrato marca tutto il burst e
   const processorQuickFiltered = new EmailProcessor({
     geminiService: {
       detectEmailLanguage: () => ({ lang: 'it', safetyGrade: 5 }),
-      shouldRespondToEmail: () => ({ shouldRespond: false, reason: 'ack' })
+      shouldRespondToEmail: (_body, _subject, _language, intentContext) => {
+        capturedQuickIntentContext = intentContext;
+        return { shouldRespond: false, reason: 'ack' };
+      }
     },
     classifier: {
       _extractMainContent: (body) => body,
@@ -1297,6 +1326,7 @@ console.log('--- Test processThread: quick check filtrato marca tutto il burst e
   assert(result.status === 'filtered', 'quick check shouldRespond=false deve filtrare il candidato');
   assert(labeled.includes('m-candidate'), 'deve marcare il candidato filtrato per evitare retry infinito');
   assert(labeled.includes('m-secondary'), 'deve marcare anche il secondario gia incluso nel burst valutato');
+  assert(capturedQuickIntentContext.hasConversationContext === false, 'due messaggi consecutivi dello stesso utente senza risposta nostra restano primo contatto');
 
   global.Session = originalSession;
   global.GmailApp = originalGmailApp;

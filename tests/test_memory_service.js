@@ -10,6 +10,8 @@ function assert(condition, message) {
 }
 
 const gasMemoryServicePath = path.join(__dirname, '..', 'gas_memory_service.js');
+const gasResponseStrategyPath = path.join(__dirname, '..', 'gas_response_strategy.js');
+vm.runInThisContext(fs.readFileSync(gasResponseStrategyPath, 'utf8'), { filename: gasResponseStrategyPath });
 const code = fs.readFileSync(gasMemoryServicePath, 'utf8');
 vm.runInThisContext(code, { filename: gasMemoryServicePath });
 
