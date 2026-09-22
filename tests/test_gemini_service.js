@@ -19,6 +19,19 @@ vm.runInThisContext(code, { filename: gasGeminiServicePath });
 
 console.log('--- Test relational posture: tassonomia condivisa preserva open e hesitant ---');
 {
+  const client = new GeminiContentClient();
+  let truncated = null;
+  try {
+    client.extractCandidateText({ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: 'Risposta.' }] } }] });
+  } catch (error) { truncated = error; }
+  assert(truncated && truncated.code === 'TRUNCATED_OUTPUT' && truncated.isTransient === true,
+    'MAX_TOKENS deve fallire anche con punteggiatura finale, consentendo fallback');
+  const text = client.extractCandidateText({ candidates: [{ finishReason: 'STOP', content: { parts: [
+    { thought: true, text: 'Ragionamento privato' }, { text: 'Risposta completa.' }
+  ] } }] });
+  assert(text.text === 'Risposta completa.', 'le parti thought non devono entrare nella risposta');
+}
+{
   assert(EmailQuickCheckPolicy.normalizeRelationalPosture('open', 0.95) === 'open', 'open non deve collassare in appreciative');
   assert(EmailQuickCheckPolicy.normalizeRelationalPosture('hesitant', 0.95) === 'hesitant', 'hesitant deve restare canonico');
   assert(EmailQuickCheckPolicy.normalizeRelationalPosture('procedural', 0.95) === 'complaint', 'alias procedural deve convergere sul contratto condiviso');
@@ -955,8 +968,9 @@ console.log('--- Test generateResponse: 429 primaria fa failover sincrono su bac
   service.maxBackoffMs = 10;
   service.retryJitterMs = 0;
   const urls = [];
-  service.fetchFn = (url) => {
-    urls.push(url);
+  service.fetchFn = (url, options) => {
+    const apiKey = options && options.headers && options.headers['x-goog-api-key'];
+    urls.push(apiKey ? `${url}#${apiKey}` : url);
     if (urls.length === 1) {
       return {
         getResponseCode: () => 429,
@@ -1130,9 +1144,10 @@ console.log('--- Test quickCheck: 503 non consuma chiave backup ---');
   service._buildGenerateUrl = () => 'https://example.test/generate';
   service._resolveLanguage = (_candidate, fallback) => fallback || 'it';
   let calls = 0;
-  service.fetchFn = (url) => {
+  service.fetchFn = (url, options) => {
     calls += 1;
-    assert(url.includes('primary-key'), 'il 503 deve restare sulla chiave primaria');
+    const apiKey = options && options.headers && options.headers['x-goog-api-key'];
+    assert(String(apiKey || url).includes('primary-key'), 'il 503 deve restare sulla chiave primaria');
     return {
       getResponseCode: () => 503,
       getContentText: () => JSON.stringify({ error: { message: 'server overloaded' } })
@@ -1173,8 +1188,9 @@ console.log('--- Test quickCheck: 429 primary marca stato exhausted e passa a ba
   service._buildGenerateUrl = () => 'https://example.test/generate';
   service._resolveLanguage = (_candidate, fallback) => fallback || 'it';
   const urls = [];
-  service.fetchFn = (url) => {
-    urls.push(url);
+  service.fetchFn = (url, options) => {
+    const apiKey = options && options.headers && options.headers['x-goog-api-key'];
+    urls.push(apiKey ? `${url}#${apiKey}` : url);
     if (urls.length === 1) {
       return {
         getResponseCode: () => 429,
@@ -1219,8 +1235,9 @@ console.log('--- Test quickCheck RateLimiter: primary esaurita non esegue fallba
   service._buildGenerateUrl = () => 'https://example.test/generate';
   service._resolveLanguage = (_candidate, fallback) => fallback || 'it';
   const urls = [];
-  service.fetchFn = (url) => {
-    urls.push(url);
+  service.fetchFn = (url, options) => {
+    const apiKey = options && options.headers && options.headers['x-goog-api-key'];
+    urls.push(apiKey ? `${url}#${apiKey}` : url);
     return {
       getResponseCode: () => 429,
       getContentText: () => JSON.stringify({ error: { message: 'quota exhausted' } })
@@ -1260,8 +1277,9 @@ console.log('--- Test quickCheck: 400 API key invalid primaria passa a backup --
   service._buildGenerateUrl = () => 'https://example.test/generate';
   service._resolveLanguage = (_candidate, fallback) => fallback || 'it';
   const urls = [];
-  service.fetchFn = (url) => {
-    urls.push(url);
+  service.fetchFn = (url, options) => {
+    const apiKey = options && options.headers && options.headers['x-goog-api-key'];
+    urls.push(apiKey ? `${url}#${apiKey}` : url);
     if (urls.length === 1) {
       return {
         getResponseCode: () => 400,

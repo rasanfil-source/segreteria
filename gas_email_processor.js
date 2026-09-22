@@ -1999,6 +1999,7 @@ ${addressLines.join('\n\n')}
       let promptProfile = 'standard';
       let activeConcerns = {};
       let responseRegister = 'warm_institutional';
+      let crisisCritical = false;
       let effectiveSalutationMode = salutationMode;
       let concernSynthesis = null;
       let continuityCase = null;
@@ -2533,6 +2534,7 @@ ${addressLines.join('\n\n')}
         promptProfile = promptContext.profile;
         activeConcerns = promptContext.concerns;
         responseRegister = promptContext.meta?.responseRegister || responseRegister;
+        crisisCritical = promptContext.meta?.crisisCritical === true;
         effectiveSalutationMode = promptContext.meta?.salutationMode || effectiveSalutationMode;
         concernSynthesis = promptContext.meta?.concernSynthesis || null;
         continuityCase = promptContext.meta?.continuityCase || null;
@@ -2548,6 +2550,28 @@ ${addressLines.join('\n\n')}
           ? `, continuità=${continuityCase.key}`
           : '';
         console.log(`   🧠 PromptContext: profilo=${promptProfile}, registro=${responseRegister}, modalità=${responseMode}${synthesisLog}${continuityLog}`);
+      }
+
+      // Presa in carico prima della generazione: errori del modello non devono
+      // impedire la revisione umana del segnale critico.
+      const crisisHumanReviewEnabled = !(typeof CONFIG !== 'undefined' && CONFIG && CONFIG.CRISIS_HUMAN_REVIEW === false);
+      if (crisisHumanReviewEnabled && crisisCritical === true) {
+        console.warn('   🆘 Segnale di crisi rilevato: nessun invio automatico, richiesta presa in carico umana.');
+        threadLogger.error('Crisi pastorale rilevata: intervento umano richiesto', {
+          event: 'pastoral_crisis_human_review',
+          threadId: threadId,
+          messageId: candidate.getId()
+        });
+        markFailureForCurrentBurst('validation', {
+          reason: 'pastoral_crisis_human_review',
+          subject: messageDetails.subject,
+          bypassThrottle: true
+        });
+        result.status = 'validation_failed';
+        result.validationFailed = true;
+        result.reason = 'pastoral_crisis_human_review';
+        result.durationMs = Date.now() - startTime;
+        return result;
       }
 
       const effectiveSalutationModeKey = String(effectiveSalutationMode || '').trim().toLowerCase();
@@ -3171,10 +3195,18 @@ ${addressLines.join('\n\n')}
         return result;
       }
 
-      response = this._extractEmailXmlBlock_(response);
-      response = (this.validator && typeof this.validator._rimuoviThinkingLeak === 'function')
-        ? this.validator._rimuoviThinkingLeak(response)
-        : response;
+      const parsedResponse = this._parseEmailResponse_(response);
+      response = parsedResponse.text;
+      if (parsedResponse.incomplete) {
+        console.warn('   ⚠️ Blocco <email> incompleto: rinvio per revisione.');
+        markFailureForCurrentBurst('validation', { reason: 'truncated_output' });
+        result.status = 'validation_failed';
+        result.reason = 'truncated_output';
+        return result;
+      }
+      // Lo strip pre-validazione nasconde i pattern statici al validatore
+      // (che quindi non attiva mai il retry per thinking_leak) e puo' lasciare
+      // frasi mozze. Meglio lasciare che il validatore veda il testo integrale.
 
       if (this._isNoReplyToken_(response)) {
         console.log('   ⊖ AI ha restituito NO_REPLY');
@@ -3283,14 +3315,25 @@ ${addressLines.join('\n\n')}
             ...alternativePlans.filter(plan => String(plan.model || '') === String(retryPlan.model || ''))
           ].filter((plan, index, plans) => plans.findIndex(candidatePlan => retryPlanKey(candidatePlan) === retryPlanKey(plan)) === index);
 
+          // Il retry deve rigenerare con la stessa systemInstruction (persona,
+          // pastoral firewall, vincoli di sicurezza, formato): senza di essa il
+          // modello vede solo la risposta fallita e le istruzioni di correzione.
+          const retryPayload = (fullPrompt && typeof fullPrompt === 'object' && fullPrompt.systemInstruction)
+            ? { systemInstruction: fullPrompt.systemInstruction, prompt: correctionPrompt }
+            : correctionPrompt;
+
           let retryResponse = null;
           retryInfrastructureFailure = null;
           retryPermanentApiFailure = null;
           for (let retryPlanIndex = 0; retryPlanIndex < retryPlans.length; retryPlanIndex++) {
             const currentRetryPlan = retryPlans[retryPlanIndex];
+            if (this._isNearDeadline(this.config.maxExecutionTimeMs)) {
+              console.warn('   ⏱️ Deadline vicina: interrompo la catena di retry.');
+              break;
+            }
             try {
               console.log(`   ↻ Correzione con modello: ${currentRetryPlan.model || 'default'}`);
-              const retryResult = this.geminiService.generateResponse(correctionPrompt, {
+              const retryResult = this.geminiService.generateResponse(retryPayload, {
                 apiKey: currentRetryPlan.key,
                 modelName: currentRetryPlan.model,
                 skipRateLimit: currentRetryPlan.skipRateLimit
@@ -3328,10 +3371,15 @@ ${addressLines.join('\n\n')}
           retryInfrastructureFailure = null;
           retryPermanentApiFailure = null;
 
-          retryResponse = this._extractEmailXmlBlock_(retryResponse);
-          retryResponse = (this.validator && typeof this.validator._rimuoviThinkingLeak === 'function')
-            ? this.validator._rimuoviThinkingLeak(retryResponse)
-            : retryResponse;
+          const parsedRetryResponse = this._parseEmailResponse_(retryResponse);
+          retryResponse = parsedRetryResponse.text;
+          if (parsedRetryResponse.incomplete) {
+            markFailureForCurrentBurst('validation', { reason: 'truncated_output' });
+            result.status = 'validation_failed';
+            result.reason = 'truncated_output';
+            return result;
+          }
+          // Validare anche il retry prima di rimuovere eventuali leak.
           retryResponse = this._addTimeDiscrepancyNoteIfNeeded(
             retryResponse,
             { ...messageDetails, body: messageDetails.body || '' },
@@ -6265,19 +6313,19 @@ ${addressLines.join('\n\n')}
   }
 
   _extractEmailXmlBlock_(responseText) {
+    return this._parseEmailResponse_(responseText).text;
+  }
+
+  _parseEmailResponse_(responseText) {
     const safeText = typeof responseText === 'string'
       ? responseText
       : (responseText == null ? '' : String(responseText));
+    const opens = safeText.match(/<email>/gi) || [];
+    const closes = safeText.match(/<\/email>/gi) || [];
+    const hasTags = opens.length > 0 || closes.length > 0;
     const match = safeText.match(/<email>\s*([\s\S]*?)\s*<\/email>/i);
-    if (match && match[1]) {
-      return match[1].trim();
-    }
-    // Fallback: se Gemini ha dimenticato il tag di chiusura.
-    const unclosedMatch = safeText.match(/<email>\s*([\s\S]*)/i);
-    if (unclosedMatch && unclosedMatch[1]) {
-      return unclosedMatch[1].trim();
-    }
-    return safeText;
+    const incomplete = hasTags && (opens.length !== 1 || closes.length !== 1 || !match);
+    return { text: match ? match[1].trim() : safeText, incomplete };
   }
 
   _addErrorLabel(target) {
@@ -6342,7 +6390,7 @@ ${addressLines.join('\n\n')}
       const canSendWithMailApp = typeof MailApp !== 'undefined' && MailApp && typeof MailApp.sendEmail === 'function';
       const canSendWithGmailApp = typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.sendEmail === 'function';
       if (!canSendWithMailApp && !canSendWithGmailApp) return;
-      if (this._isValidationReviewAlertThrottled_(signature, alertConfig)) return;
+      if (reviewContext.bypassThrottle !== true && this._isValidationReviewAlertThrottled_(signature, alertConfig)) return;
 
       const subject = `[${this.config.validationErrorLabel}] Revisione richiesta: ${subjectText}`.substring(0, 180);
       const gmailLink = targetInfo.threadId
@@ -6834,10 +6882,12 @@ ${addressLines.join('\n\n')}
     const physicalReminder = flags.physical_presence && physicalConstraint
       ? `\n- Vincolo presenza: type=${physicalConstraint.type || 'other'}, visit_policy=${physicalConstraint.visit_policy || 'unknown'}.`
       : '';
-    const needsGroundingContext = flags.hallucination || flags.kb_relevance;
-    const groundingContext = needsGroundingContext
-      ? this._buildRetryGroundingContext_(originalPrompt, 10000)
-      : '';
+    // L'email dell'utente (e la KB) servono anche per thinking_leak/lingua/
+    // sensitive_quality: senza, il modello deve "indovinare" la domanda dalla
+    // sola risposta fallita.
+    const groundingContext = this._buildRetryGroundingContext_(
+      originalPrompt, (flags.hallucination || flags.kb_relevance) ? 10000 : 6000
+    );
     const groundingReminder = groundingContext
       ? `\n\n### FONTI DI GROUNDING PER LA CORREZIONE ###\n${groundingContext}`
       : '';
@@ -6891,7 +6941,9 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     }
 
     if (blocks.length === 0) {
-      return this._trimPromptForRetry_(source, limit);
+      // Senza blocchi taggati non copiare il prompt originale: conterrebbe
+      // system instruction e farebbe fallire il vincolo "retry chirurgico".
+      return '';
     }
     return this._sliceRetryPromptTextSafely_(blocks.join('\n\n'), limit);
   }
@@ -8025,8 +8077,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
 
   _isNoReplyToken_(response) {
     if (typeof response !== 'string') return false;
-    const extracted = this._extractEmailXmlBlock_(response);
-    return String(extracted || '').trim().toUpperCase() === 'NO_REPLY';
+    const parsed = this._parseEmailResponse_(response);
+    return !parsed.incomplete && parsed.text.trim().toUpperCase() === 'NO_REPLY';
   }
 
   /**

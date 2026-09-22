@@ -202,15 +202,20 @@ var GeminiContentClient = class GeminiContentClient {
     let response;
 
     try {
-      response = this.fetchFn(`${url}?key=${encodeURIComponent(activeKey)}`, {
+      // La chiave in query string finisce nei messaggi di eccezione di
+      // UrlFetchApp (che includono l'URL) e quindi nei log: usare l'header.
+      response = this.fetchFn(url, {
         method: 'POST',
         contentType: 'application/json',
+        headers: { 'x-goog-api-key': activeKey },
         payload: JSON.stringify(built.payloadObj),
         muteHttpExceptions: true
       });
     } catch (error) {
       const prefix = request.networkErrorPrefix || 'Errore rete/timeout durante chiamata Gemini';
-      throw new Error(`${prefix}: ${error.message}`);
+      const safeMessage = String(error && error.message ? error.message : error)
+        .replace(/([?&]key=)[^&\s]+/gi, '$1[REDACTED]');
+      throw new Error(`${prefix}: ${safeMessage}`);
     }
 
     const responseCode = response.getResponseCode();
@@ -328,6 +333,15 @@ var GeminiContentClient = class GeminiContentClient {
     if (candidate.finishReason && ['SAFETY', 'RECITATION', 'OTHER', 'BLOCKLIST'].includes(candidate.finishReason)) {
       throw new Error(`Risposta bloccata da Gemini: ${candidate.finishReason}`);
     }
+    if (candidate.finishReason === 'MAX_TOKENS') {
+      // Testo troncato a meta' frase: non e' una risposta valida da spedire.
+      // Marcato transitorio per consentire il fallback su modello/strategia
+      // successiva (o il retry con budget diverso) invece dell'invio.
+      const truncatedErr = new Error('Risposta troncata da Gemini (MAX_TOKENS)');
+      truncatedErr.isTransient = true;
+      truncatedErr.code = 'TRUNCATED_OUTPUT';
+      throw truncatedErr;
+    }
 
     const parts = candidate.content?.parts;
     if (!Array.isArray(parts) || parts.length === 0) {
@@ -335,7 +349,9 @@ var GeminiContentClient = class GeminiContentClient {
       emptyPartsErr.isTransient = true;
       throw emptyPartsErr;
     }
-    const generatedText = parts.map(p => p.text || '').join('').trim();
+    // Le parti di "thought" (thinking models con includeThoughts) non devono
+    // mai confluire nel testo della risposta.
+    const generatedText = parts.filter(p => p && p.thought !== true).map(p => p.text || '').join('').trim();
 
     if (!generatedText) {
       const emptyErr = new Error('Gemini ha restituito testo vuoto');
@@ -1818,7 +1834,7 @@ var GeminiService = class GeminiService {
       payload: JSON.stringify(builtPayload.payloadObj),
       muteHttpExceptions: true
     };
-    const executeFetch = (apiKey) => this.fetchFn(`${url}?key=${encodeURIComponent(apiKey)}`, requestPayload);
+    const executeFetch = (apiKey) => this.fetchFn(url, Object.assign({}, requestPayload, { headers: { 'x-goog-api-key': apiKey } }));
 
     try {
       response = executeFetch(activeKey);
@@ -3013,9 +3029,10 @@ Testo:
 
       const url = this._buildGenerateUrl(this.modelName);
       const generationConfig = this._buildGeminiGenerationConfig_('connection_test', this.modelName);
-      const response = this.fetchFn(`${url}?key=${encodeURIComponent(this.apiKey)}`, {
+      const response = this.fetchFn(url, {
         method: 'POST',
         contentType: 'application/json',
+        headers: { 'x-goog-api-key': this.apiKey },
         payload: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: testPrompt }] }],
           generationConfig: generationConfig

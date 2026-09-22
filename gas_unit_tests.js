@@ -1384,8 +1384,9 @@ function runAllTests() {
             const serviceWithBackup = new GeminiService({
                 primaryKey: 'primary-key-abcdefghijklmnopqrstuvwxyz',
                 backupKey: 'backup-key-abcdefghijklmnopqrstuvwxyz',
-                fetchFn: (url) => {
-                    calls.push(url);
+                fetchFn: (url, options) => {
+                    const apiKey = options && options.headers && options.headers['x-goog-api-key'];
+                    calls.push(apiKey || url);
                     if (calls.length === 1) {
                         return {
                             getResponseCode: () => 429,

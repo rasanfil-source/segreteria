@@ -297,7 +297,7 @@ Se l'API usage supera l'80%, il sistema:
 ### Conformità GDPR
 
 - ✅ **Nessun dato salvato su server esterni** (tutto su Google Workspace)
-- ✅ **Nessuna email inviata a terzi** per training AI
+- ⚠️ **Contenuto email inviato a Google Gemini** per classificazione e generazione: verificare le condizioni di trattamento dei dati del piano utilizzato prima dell'uso con email reali.
 - ✅ **Memoria conversazionale cancellabile** in qualsiasi momento
 - ✅ **Audit log completo** di tutte le operazioni
 
@@ -316,6 +316,13 @@ Ogni risposta viene **validata automaticamente** prima dell'invio:
 
 **Se una sola validazione fallisce:** Email etichettata "Verifica" per controllo umano.
 
+I segnali di crisi critica rilevati dal contesto passano in **Verifica prima della
+generazione della risposta**, con `CRISIS_HUMAN_REVIEW: true` (predefinito).
+L'avviso al referente evita il throttle ordinario; richiede comunque notifiche
+di revisione abilitate e un destinatario configurato in `VALIDATION_REVIEW_ALERTS`.
+In `DRY_RUN` non vengono inviate notifiche. Impostare esplicitamente
+`CRISIS_HUMAN_REVIEW: false` disabilita questo passaggio.
+
 ---
 
 ## 🆘 Supporto
@@ -325,8 +332,8 @@ Ogni risposta viene **validata automaticamente** prima dell'invio:
 **Q: Il sistema non risponde alle email**
 ```
 Verifica:
-1. Il trigger è attivo? (Trigger → deve esserci "processEmailsMain" ogni 5 min)
-2. Orario di lavoro configurato? (Sistema si sospende fuori orari ufficio)
+1. Il trigger è attivo? (Trigger → deve esserci l'handler main ogni 5 min, creato da setupAllTriggers()/setupProductionTrigger())
+2. Orario di lavoro configurato? (Il sistema si sospende DURANTE gli orari di segreteria configurati e opera fuori orario e nei festivi)
 3. Controlla Esecuzioni → cerca errori
 ```
 

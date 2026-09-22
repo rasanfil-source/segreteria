@@ -22,7 +22,8 @@
 ```javascript
 function checkTrigger() {
   const triggers = ScriptApp.getProjectTriggers();
-  const mainTrigger = triggers.find(t => t.getHandlerFunction() === 'processEmailsMain');
+  // setupMainTrigger() crea l'handler 'main'; 'processEmailsMain' e' il nome legacy.
+  const mainTrigger = triggers.find(t => ['main', 'processEmailsMain'].includes(t.getHandlerFunction()));
   
   if (!mainTrigger) {
     console.error('❌ TRIGGER MANCANTE');
@@ -52,7 +53,7 @@ function checkApiKey() {
     return false;
   }
   
-  console.log('✓ API Key presente:', apiKey.substring(0, 10) + '...');
+  console.log('✓ API Key presente:', Boolean(apiKey)); // mai loggare frammenti della chiave
   return true;
 }
 ```
@@ -101,11 +102,9 @@ function fixTrigger() {
     }
   });
   
-  // Ricrea trigger
-  ScriptApp.newTrigger('processEmailsMain')
-    .timeBased()
-    .everyMinutes(10)
-    .create();
+  // Ricrea trigger con la funzione ufficiale (handler 'main', 5 minuti):
+  // evita di creare un secondo trigger parallelo con handler diverso.
+  setupMainTrigger(5);
   
   console.log('✓ Trigger ricreato');
 }

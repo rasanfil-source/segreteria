@@ -17,6 +17,27 @@ vm.runInThisContext(code, { filename: gasMemoryServicePath });
 
 console.log('--- Test MemoryService _setCache: chunk sotto limite CacheService ---');
 {
+  const memory = Object.create(MemoryService.prototype);
+  const persisted = new Map();
+  const savedCache = global.CacheService;
+  global.CacheService = { getScriptCache: () => ({
+    put: (key, value) => persisted.set(key, value), get: key => persisted.get(key) || null
+  }) };
+  try {
+    const envelope = JSON.stringify({ legacySummaryText: 'Riepilogo', conversationState: { health: 'resolved' } });
+    const input = { memorySummary: envelope, conversationState: { health: 'active' } };
+    memory._writeThroughMemoryCache_('audit-memory', input);
+    const local = memory._getFromCache('audit-memory');
+    assert(local.conversationState.health === 'resolved' && local.memorySummary === 'Riepilogo', 'write-through deve restituire la forma di lettura aggiornata');
+    assert(local.exists === true && local._rawMemorySummary === envelope, 'cache deve conservare envelope e indicatore exists');
+    local.conversationState.health = 'mutated';
+    memory._cache = {};
+    const reloaded = memory._getFromCache('audit-memory');
+    assert(reloaded.conversationState.health === 'resolved', 'cache persistente deve conservare lo stato aggiornato e isolato');
+    assert(input.conversationState.health === 'active' && input.memorySummary === envelope, 'write-through non deve mutare i dati destinati al foglio');
+  } finally { global.CacheService = savedCache; }
+}
+{
   const originalCacheService = global.CacheService;
   const putAllPayloads = [];
   let putCalled = false;

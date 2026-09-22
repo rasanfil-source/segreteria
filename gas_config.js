@@ -128,6 +128,8 @@ var CONFIG = {
   TEMPORAL_PARSING: {
     nextWeekdayPolicy: 'upcoming'
   },
+  // Le crisi critiche passano in Verifica prima della generazione automatica.
+  CRISIS_HUMAN_REVIEW: true,
   VALIDATION_REVIEW_ALERTS: {
     enabled: true,
     cooldownSeconds: 3600,

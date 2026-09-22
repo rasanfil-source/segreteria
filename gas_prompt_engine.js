@@ -775,6 +775,11 @@ Vincoli:
       const availableForKB = Math.max(1500, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - ocrTokens) * KB_BUDGET_RATIO));
       kbCharsLimit = Math.round(availableForKB * 4);
     }
+    // Il budget KB in token*4 può superare il tetto caratteri dell'intero prompt
+    // (con CONFIG reale: ~170k vs 100k). Senza questo clamp la KB non viene
+    // troncata e addSection la scarta in blocco, oppure consuma il budget e fa
+    // saltare le sezioni di sistema non forzate (checklist, reminder anti-leak).
+    kbCharsLimit = Math.min(kbCharsLimit, Math.max(1500 * 4, Math.floor(MAX_SAFE_PROMPT_CHARS * KB_BUDGET_RATIO)));
 
     const aiCoreLiteText = this._normalizePromptTextInput(aiCoreLite, '');
     const aiCoreText = this._normalizePromptTextInput(aiCore, '');
@@ -915,6 +920,8 @@ Vincoli:
 
     let usedTokens = 0;
     let usedChars = 0;
+    let optionalSectionsCount = 0;
+    const MAX_OPTIONAL_SECTIONS = 40;
 
     /**
      * Helper per aggiungere sezioni tracciando il budget token
@@ -936,8 +943,12 @@ Vincoli:
         return;
       }
 
-      if (!options.force && (systemSections.length + userSections.length) >= 30) {
-        console.warn(`⚠️ Limite sezioni raggiunto (30), salto sezione non critica: ${label}`);
+      // Il tetto conta anche le sezioni forzate: in thread "ricchi" (memoria +
+      // allegato + presenza + territorio + ritardo) le ultime sezioni aggiunte
+      // (CriticalErrorsReminder, ContextualChecklist) venivano scartate con il
+      // budget al 25%. Si contano solo le sezioni opzionali e si alza il tetto.
+      if (!options.force && optionalSectionsCount >= MAX_OPTIONAL_SECTIONS) {
+        console.warn(`⚠️ Limite sezioni raggiunto (${MAX_OPTIONAL_SECTIONS}), salto sezione non critica: ${label}`);
         skippedCount++;
         return;
       }
@@ -947,6 +958,7 @@ Vincoli:
       } else {
         userSections.push(section);
       }
+      if (!options.force) optionalSectionsCount++;
       usedTokens += sectionTokens;
       usedChars += sectionChars;
     };
@@ -991,7 +1003,8 @@ Vincoli:
     );
 
     // 5. KNOWLEDGE BASE (già troncata se necessario)
-    addSection(this._renderKnowledgeBase(workingKnowledgeBase), 'KnowledgeBase');
+    // La KB e' gia' troncata entro kbCharsLimit: non deve poter sparire in blocco.
+    addSection(this._renderKnowledgeBase(workingKnowledgeBase), 'KnowledgeBase', { force: true });
 
     // 6. VERIFICA TERRITORIO
     if (territoryContext) {

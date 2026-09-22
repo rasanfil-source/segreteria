@@ -1480,6 +1480,72 @@ function buildValidationFlowProcessor({ validationResult, generationText = 'Risp
   });
 }
 
+console.log('--- Audit patch: XML incompleto, retry integro e crisi prima della generazione ---');
+{
+  const savedValidation = CONFIG.VALIDATION_ENABLED;
+  const savedRetry = CONFIG.INTELLIGENT_RETRY;
+  const savedContext = global.createPromptContext;
+  const savedCrisis = CONFIG.CRISIS_HUMAN_REVIEW;
+  CONFIG.VALIDATION_ENABLED = true;
+  CONFIG.INTELLIGENT_RETRY = { enabled: true, maxRetries: 1, minScoreToTrigger: 0, onlyForErrors: ['thinking_leak'] };
+  const invalid = { isValid: false, score: 0, errors: ['ragionamento esposto'], warnings: [],
+    details: { exposedReasoning: { score: 0, errors: ['leak'] } } };
+  const good = { isValid: true, score: 1, errors: [], warnings: [], details: {} };
+  try {
+    global.createPromptContext = () => ({ profile: 'standard', concerns: {}, meta: {} });
+    for (const [index, text] of ['<email>Risposta.', '<email>Risposta senza punto', '<email>NO_REPLY',
+      '<email>Completa.</email><email>Seconda.', '</email>Risposta<email>'].entries()) {
+      const labels = [];
+      const p = buildValidationFlowProcessor({ generationText: text, labels });
+      let sends = 0;
+      p.gmailService.sendHtmlReply = () => { sends++; };
+      const result = p.processThread(createExternalThread(`audit-truncated-${index}`), 'kb valida', '', new Set(), true);
+      assert(result.reason === 'truncated_output' && sends === 0, `XML incompleto deve essere bloccato: ${text} (${result.reason})`);
+      assert(labels.some(entry => entry.label === 'Verifica'), 'XML incompleto deve ricevere Verifica');
+    }
+    for (const retryText of ['<email>Retry incompleto.', 'Nota interna: verificare gli orari. Risposta.']) {
+      let calls = 0;
+      let sends = 0;
+      const seen = [];
+      const payloads = [];
+      const p = buildValidationFlowProcessor({ generationText: () => ++calls === 1 ? 'Nota interna: primo tentativo.' : retryText,
+        onGenerate: payload => payloads.push(payload) });
+      p.promptEngine.buildPrompt = () => ({ systemInstruction: 'SYSTEM_SENTINEL', prompt: '<user_email>EMAIL_SENTINEL</user_email><knowledge_base>KB_SENTINEL</knowledge_base>' });
+      p.validator._rimuoviThinkingLeak = () => { throw new Error('Pre-strip non consentito'); };
+      p.validator.validateResponse = text => { seen.push(text); return text.includes('Nota interna:') ? invalid : good; };
+      p.gmailService.sendHtmlReply = () => { sends++; };
+      const result = p.processThread(createExternalThread(`audit-retry-${retryText.length}`), 'kb valida', '', new Set(), true);
+      assert(result.status === 'validation_failed' && sends === 0 && calls === 2, 'retry incompleto o con leak deve essere bloccato');
+      assert(payloads[1].systemInstruction === 'SYSTEM_SENTINEL', 'retry deve conservare la system instruction separata');
+      assert(payloads[1].prompt.includes('EMAIL_SENTINEL'), 'retry per leak deve conservare grounding email');
+      if (retryText.startsWith('<email>')) assert(result.reason === 'truncated_output', 'retry XML incompleto deve arrivare in Verifica');
+      else assert(seen.length === 2 && seen[1].includes('Nota interna:'), 'validator deve vedere il leak integrale nel retry');
+    }
+    global.createPromptContext = () => ({ profile: 'standard', concerns: {}, meta: { crisisCritical: true } });
+    CONFIG.CRISIS_HUMAN_REVIEW = true;
+    const labels = [];
+    let generated = 0;
+    let sent = 0;
+    const alerts = [];
+    const p = buildValidationFlowProcessor({ labels, onGenerate: () => { generated++; throw new Error('Modello indisponibile'); } });
+    p.gmailService.sendHtmlReply = () => { sent++; };
+    p._notifyValidationReview_ = (_target, context) => alerts.push(context);
+    const result = p.processThread(createExternalThread('audit-critical'), 'kb valida', '', new Set(), true);
+    assert(result.reason === 'pastoral_crisis_human_review' && generated === 0 && sent === 0, 'crisi critica deve precedere generazione e invio');
+    assert(labels.some(entry => entry.label === 'Verifica'), 'crisi deve applicare Verifica');
+    assert(alerts.length > 0 && alerts.every(alert => alert.bypassThrottle === true), 'crisi deve richiedere alert senza throttle');
+    CONFIG.CRISIS_HUMAN_REVIEW = false;
+    const disabled = buildValidationFlowProcessor();
+    const disabledResult = disabled.processThread(createExternalThread('audit-critical-disabled'), 'kb valida', '', new Set(), true);
+    assert(disabledResult.status === 'replied', 'opt-out esplicito deve conservare il flusso ordinario');
+  } finally {
+    CONFIG.VALIDATION_ENABLED = savedValidation;
+    CONFIG.INTELLIGENT_RETRY = savedRetry;
+    CONFIG.CRISIS_HUMAN_REVIEW = savedCrisis;
+    global.createPromptContext = savedContext;
+  }
+}
+
 function createDuplicateGuardPropertyStore() {
   const store = new Map();
   return {

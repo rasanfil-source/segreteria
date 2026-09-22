@@ -1902,6 +1902,7 @@ console.log('--- Test sendHtmlReply: doppio fallback fallito rilancia errore ---
     };
     const message = {
       getThread: () => thread,
+      getReplyTo: () => '', getFrom: () => 'utente@example.org',
       reply: () => {
         replyCalls += 1;
         throw new Error(`reply-fail-${replyCalls}`);
@@ -2075,6 +2076,7 @@ console.log('--- Test sendHtmlReply: fallback nativo usa from alias stabile ---'
 
     const message = {
       getThread: () => ({ getId: () => 'thread-native-from' }),
+      getReplyTo: () => '', getFrom: () => 'utente@example.org',
       reply: (_body, options) => { replyOptions = options || {}; }
     };
 
@@ -2110,6 +2112,7 @@ console.log('--- Test sendHtmlReply: fallback nativo ignora from non autorizzato
 
     const message = {
       getThread: () => ({ getId: () => 'thread-native-unauthorized-from' }),
+      getReplyTo: () => '', getFrom: () => 'utente@example.org',
       reply: (_body, options) => { replyOptions = options || {}; }
     };
 

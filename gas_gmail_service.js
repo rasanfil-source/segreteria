@@ -874,7 +874,10 @@ var GmailService = class GmailService {
 
                 // q mantiene la semantica thread-level di Gmail search; labelIds resta message-level
                 // per restituire solo i singoli messaggi non letti dentro thread ancora in inbox.
-                const params = { q: 'in:inbox', labelIds: ['UNREAD'], maxResults: safeMessageBuffer };
+                // Una pagina piccola (15) fa avanzare il cursore persistente di pochi id
+                // per run, e i non-letti gia' etichettati IA (che restano UNREAD per
+                // design) "affamano" le email nuove in cima alla lista.
+                const params = { q: 'in:inbox', labelIds: ['UNREAD'], maxResults: Math.max(safeMessageBuffer, 200) };
                 if (pageToken) params.pageToken = pageToken;
 
                 let response = null;
@@ -1516,11 +1519,21 @@ var GmailService = class GmailService {
         let effectiveSender;
         let hasReplyTo = false;
 
-        if (replyTo && replyTo.includes('@') && replyTo !== sender) {
+        // Reply-To viene onorato solo se appartiene allo stesso dominio del From:
+        // un mittente arbitrario non deve poter dirottare la risposta generata
+        // verso un terzo (backscatter) ne' aggirare blacklist/no-reply sul From.
+        const fromAddress = this._extractEmailAddress(sender) || '';
+        const replyToAddress = replyTo ? (this._extractEmailAddress(replyTo) || '') : '';
+        const domainOf = (address) => String(address || '').split('@')[1] ? String(address).split('@')[1].toLowerCase() : '';
+        const sameDomainReplyTo = Boolean(replyToAddress) && domainOf(replyToAddress) === domainOf(fromAddress);
+        if (replyTo && replyTo.includes('@') && replyTo !== sender && sameDomainReplyTo) {
             effectiveSender = replyTo;
             hasReplyTo = true;
             console.log(`   📧 Uso Reply-To: ${replyTo} (From originale: ${sender})`);
         } else {
+            if (replyTo && replyTo.includes('@') && replyTo !== sender) {
+                console.log('   📧 Reply-To su dominio diverso dal From: ignorato, rispondo al From.');
+            }
             effectiveSender = sender;
         }
 
@@ -3158,8 +3171,33 @@ var GmailService = class GmailService {
 
 
     /**
-     * Invia risposta come HTML con threading corretto
+     * Verifica che reply() usi lo stesso destinatario autorizzato per l'API.
      */
+    _assertNativeReplyRecipient_(entity, approvedRecipient) {
+        let message = entity;
+        if (message && typeof message.getMessages === 'function') {
+            const messages = message.getMessages();
+            message = messages[messages.length - 1];
+        }
+        // Non inferire il destinatario dai metadati filtrati: reply() legge
+        // gli header del messaggio originale, anche nel fallback thread-level.
+        const approved = this._extractEmailAddress(approvedRecipient || '').toLowerCase();
+        let actual = '';
+        try {
+            const replyTo = message.getReplyTo();
+            const rawRecipient = String(replyTo || message.getFrom() || '');
+            const addresses = rawRecipient.match(/[A-Za-z0-9._%+'!#=-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g) || [];
+            if (addresses.length !== 1) throw new Error('Destinatario ambiguo');
+            actual = this._extractEmailAddress(rawRecipient).toLowerCase();
+        } catch (error) {
+            throw new Error('Fallback reply bloccato: destinatario originale non verificabile');
+        }
+        if (!approved || !actual || actual !== approved) {
+            throw new Error('Fallback reply bloccato: destinatario diverso da quello autorizzato');
+        }
+    }
+
+    /** Invia risposta come HTML con threading corretto. */
     sendHtmlReply(resource, responseText, messageDetails = {}) {
         const finalResponse = responseText == null ? '' : String(responseText);
         const isAmbiguousSendError = (error) => {
@@ -3399,6 +3437,9 @@ var GmailService = class GmailService {
             throw new Error('Entità Gmail non valida per reply() nel fallback HTML');
         }
 
+        // reply() usa il Reply-To originale: verificare il destinatario effettivo
+        // anche quando l'API con To esplicito non è disponibile o rifiuta l'invio.
+        this._assertNativeReplyRecipient_(mailEntity, messageDetails.senderEmail);
         try {
             // Corpo minimo non vuoto per massimizzare compatibilità nel fallback nativo.
             const fallbackBody = plainText || this._stripHtmlTags(finalResponse) || 'Visualizza il contenuto HTML.';
@@ -3426,6 +3467,7 @@ var GmailService = class GmailService {
                         ? mailEntity.getThread()
                         : null;
                     if (threadEntity && typeof threadEntity.reply === 'function') {
+                        this._assertNativeReplyRecipient_(threadEntity, messageDetails.senderEmail);
                         threadEntity.reply(plainText || this._stripHtmlTags(finalResponse));
                         console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (fallback thread-level)`);
                         return;

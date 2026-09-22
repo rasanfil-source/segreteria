@@ -110,7 +110,21 @@ var ResponseValidator = class ResponseValidator {
       /\b(ho\s+)?dedott[oaie]?\b[^.\n]{0,120}\b(knowledge base|kb)\b/i,                         // Deduzioni esplicite da KB
       /\b(?:responseMode|continuityPolicy|concernSynthesis|memoryFlag|validatorExpectations)\s*:/i,
       /\bconcern:[a-z0-9_:-]+\b/i,
-      /\b(?:activeSignals|consumedSignals|validatorExpectations)\b\s*[:=]/i
+      /\b(?:activeSignals|consumedSignals|validatorExpectations)\b\s*[:=]/i,
+      // Tag/etichette interne di routing e direttive di sistema
+      /\[(?:AI_CORE|AI_CORE_LITE|ROUTED|KB|MEMORY|SYSTEM|DOCTRINE)[^\]]*\]/i,
+      /\bROUTED\s*:/i,
+      /\bDIVIETO\s+DI\s+DEROGA\b/i,
+      /<\/?(?:analisi|thinking|thought|system|knowledge_base|conversation_history|user_email)>/i,
+      // Riferimenti a istruzioni/guida interna/base dati/memoria/system prompt
+      /\b(?:come\s+richiesto|secondo|in\s+base|conformemente|attenendomi)\s+(?:dalle|alle|dalla|alla|a|al|le|la|il|i)?\s*(?:istruzioni|linee\s+guida|guida\s+interna|direttive|regole\s+interne)\b/i,
+      /\b(?:la\s+|nella\s+)?guida\s+interna\b/i,
+      /\bsystem\s+prompt\b|\bprompt\s+di\s+sistema\b/i,
+      /\b(?:nella\s+nostra\s+|nella\s+)?base\s+(?:dati|di\s+conoscenza)\b|\bconoscenza\s+di\s+base\b/i,
+      /\b(?:la\s+)?memoria\s+(?:della\s+conversazione|del\s+thread)\b|\bsintesi\s+memoria\b/i,
+      // Ragionamento esposto in italiano/inglese
+      /^\s*(?:\*\*)?(?:thinking|thought|thoughts|analisi|ragionamento|reasoning)(?:\*\*)?\s*[:\n]/im,
+      /\b(?:let\s+me\s+think|let\s+me\s+draft|i\s+(?:need|should)\s+to\s+(?:check|verify)|the\s+user\s+(?:is\s+asking|wants|asks)|analizzo\s+la\s+richiesta|l['’]utente\s+chiede)\b/i
     ];
 
     this.thinkingPatterns = [
@@ -863,10 +877,19 @@ var ResponseValidator = class ResponseValidator {
 
     // Verifica corrispondenza
     if (detectedLang !== expectedLanguage) {
+      // La firma obbligatoria contiene sempre "Parrocchia": un solo marker IT
+      // rendeva "mista" (warning 0.85) anche una risposta interamente inglese.
+      // Il ramo "mista" richiede marker IT nel corpo (esclusa la firma) e pochi
+      // marker EN; altrimenti si applica il controllo normale di mismatch.
+      const bodyWithoutSignature = responseLower.replace(/segreteria\s+parrocchia[^\n]*/gi, '');
+      const itMarkersInBody = (this.languageMarkers.it || []).reduce(
+        (count, marker) => count + (bodyWithoutSignature.includes(marker) ? 1 : 0), 0
+      );
       const isItalianEnglishMixedSignal = (
         expectedLanguage === 'it' &&
         detectedLang === 'en' &&
-        (markerScores[expectedLanguage] || 0) > 0
+        itMarkersInBody >= 2 &&
+        (markerScores.en || 0) < 3
       );
       if (isItalianEnglishMixedSignal) {
         warnings.push('Possibile lingua mista IT/EN');
@@ -1486,14 +1509,21 @@ var ResponseValidator = class ResponseValidator {
         'segnali attivi:',
         'segnali consumati dal prompt',
         'vincoli da rispettare anche in revisione',
-        'routing moduli:'
+        'routing moduli:',
+        'nota interna:',
+        'note interne:'
       ];
 
-      const isRegexMatch = firstPattern.startsWith('regex match:');
-      const isHardMatch = isRegexMatch || hardPatterns.some(pattern => firstPattern.includes(pattern));
+      // Valutare solo foundPatterns[0] permetteva a un pattern "soft" trovato
+      // prima di uno "hard" di degradare l'errore a semplice warning.
+      const hardHit = foundPatterns.find((found) => {
+        const lowered = String(found || '').toLowerCase();
+        return lowered.startsWith('regex match:') || hardPatterns.some(pattern => lowered.includes(pattern));
+      });
+      const isHardMatch = Boolean(hardHit);
 
       if (isHardMatch) {
-        errors.push(`RAGIONAMENTO ESPOSTO CRITICO: "${foundPatterns[0]}..."`);
+        errors.push(`RAGIONAMENTO ESPOSTO CRITICO: "${hardHit}..."`);
         score = 0.0;
       } else {
         warnings.push(`Possibile meta-commento: "${foundPatterns[0]}..."`);
@@ -3516,13 +3546,16 @@ var ResponseValidator = class ResponseValidator {
     );
 
     // Usa thinkingPatterns come sorgente per le keyword di ragionamento
+    // Rimuove l'INTERA frase che contiene la keyword (dal confine di frase
+    // precedente a quello successivo). La versione precedente tagliava dalla
+    // keyword in avanti, lasciando frammenti come "le confermo che,  Cordiali saluti".
     const keywords = this.thinkingPatterns || [];
     keywords.forEach(kw => {
       const escaped = this._escapeRegex(kw);
-      const regex = new RegExp(`(^|[\\s.,;!?])${escaped}[^.?!]*[.?!]`, 'gi');
+      const regex = new RegExp(`(^|[.?!\\n])[^.?!\\n]*${escaped}[^.?!\\n]*[.?!]?`, 'gi');
       cleaned = cleaned.replace(regex, '$1');
     });
-    return cleaned.trim();
+    return cleaned.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   }
 
   // ========================================================================

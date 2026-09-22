@@ -10,6 +10,10 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# Alcuni test costruiscono Date locali (new Date(y, m, d, h, mi)) e confrontano
+# con fasce Europe/Rome: senza TZ fissa falliscono su runner in UTC.
+export TZ="Europe/Rome"
+
 echo "==> [1/3] Smoke tests"
 node scripts/ci_smoke_tests.js
 

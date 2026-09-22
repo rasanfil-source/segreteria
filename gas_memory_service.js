@@ -2155,6 +2155,18 @@ var MemoryService = class MemoryService {
       const cacheData = Object.assign({}, data);
       if (!Array.isArray(cacheData.providedInfo)) cacheData.providedInfo = [];
       if (!cacheData.contextualFlags || typeof cacheData.contextualFlags !== 'object') cacheData.contextualFlags = {};
+      // La cache deve contenere la stessa forma restituita da _rowToObject:
+      // memorySummary = testo legacy, conversationState = oggetto parsato.
+      // I chiamanti di updateMemory/updateMemoryAtomic passano invece la forma
+      // "da foglio" (memorySummary = envelope JSON, conversationState stale).
+      const rawSummary = typeof cacheData.memorySummary === 'string' ? cacheData.memorySummary : '';
+      const parsedSummary = this._parseMemorySummaryState(rawSummary);
+      if (parsedSummary.recognized) {
+        cacheData._rawMemorySummary = rawSummary;
+        cacheData.memorySummary = parsedSummary.legacySummaryText || '';
+        cacheData.conversationState = parsedSummary.conversationState || null;
+      }
+      cacheData.exists = true;
       this._setCache(key, cacheData);
     } catch (e) {
       console.warn(`⚠️ Write-through cache memoria fallita: ${e.message}`);

@@ -982,11 +982,13 @@ var PromptContext = class PromptContext {
         const continuityPolicy = this._computeContinuityPolicy(responseMode);
         const concernSynthesis = this._buildConcernSynthesis(responseRegister, responseMode, operationalConstraints);
 
+        const crisisSignal = this._detectPastoralCrisisSignal_(this.input.email?.subject, this.input.email?.body);
         return {
             profile: this.profile,
             activeConcerns: active,
             responseMode: responseMode,
             responseRegister: responseRegister,
+            crisisCritical: crisisSignal.critical === true,
             salutationMode: salutationMode,
             concernSynthesis: concernSynthesis,
             operationalConstraints: operationalConstraints,

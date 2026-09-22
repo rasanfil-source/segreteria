@@ -49,6 +49,7 @@ vm.runInContext(`
     throw new Error('Service unavailable');
   } } } };
   const message = {
+    getReplyTo: () => '', getFrom: () => 'user@example.org',
     getId: () => 'm1', getThread: () => ({ getId: () => 't1' }),
     reply: () => { nativeAttempts++; }
   };
@@ -129,3 +130,30 @@ assert.deepStrictEqual(Array.from(context.queryOffsets), [0, 1, 2]);
 assert.strictEqual(context.queryCursor.offset, 0);
 assert.strictEqual(context.nativeAfterDefiniteFailure, 1);
 console.log('OK: limite thread, avanzamento query e fallback per rifiuto definitivo');
+
+vm.runInContext(`
+  let unsafeReplies = 0;
+  const redirected = { getThread: () => ({ getId: () => 'redirected' }),
+    getFrom: () => 'user@example.org', getReplyTo: () => 'third@elsewhere.org',
+    reply: () => { unsafeReplies++; } };
+  globalThis.replyGuardErrors = [];
+  for (const headers of [{}, { rfc2822MessageId: '<test@example.org>' }]) {
+    try { service.sendHtmlReply(redirected, 'Risposta', { ...headers, senderEmail: 'user@example.org' }); }
+    catch (error) { replyGuardErrors.push(error.message); }
+  }
+  const changedThread = { getMessages: () => [redirected], reply: () => { unsafeReplies++; } };
+  const originalMessage = { getThread: () => changedThread,
+    getFrom: () => 'user@example.org', getReplyTo: () => '',
+    reply: () => { throw new Error('Invalid argument'); } };
+  try { service.sendHtmlReply(originalMessage, 'Risposta', { senderEmail: 'user@example.org' }); }
+  catch (error) { replyGuardErrors.push(error.message); }
+  globalThis.unsafeReplies = unsafeReplies;
+  // Destinatario non verificabile: nessun fallback permissivo.
+  try { service._assertNativeReplyRecipient_({}, 'user@example.org'); }
+  catch (error) { replyGuardErrors.push(error.message); }
+  service._assertNativeReplyRecipient_({ getReplyTo: () => 'Office <office@example.org>' }, 'office@example.org');
+`, context);
+assert.strictEqual(context.unsafeReplies, 0);
+assert.strictEqual(context.replyGuardErrors.length, 4);
+assert(context.replyGuardErrors.slice(0, 2).every(error => error.includes('destinatario diverso')));
+console.log('OK: Reply-To filtrato anche senza API, dopo rifiuto API e nel fallback al thread');

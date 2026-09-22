@@ -20,6 +20,12 @@ const code = fs.readFileSync(promptContextPath, 'utf8');
 vm.runInThisContext(code, { filename: promptContextPath });
 
 console.log('--- Test PromptContext: identity_consistency solo per nuove richieste non tecniche ---');
+{
+  const critical = createPromptContext({ email: { subject: 'Aiuto', body: 'Voglio farmi del male.', detectedLanguage: 'it' }, classification: { category: 'pastoral' } });
+  const routine = createPromptContext({ email: { subject: 'Orari', body: 'Quando apre la segreteria?', detectedLanguage: 'it' }, classification: { category: 'info' } });
+  assert(critical.meta.crisisCritical === true, 'segnale critico deve essere esposto al processor');
+  assert(routine.meta.crisisCritical === false, 'richiesta ordinaria non deve imporre escalation');
+}
 const technicalNew = createPromptContext({
   email: { isReply: false, detectedLanguage: 'it' },
   requestType: { type: 'technical' },
