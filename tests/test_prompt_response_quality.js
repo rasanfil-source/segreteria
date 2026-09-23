@@ -196,9 +196,10 @@ assert(
 assert(
   litePrompt.includes('Pertinenza selettiva') &&
   litePrompt.includes('se chiede se può venire il giovedì') &&
-  litePrompt.includes('Scomponi le frasi composte') &&
-  litePrompt.includes('altrimenti omettilo'),
-  'il contratto qualità deve imporre la sintesi sui soli casi richiesti'
+  litePrompt.includes('Scomponi le frasi composte: ogni ramo deve risolvere una domanda o un vincolo, oppure definire un passo attuale; altrimenti omettilo.') &&
+  litePrompt.includes('Un ripiego condizionato indicato dall’utente non è una richiesta aperta') &&
+  litePrompt.includes('menziona il ripiego soltanto se la condizione si verifica'),
+  'il contratto qualità deve imporre la sintesi sui soli casi richiesti e gestire i ripieghi condizionati'
 );
 assert(
   litePrompt.includes('UNITÀ INFORMATIVE, NON TESTO DA RIPRODURRE') &&
