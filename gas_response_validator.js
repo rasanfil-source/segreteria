@@ -1145,7 +1145,7 @@ var ResponseValidator = class ResponseValidator {
         if (/(?:via|viale|piazza|corso|largo|vicolo|civico|n\.|num\.|int\.|scala)\s*$/i.test(prefix)) continue;
         if (/^\s*(?:euro|\u20AC|eur)/i.test(suffix)) continue;
         if (/^\.\d{2,4}\b/.test(suffix) || /(?:^|[\s(])\d{1,2}[\/.-]\d{1,2}$/.test(prefix.trim())) continue;
-        if (/(?:gv|mt|mc|lc|gen|es|lv|nm|dt|gs|dc|rut|1?sam|2sam|1?re|2re|1?cr|2cr|esd|ne|tb|gdt|est|gb|sal|pr|qo|ct|sap|sir|is|ger|lam|bar|ez|dn|os|gl|am|abd|gna|mi|na|ab|sof|ag|zc|ml|at|rm|1?cor|2cor|gal|ef|fil|col|1?ts|2ts|1?tm|2tm|tt|fm|eb|gc|1?pt|2pt|1?gv|2gv|3gv|gd|ap)\.?\s*$/i.test(prefix)) continue;
+        if (/\b(?:gv|mt|mc|lc|gen|es|lv|nm|dt|gs|dc|rut|1?sam|2sam|1?re|2re|1?cr|2cr|esd|ne|tb|gdt|est|gb|sal|pr|qo|ct|sap|sir|is|ger|lam|bar|ez|dn|os|gl|am|abd|gna|mi|na|ab|sof|ag|zc|ml|at|rm|1?cor|2cor|gal|ef|fil|col|1?ts|2ts|1?tm|2tm|tt|fm|eb|gc|1?pt|2pt|1?gv|2gv|3gv|gd|ap)\.?\s*$/i.test(prefix)) continue;
 
         found.push(timeStr);
       }

@@ -1,0 +1,17 @@
+{
+  "gas_response_validator.js": {
+    "functions": 96,
+    "blocks": 80,
+    "methods": {
+      "_checkLength": 100,
+      "_checkSignature": 100,
+      "_runValidationChecks": 100,
+      "_checkDocumentMismatchTemplate": 95,
+      "_checkExpectedDocumentMissingTemplate": 95
+    }
+  },
+  "gas_territory_validator.js": {
+    "functions": 100,
+    "blocks": 87
+  }
+}

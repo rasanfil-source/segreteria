@@ -190,6 +190,7 @@ Il progetto non introduce dipendenze a pagamento. Il costo operativo nullo dipen
 
 5. 🧪 **[Testing e Debug](docs/TROUBLESHOOTING_IT.md)**
    - Test unitari e integrazione
+   - [Matrici decisionali dei validatori e soglie di copertura CI](docs/validator_testing.md)
    - Troubleshooting scenari comuni
    - Performance monitoring
 
