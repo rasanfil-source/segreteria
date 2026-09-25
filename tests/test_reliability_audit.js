@@ -20,6 +20,7 @@ const ctx = {
   MailApp: { sendEmail: (...args) => notifications.push(args) }
 };
 vm.createContext(ctx);
+require('./helpers/load_thread_components')(ctx);
 for (const file of ['gas_response_strategy.js', 'gas_prompt_context.js', 'gas_email_processor.js',
   'gas_gmail_service.js', 'gas_memory_service.js', 'gas_rate_limiter.js', 'gas_response_validator.js', 'gas_main.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), ctx, { filename: file });

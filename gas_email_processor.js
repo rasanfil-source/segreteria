@@ -785,54 +785,10 @@ var EmailProcessor = class EmailProcessor {
   processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds = null, skipLock = false, skippedMessageIds = null, options = {}) {
     const threadId = thread.getId();
     const startTime = Date.now();
-    const activeLogger = (options && options.logger) ? options.logger : this.logger;
-    const baseThreadLogger = (activeLogger && typeof activeLogger.withMeta === 'function')
-      ? activeLogger.withMeta({ threadId: threadId })
-      : activeLogger;
-    const threadLogger = (baseThreadLogger && typeof baseThreadLogger.info === 'function' && typeof baseThreadLogger.warn === 'function' && typeof baseThreadLogger.error === 'function')
-      ? baseThreadLogger
-      : {
-        info: (...args) => console.log(...args),
-        warn: (...args) => console.warn(...args),
-        error: (...args) => console.error(...args),
-        debug: (...args) => console.log(...args),
-      };
-    const previousServiceLoggers = {
-      geminiService: this.geminiService ? this.geminiService.logger : null,
-      classifier: this.classifier ? this.classifier.logger : null,
-      validator: this.validator ? this.validator.logger : null,
-      requestClassifier: this.requestClassifier ? this.requestClassifier.logger : null,
-      gmailService: this.gmailService ? this.gmailService.logger : null,
-      memoryService: this.memoryService ? this.memoryService.logger : null
-    };
-    const restoreServiceLoggers = () => {
-      if (this.geminiService) this.geminiService.logger = previousServiceLoggers.geminiService;
-      if (this.classifier) this.classifier.logger = previousServiceLoggers.classifier;
-      if (this.validator) this.validator.logger = previousServiceLoggers.validator;
-      if (this.requestClassifier) this.requestClassifier.logger = previousServiceLoggers.requestClassifier;
-      if (this.gmailService) this.gmailService.logger = previousServiceLoggers.gmailService;
-      if (this.memoryService) this.memoryService.logger = previousServiceLoggers.memoryService;
-    };
-    if (this.geminiService && threadLogger && typeof threadLogger.withContext === 'function') {
-      this.geminiService.logger = threadLogger.withContext('GeminiService');
-    }
-    if (this.classifier && threadLogger && typeof threadLogger.withContext === 'function') {
-      this.classifier.logger = threadLogger.withContext('Classifier');
-    }
-    if (this.validator && threadLogger && typeof threadLogger.withContext === 'function') {
-      this.validator.logger = threadLogger.withContext('Validator');
-    }
-    if (this.requestClassifier && threadLogger && typeof threadLogger.withContext === 'function') {
-      this.requestClassifier.logger = threadLogger.withContext('RequestClassifier');
-    }
-    if (this.gmailService && threadLogger && typeof threadLogger.withContext === 'function') {
-      this.gmailService.logger = threadLogger.withContext('GmailService');
-    }
-    if (this.memoryService && threadLogger && typeof threadLogger.withContext === 'function') {
-      this.memoryService.logger = threadLogger.withContext('MemoryService');
-    }
-    // Garantisce che _isNearDeadline() funzioni anche se processThread
-    // è invocato direttamente (test, debug) senza passare per processUnreadEmails.
+    const lifecycleServices = this._threadLifecycleServices_();
+    const loggersPhase = ThreadLifecycle.loggers(lifecycleServices, { options, threadId });
+    const { threadLogger, restoreServiceLoggers } = loggersPhase;
+    // Conserva il riferimento temporale del batch quando ancora valido.
     const startTimeAgeMs = startTime - Number(this._startTime || 0);
     const staleStartThresholdMs = Math.max(0, this.config.maxExecutionTimeMs - this.config.minRemainingTimeMs);
     if (!this._startTime || startTimeAgeMs < 0 || startTimeAgeMs > staleStartThresholdMs) {
@@ -842,11 +798,7 @@ var EmailProcessor = class EmailProcessor {
     const normalizedDoctrineBase = this._normalizeTextContent(doctrineBase);
     const languageMode = this._getLanguageProcessingMode_();
 
-    // ====================================================================
-    // ACQUISIZIONE LOCK (LIVELLO-THREAD) - Previene condizioni di conflitto
-    // ====================================================================
-
-    let lockCtx = this._acquireThreadLock(threadId, skipLock, threadLogger, {
+    const lockCtx = this._acquireThreadLock(threadId, skipLock, threadLogger, {
       lockAlreadyCovered: !!(options && options.lockAlreadyCovered)
     });
     if (!lockCtx.ok) {
@@ -856,2903 +808,370 @@ var EmailProcessor = class EmailProcessor {
       }
       return { status: 'skipped', reason: lockCtx.reason };
     }
-
     const result = {
       status: 'unknown',
       validationFailed: false,
       dryRun: false,
       error: null
     };
-
-    let candidate = null;
-    let replySent = false;
-    let duplicateReplyFingerprintContext = null;
-    let externalUnread = [];
-    let responseContextMessageIds = new Set();
-    let responseContextMessages = [];
-    const setResponseContextMessages = (messagesForResponse) => {
-      const source = Array.isArray(messagesForResponse) ? messagesForResponse : [];
-      responseContextMessageIds = new Set();
-      responseContextMessages = [];
-      source.forEach((message) => {
-        if (!message || typeof message.getId !== 'function') return;
-        const messageId = message.getId();
-        if (!messageId || responseContextMessageIds.has(messageId)) return;
-        responseContextMessageIds.add(messageId);
-        responseContextMessages.push(message);
-      });
-      if (candidate && typeof candidate.getId === 'function') {
-        const candidateId = candidate.getId();
-        if (candidateId && !responseContextMessageIds.has(candidateId)) {
-          responseContextMessageIds.add(candidateId);
-          responseContextMessages.push(candidate);
-        }
-      }
-    };
-    const isInResponseContext = (message) => (
-      message &&
-      typeof message.getId === 'function' &&
-      responseContextMessageIds.has(message.getId())
-    );
-    let markHandledUnread = () => { };
-    let handledUnreadMarked = false;
-    const markHandledUnreadOnce = () => {
-      if (handledUnreadMarked) return;
-      markHandledUnread();
-      handledUnreadMarked = true;
-    };
-    const markFailureForCurrentBurst = (labelType, reviewContext = {}, markHandled = true) => {
-      const targets = (responseContextMessages && responseContextMessages.length > 0)
-        ? responseContextMessages
-        : (candidate ? [candidate] : []);
-
-      if (targets.length === 0) {
-        this._addErrorLabel(thread);
-        return;
-      }
-
-      targets.forEach((message) => {
-        if (labelType === 'validation') {
-          this._addValidationErrorLabel(message, reviewContext);
-        } else {
-          this._addErrorLabel(message);
-        }
-        if (markHandled) this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
-        else if (labeledMessageIds) labeledMessageIds.add(message.getId());
-      });
-    };
+    const messageStateServices = this._threadMessageStateServices_();
+    const messageState = ThreadMessageState.create(messageStateServices, {
+      thread, labeledMessageIds, skippedMessageIds
+    });
+    // Solo questo stato sopravvive a eccezioni durante persistenza e completamento.
+    const delivery = { confirmed: false };
     try {
-      // Raccogli informazioni su thread e messaggi
-      // Ottieni ultimo messaggio NON LETTO nel thread
       this._refreshThreadBeforeUnreadRead_(thread, threadId, threadLogger);
       const messages = thread.getMessages();
       const unreadMessages = this._getUnreadMessagesForProcessing_(messages, threadLogger);
-
-      // Risoluzione indirizzo email principale e alias configurati
-      let myEmail = '';
-      try {
-        if (typeof Session !== 'undefined' && Session && typeof Session.getEffectiveUser === 'function') {
-          const effectiveUser = Session.getEffectiveUser();
-          if (effectiveUser && typeof effectiveUser.getEmail === 'function') {
-            myEmail = effectiveUser.getEmail() || '';
-          }
-        }
-      } catch (sessionError) {
-        threadLogger.warn(`Impossibile recuperare email utente da Session: ${sessionError.message}`);
-      }
-
-      let gmailAliases = [];
-      try {
-        gmailAliases = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getAliases === 'function')
-          ? (GmailApp.getAliases() || [])
-          : [];
-      } catch (aliasError) {
-        threadLogger.warn(`Impossibile recuperare alias Gmail: ${aliasError.message}`);
-      }
-
-      if (!myEmail && gmailAliases.length > 0) {
-        myEmail = gmailAliases[0] || '';
-      }
-
-      if (!myEmail) {
-        let adminEmailProperty = '';
-        try {
-          if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
-            adminEmailProperty = PropertiesService.getScriptProperties().getProperty('ADMIN_EMAIL') || '';
-          }
-        } catch (propertyError) {
-          threadLogger.warn(`Impossibile leggere ADMIN_EMAIL da ScriptProperties: ${propertyError.message}`);
-        }
-        const adminEmailConfig = (typeof CONFIG !== 'undefined' && CONFIG.LOGGING && CONFIG.LOGGING.ADMIN_EMAIL)
-          ? CONFIG.LOGGING.ADMIN_EMAIL
-          : '';
-        const adminEmail = adminEmailProperty || adminEmailConfig || '';
-        let botEmailProperty = '';
-        try {
-          if (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function') {
-            botEmailProperty = PropertiesService.getScriptProperties().getProperty('BOT_EMAIL') || '';
-          }
-        } catch (propertyError) {
-          threadLogger.warn(`Impossibile leggere BOT_EMAIL da ScriptProperties: ${propertyError.message}`);
-        }
-        const botEmailConfig = (typeof CONFIG !== 'undefined' && CONFIG.BOT_EMAIL) ? CONFIG.BOT_EMAIL : '';
-
-        myEmail = botEmailProperty || botEmailConfig || adminEmail || '';
-
-        if (myEmail) {
-          threadLogger.warn(`Session email non disponibile: uso fallback configurato anti-loop (${myEmail})`);
-        }
-      }
-
-      // ====================================================================
-      // FILTRO A LIVELLO MESSAGGIO
-      // ====================================================================
-      const effectiveLabeledIds = (labeledMessageIds instanceof Set)
-        ? labeledMessageIds
-        : new Set();
-      const metadataTerminalLabelIds = [];
-      const metadataSkipLabelIds = new Set();
-      if (this.gmailService && typeof this.gmailService._getOptionalLabelIdByName === 'function') {
-        const terminalLabels = [
-          { name: this.config.labelName, type: 'processed' },
-          { name: this.config.errorLabelName, type: 'processed' },
-          { name: this.config.validationErrorLabel, type: 'processed' }
-        ];
-        if (languageMode === 'foreign_only') {
-          terminalLabels.push({ name: this.config.skipLabelName, type: 'skip' });
-        }
-
-        terminalLabels.forEach((entry) => {
-          try {
-            const labelId = entry && entry.name
-              ? this.gmailService._getOptionalLabelIdByName(entry.name)
-              : null;
-            if (!labelId) return;
-            const isUserLabelId = typeof this.gmailService._isUserLabelId_ === 'function'
-              ? this.gmailService._isUserLabelId_(labelId)
-              : (typeof labelId === 'string' && !/^(INBOX|UNREAD|STARRED|SENT|DRAFT|SPAM|TRASH|IMPORTANT|CHAT|CATEGORY_.+)$/i.test(labelId.trim()));
-            if (!isUserLabelId) return;
-            metadataTerminalLabelIds.push(labelId);
-            if (entry.type === 'skip') {
-              metadataSkipLabelIds.add(labelId);
-            }
-          } catch (labelError) {
-            threadLogger.warn(`Impossibile risolvere label terminale '${entry && entry.name ? entry.name : ''}': ${labelError.message}`);
-          }
-        });
-      }
-
-      // Build set of our own addresses (primary + aliases) per filtro early-stage
-      const ownAddresses = new Set();
-      if (myEmail) ownAddresses.add(this._normalizeEmailAddress_(myEmail));
-      gmailAliases.forEach(alias => {
-        if (alias) ownAddresses.add(this._normalizeEmailAddress_(alias));
+      const selectionServices = this._threadSelectionServices_();
+      const identity = ThreadSelection.identity(selectionServices, { threadLogger });
+      const unread = ThreadSelection.unread(selectionServices, {
+        ...identity, labeledMessageIds, languageMode, threadLogger, unreadMessages, skippedMessageIds
       });
-      const knownAliasesArray = (typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.KNOWN_ALIASES))
-        ? CONFIG.KNOWN_ALIASES : [];
-      knownAliasesArray.forEach(alias => {
-        if (alias) ownAddresses.add(this._normalizeEmailAddress_(alias));
+      const selection = ThreadSelection.select(selectionServices, {
+        ...unread, messageState, options, result, labeledMessageIds, skippedMessageIds, threadLogger
       });
-      if (ownAddresses.size === 0) {
-        throw new Error('CONFIG_ERROR: impossibile determinare identità bot/alias; elaborazione interrotta per evitare loop automatici');
-      }
-
-      const unlabeledUnread = unreadMessages.filter(message => {
-        const messageId = message.getId();
-        if (effectiveLabeledIds.has(messageId)) return false;
-
-        // Cache miss hardening: l'ID potrebbe essere uscito dalla finestra maxMessages.
-        // Verifica minimale su Gmail per evitare re-processing e loop di risposte duplicate
-        // anche su label terminali diverse da IA (Errore/Verifica/skip foreign_only).
-        if (this.gmailService && typeof this.gmailService._getMessageMetadataWithResilience === 'function') {
-          const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
-          if (metadata && Array.isArray(metadata.labelIds)) {
-            const matchedTerminalId = metadataTerminalLabelIds.find(labelId => metadata.labelIds.includes(labelId));
-            if (matchedTerminalId) {
-              if (metadataSkipLabelIds.has(matchedTerminalId) && skippedMessageIds && typeof skippedMessageIds.add === 'function') {
-                skippedMessageIds.add(messageId);
-              }
-              effectiveLabeledIds.add(messageId); // auto-healing cache locale
-              return false;
-            }
-          }
-        }
-        return true;
+      if (selection.terminal) return result;
+      const policyServices = this._threadPolicyServices_();
+      const policy = ThreadPolicy.ruleContext(policyServices, {
+        ...unread, messageState, skippedMessageIds, labeledMessageIds, threadLogger, threadId, languageMode
       });
 
-      const getMessageSortTimestamp = (message) => {
-        try {
-          const date = message && typeof message.getDate === 'function' ? message.getDate() : null;
-          return date instanceof Date && !isNaN(date.getTime()) ? date.getTime() : 0;
-        } catch (e) {
-          return 0;
-        }
-      };
-      const getMessageSortId = (message) => {
-        try {
-          return message && typeof message.getId === 'function' ? String(message.getId() || '') : '';
-        } catch (e) {
-          return '';
-        }
-      };
-      const compareMessagesByDateAndId = (left, right) => {
-        const diff = getMessageSortTimestamp(left) - getMessageSortTimestamp(right);
-        if (diff !== 0) return diff;
-        const leftId = getMessageSortId(left);
-        const rightId = getMessageSortId(right);
-        if (leftId < rightId) return -1;
-        if (leftId > rightId) return 1;
-        return 0;
-      };
-
-      externalUnread = unlabeledUnread.filter(message => {
-        // Utilizza getFrom() per efficienza rispetto alla costosa extractMessageDetails()
-        const rawFrom = (message.getFrom() || '');
-        const senderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-          ? this.gmailService._extractEmailAddress(rawFrom)
-          : rawFrom;
-
-
-
-        // Se non riusciamo ad estrarre l'email, consideriamo il mittente come esterno per sicurezza
-        if (!senderEmail) return true;
-
-        return !ownAddresses.has(this._normalizeEmailAddress_(senderEmail));
-      }).sort(compareMessagesByDateAndId);
-
-      const staleOnlyMs = this._getFiniteOptionNumber_(options, 'staleOnlyMs');
-      if (Number.isFinite(staleOnlyMs)) {
-        const hasRecentExternalUnread = externalUnread.some(message => {
-          const msgDate = (message && typeof message.getDate === 'function') ? message.getDate() : null;
-          const messageTs = (msgDate && typeof msgDate.getTime === 'function') ? msgDate.getTime() : NaN;
-          return Number.isFinite(messageTs) && messageTs > staleOnlyMs;
-        });
-
-        if (hasRecentExternalUnread) {
-          console.log('     Stale-only: salto thread con follow-up esterni recenti per evitare risposta fuori contesto');
-          result.status = 'skipped';
-          result.reason = 'stale_thread_has_recent_messages';
-          return result;
-        }
-      }
-
-      // Nota di manutenzione sulle label:
-      // - IA chiude i messaggi già gestiti tecnicamente (esterni filtrati, interni/nostri).
-      // - '·' indica solo una email italiana rimandata perché siamo in modalità foreign_only.
-      // Tenere separate queste due funzioni evita che il punto medio compaia in modalità "Tutte le lingue".
-      markHandledUnread = () => {
-        const externalIds = new Set(externalUnread.map(m => m.getId()));
-        const internalUnread = [];
-        const isAbortAll = candidate === null;
-        const candidateDate = (candidate && typeof candidate.getDate === 'function') ? candidate.getDate() : null;
-        const candidateTimestamp = (candidateDate && typeof candidateDate.getTime === 'function')
-          ? candidateDate.getTime()
-          : (isAbortAll ? Infinity : 0);
-
-        unlabeledUnread.forEach(message => {
-          const messageId = message.getId();
-          if (externalIds.has(messageId)) {
-            // Temporal Reversal: rispondendo al messaggio esterno piu recente,
-            // consumiamo anche gli esterni antecedenti rimasti appesi nel thread.
-            const messageDate = (message && typeof message.getDate === 'function') ? message.getDate() : null;
-            const messageTimestamp = (messageDate && typeof messageDate.getTime === 'function')
-              ? messageDate.getTime()
-              : 0;
-            if (isAbortAll || isInResponseContext(message) || messageTimestamp <= candidateTimestamp) {
-              this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
-            }
-          } else {
-            const rawFrom = (message && typeof message.getFrom === 'function') ? (message.getFrom() || '') : '';
-            const senderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-              ? this.gmailService._extractEmailAddress(rawFrom)
-              : rawFrom;
-            const isOwnMessage = senderEmail && ownAddresses.has(this._normalizeEmailAddress_(senderEmail));
-            if (isOwnMessage) {
-              internalUnread.push(message);
-            } else if (Number.isFinite(staleOnlyMs)) {
-              console.log(`   ℹ️ Stale-only: preservo messaggio esterno recente ${message.getId()} per il ciclo normale`);
-            }
-          }
-        });
-        if (internalUnread.length > 0) {
-          internalUnread.forEach((message) => this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds));
-        }
-      };
-
-      // GUARDRAIL (critico): se un messaggio è già stato etichettati IA, non deve
-      // rientrare nel ciclo di risposta automatica anche se il thread è ancora aperto.
-      // Questo evita doppie risposte su stesso messaggio.
-      // Se non ci sono messaggi non letti non ancora etichettati → skip
-      if (unlabeledUnread.length === 0) {
-        console.log('   ⊖ Thread già elaborato (nessun nuovo messaggio non letto)');
-        result.status = 'skipped';
-        result.reason = 'already_labeled_no_new_unread';
-        return result;
-      }
-
-      // GUARDRAIL (critico): rispondiamo solo a guanti esterni.
-      // I messaggi interni (noi/alias) vengono esclusi per evitare loop e risposte non dovute.
-      // Se non ci sono messaggi da esterni → skip
-      if (externalUnread.length === 0) {
-        threadLogger.info('Saltato: nessun nuovo messaggio esterno non letto');
-        // In modalità stale-only i messaggi recenti devono restare eleggibili per il ciclo normale.
-        const isStaleOnlyRun = Number.isFinite(staleOnlyMs);
-        if (!isStaleOnlyRun) {
-          // Messaggi interni (nostri/alias): sono già gestiti, ma non sono rinvii per lingua.
-          // Per questo usiamo IA come chiusura tecnica e non il punto medio ('·').
-          unlabeledUnread.forEach((message) => this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds));
-        } else {
-          console.log('   ℹ️ Stale-only: messaggi recenti non marcati (saranno processati nel prossimo ciclo)');
-        }
-        result.status = 'skipped';
-        result.reason = 'no_external_unread';
-        return result;
-      }
-
-      // Seleziona ultimo messaggio non letto non etichettato da esterni.
-      // La discovery resta deliberatamente a livello messaggio: l'eventuale presenza
-      // di materiale IA nello stesso thread NON deve nascondere nuovi follow-up non letti.
-      candidate = externalUnread[externalUnread.length - 1];
-
-      // CRITICO: il contesto del burst deve essere disponibile prima degli
-      // early-exit di STEP 0. markHandledUnread() agisce solo sui messaggi in
-      // responseContextMessages: se lo popoliamo dopo STEP 0, filtri come
-      // last_speaker_is_me o email_loop_detected marcano solo il candidato finale.
-      const buildBurstMessagesForCandidate = (candidateMessage, fallbackSenderEmail = '') => {
-        if (!candidateMessage || typeof candidateMessage.getId !== 'function') return [];
-
-        const candidateRawFrom = (candidateMessage && typeof candidateMessage.getFrom === 'function')
-          ? (candidateMessage.getFrom() || '')
-          : '';
-        const candidateSenderEmail = this._normalizeConversationEmailAddress_(
-          fallbackSenderEmail || (
-            this.gmailService && typeof this.gmailService._extractEmailAddress === 'function'
-              ? this.gmailService._extractEmailAddress(candidateRawFrom)
-              : candidateRawFrom
-          ) || ''
-        );
-        const candidateId = candidateMessage.getId();
-
-        if (externalUnread.length <= 1 || !candidateSenderEmail) {
-          return [candidateMessage];
-        }
-
-        return externalUnread.filter((message) => {
-          if (!message || typeof message.getFrom !== 'function') {
-            return message && typeof message.getId === 'function' && message.getId() === candidateId;
-          }
-          const rawFrom = message.getFrom() || '';
-          const sender = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-            ? this.gmailService._extractEmailAddress(rawFrom)
-            : rawFrom;
-          return this._normalizeConversationEmailAddress_(sender || '') === candidateSenderEmail;
-        }).sort(compareMessagesByDateAndId);
-      };
-      setResponseContextMessages(buildBurstMessagesForCandidate(candidate));
-
-      const ruleActions = {
-        markHandledUnread: () => markHandledUnread(),
-        markSkipped: (messagesToSkip, labelName) => this._markMessagesAsSkipped(messagesToSkip, labelName, skippedMessageIds),
-        markProcessedMessages: (messagesToProcess) => {
-          (messagesToProcess || []).forEach((message) => this._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds));
-        },
-        warn: (message) => threadLogger.warn(message)
-      };
-      const buildRuleContext = (overrides = {}) => {
-        const gmailTargets = Object.assign({
-          externalUnread: externalUnread,
-          unlabeledUnread: unlabeledUnread
-        }, overrides.gmailTargets || {});
-        const actions = Object.assign({}, ruleActions, overrides.actions || {});
-        const merged = Object.assign({
-          threadId: threadId,
-          languageMode: languageMode,
-          candidate: candidate,
-          externalUnread: externalUnread,
-          unlabeledUnread: unlabeledUnread,
-          skipLabelName: this.config.skipLabelName,
-          actions: actions,
-          gmailTargets: gmailTargets
-        }, overrides);
-        merged.actions = actions;
-        merged.gmailTargets = gmailTargets;
-        return this._createRuleContext_(merged);
-      };
-
-      // ====================================================================
-      // STEP 0: CONTROLLO ULTIMO MITTENTE (Anti-Loop & Ownership)
-      // Thread usato solo come contesto conversazionale e per capire chi ha parlato per ultimo.
-      // Se l'ultimo intervento è nostro, ci fermiamo senza fare ulteriori chiamate metadata.
-      // ====================================================================
-      const normalizedMyEmail = myEmail ? this._normalizeEmailAddress_(myEmail) : '';
-      const normalizedKnownAliases = Array.from(ownAddresses).filter(address => address && address !== normalizedMyEmail);
-      const lastMessage = messages[messages.length - 1];
-      const lastSenderRaw = lastMessage.getFrom() || '';
-      const lastSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-        ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(lastSenderRaw) || '')
-        : '';
-      const lastSpeakerIsUs = Boolean(lastSenderEmail) && ownAddresses.has(lastSenderEmail);
-
-      const lastSpeakerDecision = this._evaluatePreAiRules_(buildRuleContext({
-        phase: 'pre_extract',
-        lastSpeakerIsUs: lastSpeakerIsUs
-      }));
-      if (this._applyPreAiRuleDecision_(lastSpeakerDecision, buildRuleContext({ phase: 'pre_extract' }), result)) {
-        return result;
-      }
-
-      // --- PORTA 0.5: Pre-check lingua locale sul soggetto (Costo API Zero) ---
-      if (languageMode === 'foreign_only') {
-        const subjectOnly = (candidate.getSubject() || '');
-        let bodyPreview = '';
-        try {
-          bodyPreview = (candidate.getPlainBody && typeof candidate.getPlainBody === 'function')
-            ? (candidate.getPlainBody() || '')
-            : '';
-        } catch (bodyError) {
-          console.warn(`⚠️ Impossibile leggere body per pre-check lingua: ${bodyError.message}`);
-        }
-        if (subjectOnly.trim() !== '' && bodyPreview.trim() === '') {
-          // Pre-controllo: solo termini inequivocabilmente italiani.
-          // Escluse deliberatamente parole corte polisemiche (in, per, la, di, da, con, il, lo,
-          // gli, le, un, uno, una, su, tra, fra) che causano falsi positivi su lingue straniere.
-          const italianPattern = /(?:^|[^\p{L}\p{N}_])(appuntamento|fissare|prenotare|disponibilit[àa]|orari[oa]?|incontro|prenotazione|informazioni|chiedere|sapere|vorrei|come\s+faccio|requisiti|battesimo|cresima|confessione|grazie|salve|buongiorno|buonasera|preventivo|parrocchia|segreteria|messa|messe)(?=$|[^\p{L}\p{N}_])/iu;
-
-          const languagePrecheckDecision = this._evaluatePreAiRules_(buildRuleContext({
-            phase: 'pre_extract',
-            subject: subjectOnly,
-            foreignOnlySubjectItalianPrecheck: italianPattern.test(subjectOnly)
-          }));
-          if (this._applyPreAiRuleDecision_(languagePrecheckDecision, buildRuleContext({
-            phase: 'pre_extract',
-            subject: subjectOnly
-          }), result)) {
-            return result;
-          }
-        }
-      }
-
-      // STEP 1: Estrazione dati e pulizia
-      console.log('   STEP 1: Estrazione dati e pulizia...');
-      const messageDetails = this.gmailService.extractMessageDetails(candidate);
-      let messageBodyForSemanticAnalysis = messageDetails.body || '';
-      console.log(`\n📧 Elaborazione: ${(messageDetails.subject || '').substring(0, 50)}...`);
-      console.log(`   Da: ${messageDetails.senderEmail} (${messageDetails.senderName})`);
-
-      // Guardia deterministica anti-duplicato: usa soltanto l'input originale
-      // del singolo messaggio e interviene prima di memoria, quick check e AI.
-      // I burst e i messaggi con allegati restano esclusi per evitare falsi positivi.
-      if (externalUnread.length === 1) {
-        duplicateReplyFingerprintContext = this._buildDuplicateReplyFingerprintContext_(candidate, messageDetails);
-        const duplicateReplyDecision = this._findConfirmedDuplicateReply_(duplicateReplyFingerprintContext);
-        if (duplicateReplyDecision.isDuplicate) {
-          const currentMessageId = candidate.getId();
-          const ageSeconds = Math.max(0, Math.floor(duplicateReplyDecision.ageMs / 1000));
-          threadLogger.info('Risposta duplicata soppressa', {
-            event: 'duplicate_already_replied',
-            currentMessageId: currentMessageId,
-            currentThreadId: threadId,
-            previousMessageId: duplicateReplyDecision.previousMessageId,
-            previousThreadId: duplicateReplyDecision.previousThreadId,
-            ageSeconds: ageSeconds
-          });
-          this._markMessageAsProcessed(candidate, labeledMessageIds, skippedMessageIds);
-          result.status = 'skipped';
-          result.reason = 'duplicate_already_replied';
-          result.duplicateOfMessageId = duplicateReplyDecision.previousMessageId;
-          result.duplicateOfThreadId = duplicateReplyDecision.previousThreadId;
-          result.duplicateAgeSeconds = ageSeconds;
-          result.durationMs = Date.now() - startTime;
-          return result;
-        }
-      }
-
-      // CRITICO: Ricostruzione del contesto in caso di burst (più email non lette dallo stesso utente).
-      // Evita che un'email finale breve (es. "Grazie") faccia scartare le vere domande precedenti.
-      if (externalUnread.length > 1) {
-        // Manteniamo il burst già anticipato prima di STEP 0. Se l'estrazione
-        // leggera del mittente non era riuscita, riproviamo ora con senderEmail
-        // ottenuto da extractMessageDetails(candidate).
-        if (responseContextMessages.length <= 1 && messageDetails.senderEmail) {
-          setResponseContextMessages(buildBurstMessagesForCandidate(candidate, messageDetails.senderEmail));
-        }
-        const candidateId = candidate.getId();
-        const burstMessages = responseContextMessages;
-        const semanticBodyParts = [];
-        const aggregatedBody = burstMessages.map((message) => {
-          const details = (message.getId() === candidateId
-            ? messageDetails
-            : this.gmailService.extractMessageDetails(message)) || {};
-          const messageDate = this._formatBurstMessageDate_(details.date);
-          const bodyPart = details && typeof details.body === 'string' && details.body.trim()
-            ? details.body.trim()
-            : null;
-          if (bodyPart) semanticBodyParts.push(bodyPart);
-          return bodyPart ? `--- Messaggio del ${messageDate} ---\n${bodyPart}` : null;
-        }).filter(Boolean).join('\n\n');
-
-        if (aggregatedBody) {
-          messageDetails.body = aggregatedBody;
-          messageBodyForSemanticAnalysis = semanticBodyParts.join('\n\n');
-          console.log(`     Burst rilevato: accorpati contestualmente ${burstMessages.length} messaggi precedenti con timestamp`);
-        }
-      }
-
-      // ====================================================================================================
-      // STEP 1.5: LINGUA FAIL-FAST (a costo zero)
-      // ====================================================================================================
-      const bodyForLanguageDetection = (this.classifier && typeof this.classifier._extractMainContent === 'function')
-        ? this.classifier._extractMainContent(messageDetails.body || '')
-        : (messageDetails.body || '');
-
-      const languageDetection = (this.geminiService && typeof this.geminiService.detectEmailLanguage === 'function')
-        ? (this.geminiService.detectEmailLanguage(
-          bodyForLanguageDetection || messageDetails.body || '',
-          messageDetails.subject
-        ) || {})
-        : { lang: 'unknown' };
-
-      // Estraiamo solo codici ISO a 2 lettere per gestire formati come "it-IT" o "en-US".
-      let detectedLanguage = this._normalizeLanguageCode_(languageDetection.lang, 'unknown');
-      if (bodyForLanguageDetection !== (messageDetails.body || '')) {
-        console.log('   ✂️ Lingua: uso corpo pulito (senza firma/citazioni) per ridurre falsi positivi');
-      }
-      console.log(`   🌐 Lingua (rilevamento locale): ${detectedLanguage.toUpperCase()}`);
-
-      // PORTA 1: Interrompiamo se l'email deve essere ignorata in base alla lingua
-      if (shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
-        console.log('   ⊖ Saltato: modalità "Solo straniere", email in italiano');
-        // Nota di manutenzione: il punto medio ('·') ha un significato preciso.
-        // Qui segnala una email italiana solo temporaneamente rinviata perché
-        // la modalità corrente risponde alle sole email straniere. Non va marcata IA:
-        // quando si torna a "Tutte le lingue", deve rientrare tra le email lavorabili.
-        this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
-        result.status = 'skipped';
-        result.reason = 'italian_skipped_foreign_only';
-        return result;
-      }
-
-      // Le newsletter sono filtrate in modo definitivo: usiamo IA per non riprenderle
-      // nei run successivi. Il punto medio ('·') non si usa qui perché non è un
-      // rinvio temporaneo dovuto alla modalità "Solo straniere".
-      let newsletterMessagesToMark = (unlabeledUnread && unlabeledUnread.length > 0) ? unlabeledUnread : [candidate];
-      // Evita di "demotare" messaggi già IA quando il fallback usa candidate.
-      newsletterMessagesToMark = (newsletterMessagesToMark || []).filter((message) => {
-        if (!message || typeof message.getId !== 'function') return false;
-        const messageId = message.getId();
-        return !(labeledMessageIds instanceof Set && labeledMessageIds.has(messageId));
+      const precheck = ThreadPolicy.beforeExtraction(policyServices, {
+        ...identity, ...unread, ...policy, messages, result, languageMode, messageState
       });
-      const newsletterDecision = this._evaluatePreAiRules_(buildRuleContext({
-        phase: 'post_extract_pre_ai',
-        isNewsletter: messageDetails.isNewsletter,
-        gmailTargets: { newsletterMessagesToMark: newsletterMessagesToMark }
-      }));
-      if (this._applyPreAiRuleDecision_(newsletterDecision, buildRuleContext({
-        phase: 'post_extract_pre_ai',
-        isNewsletter: messageDetails.isNewsletter,
-        gmailTargets: { newsletterMessagesToMark: newsletterMessagesToMark }
-      }), result)) {
-        return result;
-      }
+      if (precheck.terminal) return result;
+      const message = ThreadSelection.extractAndAggregate(selectionServices, {
+        ...selection, messageState, duplicateReplyFingerprintContext: null, threadLogger, threadId, labeledMessageIds,
+        skippedMessageIds, result, startTime
+      });
+      if (message.terminal) return result;
+      const language = ThreadPolicy.languageAndNewsletter(policyServices, {
+        ...unread, ...policy, ...message, languageMode, skippedMessageIds, result,
+        messageState, labeledMessageIds
+      });
+      if (language.terminal) return result;
 
-      // ====================================================================
-      // PASSO 0.15: THROTTLE CROSS-THREAD PER MITTENTE
-      // Previene burst simultanei su thread diversi dallo stesso sender.
-      // ====================================================================
-      const safeSenderEmail = (messageDetails.senderEmail || '').toLowerCase();
-      const senderThrottleWindowSeconds = (typeof CONFIG !== 'undefined' && CONFIG.SENDER_THROTTLE_WINDOW_SECONDS)
-        ? CONFIG.SENDER_THROTTLE_WINDOW_SECONDS
-        : 60;
-      const senderThrottleKey = `sender_throttle_${safeSenderEmail || 'unknown'}`;
-      const senderThrottleCache = lockCtx && lockCtx.cache ? lockCtx.cache : null;
-      if (senderThrottleCache && safeSenderEmail && typeof LockService !== 'undefined' && LockService && typeof LockService.getScriptLock === 'function') {
-        let senderThrottleAlreadySet = false;
-        const senderThrottleLock = LockService.getScriptLock();
-        let senderThrottleLockAcquired = false;
-        try {
-          senderThrottleLockAcquired = senderThrottleLock.tryLock(500);
-          if (senderThrottleLockAcquired) {
-            senderThrottleAlreadySet = Boolean(senderThrottleCache.get(senderThrottleKey));
-            if (!senderThrottleAlreadySet) {
-              senderThrottleCache.put(senderThrottleKey, '1', senderThrottleWindowSeconds);
-            }
-          } else {
-            // Fallback best-effort: in assenza lock evitiamo di bloccare il flusso.
-            senderThrottleAlreadySet = Boolean(senderThrottleCache.get(senderThrottleKey));
-            if (!senderThrottleAlreadySet) {
-              senderThrottleCache.put(senderThrottleKey, '1', senderThrottleWindowSeconds);
-            }
-            threadLogger.warn('Sender throttle lock non acquisito, applicazione in modalità best-effort');
-          }
-        } finally {
-          if (senderThrottleLockAcquired && senderThrottleLock && typeof senderThrottleLock.releaseLock === 'function') {
-            try {
-              senderThrottleLock.releaseLock();
-            } catch (_) { }
-          }
-        }
-
-        if (senderThrottleAlreadySet) {
-          console.log(`   ⏳ Dilata: burst cross-thread rilevato per ${safeSenderEmail || 'mittente sconosciuto'}; riprovo in un batch successivo`);
-          result.status = 'dilata';
-          result.reason = 'cross_thread_burst';
-          return result;
-        }
-      }
-
-      // ====================================================================
-      // PASSO 0.2: RISPOSTA AUTOMATICA / RILEVAMENTO FUORI SEDE
-      // ====================================================================
-      const headers = messageDetails.headers || {};
-      // Lookup case-insensitive: i server SMTP possono restituire header in casing arbitrario
-      const getHeader = (name) => {
-        const lower = name.toLowerCase();
-        for (const key of Object.keys(headers)) {
-          if (key.toLowerCase() === lower) return headers[key];
-        }
-        return '';
-      };
-      const autoSubmitted = getHeader('auto-submitted');
-      const precedence = getHeader('precedence');
-      const xAutoReply = getHeader('x-autoreply');
-      const xAutoResponseSuppress = getHeader('x-auto-response-suppress');
-
-      const isAutoReplyHeader = (
-        /auto-replied|auto-generated/i.test(autoSubmitted) ||
-        /bulk|auto_reply/i.test(precedence) ||
-        /auto-reply|autoreply/i.test(xAutoReply) ||
-        /oof|all|dr|rn|nri|auto/i.test(xAutoResponseSuppress)
-      );
-      const autoReplyHeaderDecision = this._evaluatePreAiRules_(buildRuleContext({
-        phase: 'post_extract_pre_ai',
-        isAutoReplyHeader: isAutoReplyHeader
-      }));
-      if (this._applyPreAiRuleDecision_(autoReplyHeaderDecision, buildRuleContext({
-        phase: 'post_extract_pre_ai',
-        isAutoReplyHeader: isAutoReplyHeader
-      }), result)) {
-        return result;
-      }
-
-      const outOfOfficePatterns = [
-        /\b(out of office|away from office|fuori ufficio)\b/i,
-        /\b(sono\s+assente|sarò\s+assente|resterò\s+assente|sar[oò]\s+fuori)\b/i,
-        /\b(automatic reply|risposta automatica)\b/i,
-        /\breturn(ing)? on\b/i,
-        /\b(mailbox (?:is )?monitored periodically|casella (?:di posta )?(?:e )?consultata periodicamente)\b/i
-      ];
-
-      const oooSubject = messageDetails.subject || '';
-      // Trunca a 2000 char per prevenire Regex Timeout su mega-thread
-      const oooBody = (messageDetails.body || '').substring(0, 2000);
-      const isOutOfOfficeText = outOfOfficePatterns.some(p => p.test(`${oooSubject} ${oooBody}`));
-      const outOfOfficeTextDecision = this._evaluatePreAiRules_(buildRuleContext({
-        phase: 'post_extract_pre_ai',
-        isOutOfOfficeText: isOutOfOfficeText
-      }));
-      if (this._applyPreAiRuleDecision_(outOfOfficeTextDecision, buildRuleContext({
-        phase: 'post_extract_pre_ai',
-        isOutOfOfficeText: isOutOfOfficeText
-      }), result)) {
-        return result;
-      }
-
-      const candidateIndex = messages.findIndex(msg => msg.getId() === candidate.getId());
-      let shortClosureReplyDetected = false;
-      if (candidateIndex > 0 && messages[candidateIndex - 1]) {
-        const previousMessage = messages[candidateIndex - 1];
-        const previousSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-          ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(previousMessage.getFrom() || '') || '')
-          : '';
-        const candidateDate = messageDetails.date ? messageDetails.date.getTime() : null;
-        const previousDate = previousMessage.getDate() ? previousMessage.getDate().getTime() : null;
-        const arrivedSoonAfterUs = candidateDate && previousDate
-          ? Math.abs(candidateDate - previousDate) <= 10 * 60 * 1000
-          : false;
-        const previousIsUs = Boolean(previousSenderEmail) && ownAddresses.has(previousSenderEmail);
-        const candidateBody = messageDetails.body || '';
-        const candidateWords = candidateBody.trim().split(/\s+/).filter(Boolean);
-        const hasThanksCue = /\b(grazie|ok|perfetto|ricevuto)\b/i.test(candidateBody);
-        const hasQuestionSignal = /\?|\b(quando|come|dove|quale|quali|perché|perche|posso|potete|mi\s+serve|vorrei)\b/i
-          .test(candidateBody);
-        const isShortClosureReply = candidateWords.length > 0 && candidateWords.length <= 4 &&
-          hasThanksCue && !hasQuestionSignal;
-
-        shortClosureReplyDetected = Boolean(previousIsUs && arrivedSoonAfterUs && isShortClosureReply);
-      }
-      const shortClosureDecision = this._evaluatePreAiRules_(buildRuleContext({
-        phase: 'post_extract_pre_ai',
-        isShortClosureReply: shortClosureReplyDetected
-      }));
-      if (this._applyPreAiRuleDecision_(shortClosureDecision, buildRuleContext({
-        phase: 'post_extract_pre_ai',
-        isShortClosureReply: shortClosureReplyDetected
-      }), result)) {
-        return result;
-      }
-
-      // ====================================================================
-      // STEP 0.5: ANTI-LOOP (rilevamento intelligente)
-      // ====================================================================
-      const MAX_THREAD_LENGTH = (typeof CONFIG !== 'undefined' && CONFIG.MAX_THREAD_LENGTH) ? CONFIG.MAX_THREAD_LENGTH : 8;
-      const MAX_CONSECUTIVE_EXTERNAL = this.config.maxConsecutiveExternal;
-
-      let consecutiveExternal = 0;
-      let botRepliesCount = 0;
-      let totalBotRepliesInThread = 0;
-      const maxBotRepliesInLongThread = Math.max(2, Math.floor(MAX_THREAD_LENGTH / 2));
-
-      // Percorriamo una finestra degli ultimi MAX_THREAD_LENGTH messaggi a ritroso
-      // per contare sequenze esterne e densità di risposte del bot.
-      const startIndex = Math.max(0, messages.length - MAX_THREAD_LENGTH);
-      for (let i = messages.length - 1; i >= startIndex; i--) {
-        const rawFrom = messages[i] && typeof messages[i].getFrom === 'function'
-          ? messages[i].getFrom()
-          : '';
-        const msgFrom = String(rawFrom || '');
-        const msgSenderEmail = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-          ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(msgFrom) || '')
-          : this._normalizeEmailAddress_(msgFrom);
-
-        const isUs = Boolean(msgSenderEmail) && ownAddresses.has(msgSenderEmail);
-
-        if (isUs) {
-          botRepliesCount++;
-          totalBotRepliesInThread++;
-          consecutiveExternal = 0;
-        } else {
-          consecutiveExternal++;
-          botRepliesCount = 0;
-        }
-
-        if (
-          botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL ||
-          (messages.length > MAX_THREAD_LENGTH && totalBotRepliesInThread > maxBotRepliesInLongThread)
-        ) {
-          console.log(`   ⊖ Saltato: prevenzione loop email attivata (ping-pong/thread ripetitivo: interventiBot=${totalBotRepliesInThread}, sogliaBot=${maxBotRepliesInLongThread}, consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
-          markFailureForCurrentBurst('validation', { reason: 'possible_email_loop', subject: messageDetails.subject }, false);
-          result.status = 'validation_failed';
-          result.reason = 'possible_email_loop';
-          return result;
-        }
-      }
-
-      if (messages.length > MAX_THREAD_LENGTH) {
-        console.warn(`   ⚠️ Thread lungo (${messages.length} messaggi) ma non loop - elaboro`);
-      }
-
-      // ====================================================================
-      // STEP 0.8: ANTI-MITTENTE-NOREPLY
-      // ====================================================================
-      const originalSenderEmail = (
-        this.gmailService && typeof this.gmailService._extractEmailAddress === 'function'
-      )
-        ? this.gmailService._extractEmailAddress(messageDetails.originalFrom || '')
-        : (messageDetails.senderEmail || '');
-      const senderInfo = `${originalSenderEmail} ${messageDetails.senderName}`.toLowerCase();
-      const autoPattern = /no-reply|do-not-reply|noreply|daemon|postmaster|bounce|mailer/i;
-      const noReplyDecision = this._evaluatePreAiRules_(buildRuleContext({
-        phase: 'post_extract_pre_ai',
-        isNoReplySender: autoPattern.test(senderInfo) && !messageDetails.hasReplyTo
-      }));
-      if (this._applyPreAiRuleDecision_(noReplyDecision, buildRuleContext({
-        phase: 'post_extract_pre_ai',
-        isNoReplySender: autoPattern.test(senderInfo) && !messageDetails.hasReplyTo
-      }), result)) {
-        return result;
-      }
-
-      // ====================================================================
-      // STEP 1: FILTRO - Domini/parole chiave ignorati
-      // ====================================================================
-      const shouldIgnoreEmail = this._shouldIgnoreEmail(messageDetails);
-      const ignoreDecision = this._evaluatePreAiRules_(buildRuleContext({
-        phase: 'post_extract_pre_ai',
-        shouldIgnoreEmail: shouldIgnoreEmail
-      }));
-      if (this._applyPreAiRuleDecision_(ignoreDecision, buildRuleContext({
-        phase: 'post_extract_pre_ai',
-        shouldIgnoreEmail: shouldIgnoreEmail
-      }), result)) {
-        return result;
-      }
-
-      // ====================================================================
-      // STEP 2: CLASSIFICAZIONE - Filtro ack/greeting ultra-semplice
-      // ====================================================================
-      const MAX_SUBJECT_LENGTH = 1000;
-      const safeSubject = (messageDetails.subject || '').substring(0, MAX_SUBJECT_LENGTH);
-      const safeBody = (messageDetails.body || '');
-      const isReplyPattern = /^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]/i;
-      const isReplyBySubject = isReplyPattern.test(safeSubject.toLowerCase());
-
-      const classification = this.classifier.classifyEmail(
-        safeSubject,
-        safeBody,
-        isReplyBySubject
-      );
-
-      const classifierDecision = this._evaluatePreAiRules_(buildRuleContext({
-        phase: 'post_extract_pre_ai',
-        classifierShouldReply: classification.shouldReply,
-        classifierReason: classification.reason
-      }));
-      if (this._applyPreAiRuleDecision_(classifierDecision, buildRuleContext({
-        phase: 'post_extract_pre_ai',
-        classifierShouldReply: classification.shouldReply,
-        classifierReason: classification.reason
-      }), result)) {
-        return result;
-      }
-
-      // ====================================================================
-      // STEP 3: CONTROLLO RAPIDO - Gemini decide se serve risposta
-      // ====================================================================
-      let quickCheck;
-
-      const preQuickAttachmentIntentContext = this._deriveAttachmentIntentContext_(
-        messageDetails.body,
-        messageDetails.subject,
-        [],
-        '',
-        'pre_ocr'
-      );
-      const sponsorGuidancePrecheck = this._classifySponsorGuidanceLocally_(
-        messageDetails.subject,
-        messageDetails.body,
-        preQuickAttachmentIntentContext,
-        detectedLanguage
-      );
-      const memoryContext = this.memoryService.getMemory(threadId) || {};
-      const ownConversationAnchor = this._getOwnConversationAnchor_(messages, candidate, ownAddresses);
-      const hasPriorOwnMessage = ownConversationAnchor.exists === true;
-      const memoryMessageCount = Number.isFinite(Number(memoryContext.messageCount))
-        ? Number(memoryContext.messageCount)
-        : 0;
-      const memoryContextualFlags = (memoryContext.contextualFlags && typeof memoryContext.contextualFlags === 'object')
-        ? memoryContext.contextualFlags
-        : {};
-      const hasConversationContext = Boolean(
-        hasPriorOwnMessage ||
-        memoryMessageCount > 0 ||
-        memoryContext.exists === true ||
-        !!memoryContext.lastUpdated ||
-        !!memoryContext.memorySummary ||
-        !!memoryContext.conversationState ||
-        Object.keys(memoryContextualFlags).length > 0 ||
-        (Array.isArray(memoryContext.providedInfo) && memoryContext.providedInfo.length > 0)
-      );
-      console.log(`   🧠 QuickCheck context: ${hasConversationContext ? 'thread' : 'first_message'}`);
-      console.log(`   🧠 Conversational fields: ${hasConversationContext ? 'enabled' : 'neutral defaults'}`);
-
-      const quickIntentContext = Object.assign(
-        {},
-        preQuickAttachmentIntentContext || {},
-        {
-          sponsorGuidanceCheck: sponsorGuidancePrecheck === 'ask_ai',
-          sponsorGuidanceLocalDecision: sponsorGuidancePrecheck,
-          hasConversationContext: hasConversationContext,
-          quickMemoryContext: hasConversationContext
-            ? this._buildQuickCheckMemoryContext_(memoryContext)
-            : null
-        }
-      );
-
-      try {
-        quickCheck = this.geminiService.shouldRespondToEmail(
-          messageDetails.body,
-          messageDetails.subject,
-          languageDetection,
-          quickIntentContext
-        );
-      } catch (quickError) {
-        const quickErrorClass = this._classifyError(quickError);
-        const quickErrorMessage = quickError && quickError.message ? quickError.message : String(quickError);
-        const isSystemic = quickErrorClass.type === 'SYSTEM_ERROR' || quickErrorClass.type === 'CONFIG_ERROR' || quickErrorClass.type === 'INVALID_API_KEY' || /\b(401|403|404)\b/.test(quickErrorMessage);
-        if (!quickErrorClass.retryable && !isSystemic) {
-          console.warn(`   ⚠️ Gemini quick check fallito: ${quickErrorMessage}. Applico etichetta errore al burst corrente per evitare loop.`);
-          try {
-            markFailureForCurrentBurst('error');
-          } catch (markError) {
-            threadLogger.warn(`Errore label quick-check silenziato: ${markError.message}`);
-          }
-        } else {
-          console.warn(`   ↻ Gemini quick check fallito con errore retryable o di sistema (${quickErrorClass.type}): ${quickErrorMessage}. Nessuna label permanente.`);
-        }
-        result.status = 'error';
-        result.error = `quick_check_failed: ${quickErrorMessage}`;
-        result.errorClass = isSystemic ? 'SYSTEM_ERROR' : quickErrorClass.type;
-        return result;
-      }
-
-      if (!quickCheck || typeof quickCheck !== 'object') {
-        console.warn('   ⚠️ Gemini quick check ha restituito una risposta vuota/non valida: applico etichetta errore al burst corrente per evitare loop.');
-        try {
-          markFailureForCurrentBurst('error');
-        } catch (markError) {
-          threadLogger.warn(`Errore label quick-check non valido silenziato: ${markError.message}`);
-        }
-        result.status = 'error';
-        result.error = 'quick_check_failed';
-        return result;
-      }
-
-      // Se Gemini Quick Check ha rilevato una lingua diversa con maggiore precisione, aggiorniamo
-      const quickCheckLanguage = this._normalizeLanguageCode_(quickCheck.language, '');
-      if (quickCheckLanguage && quickCheckLanguage !== detectedLanguage) {
-        detectedLanguage = quickCheckLanguage;
-        console.log(`   🌐 Lingua (aggiornata da AI): ${detectedLanguage.toUpperCase()}`);
-      }
-
-      // Valutazione preliminare della lingua per il filtraggio selettivo.
-      if (shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
-        console.log('   ⊖ Saltato: modalità "Solo straniere", lingua italiana confermata dopo quick-check');
-        this._markMessagesAsSkipped(unlabeledUnread, this.config.skipLabelName, skippedMessageIds);
-        result.status = 'skipped';
-        result.reason = 'italian_skipped_foreign_only_post_quickcheck';
-        return result;
-      }
-
-      if (!quickCheck.shouldRespond) {
-        console.log(`   ⊖ Gemini quick check: nessuna risposta necessaria (${quickCheck.reason})`);
-        if (quickCheck.reason === 'quick_check_failed') {
-          console.warn('   ⚠️ Gemini quick check fallito: applico etichetta errore al burst corrente per evitare retry infiniti.');
-          try {
-            markFailureForCurrentBurst('error');
-          } catch (markError) {
-            threadLogger.warn(`Errore label quick-check failed silenziato: ${markError.message}`);
-          }
-          result.status = 'error';
-          result.error = 'quick_check_failed';
-          return result;
-        }
-        // Il quick check riceve il corpo accorpato del burst quando esistono piu'
-        // messaggi ravvicinati: se decide NO_REPLY, chiudiamo l'intero blocco
-        // per evitare rielaborazioni retrograde dei messaggi precedenti.
-        markHandledUnread();
-        result.status = 'filtered';
-        return result;
-      }
-
-      const quickAttachmentIntent = this._resolveQuickCheckAttachmentIntent_(quickCheck);
-      if (quickAttachmentIntent && quickAttachmentIntent.requires_attachment_reading) {
-        console.log(`   📎 QuickCheck attachment intent: lettura allegati richiesta se presenti (${quickAttachmentIntent.reason || 'segnale documentale'})`);
-      }
-      const quickDocumentDelivery = this._resolveQuickCheckDocumentDelivery_(quickCheck);
-      if (quickDocumentDelivery && quickDocumentDelivery.expected_document) {
-        console.log(`   📎 QuickCheck document delivery: documento atteso via ${quickDocumentDelivery.delivery_channel || 'unclear'} (${quickDocumentDelivery.reason || quickDocumentDelivery.expected_document_description || 'segnale documentale'})`);
-      }
-
-      const processingTimestamp = new Date();
-      const physicalPresenceConstraint = this._reconcilePhysicalPresenceConstraint_(
-        quickCheck.physical_presence_constraint,
-        messageDetails.subject,
-        messageDetails.body,
-        memoryContext,
-        processingTimestamp
-      );
-      if (physicalPresenceConstraint && physicalPresenceConstraint.has_constraint) {
-        console.log(
-          `   Vincolo presenza fisica rilevato (${physicalPresenceConstraint.type}, ` +
-          `policy=${physicalPresenceConstraint.visit_policy}, source=${physicalPresenceConstraint.source})`
-        );
-      }
-
-      // ====================================================================
-      // STEP 4: CLASSIFICAZIONE TIPO RICHIESTA (Multi-dimensionale)
-      // ====================================================================
+      const throttle = ThreadPolicy.throttle(policyServices, {
+        ...message, lockCtx, threadLogger, result
+      });
+      if (throttle.terminal) return result;
+      const automaticReply = ThreadPolicy.automaticReplies(policyServices, {
+        ...unread, ...policy, ...message, result, messages, messageState
+      });
+      if (automaticReply.terminal) return result;
+      const senderPolicy = ThreadPolicy.loopAndSender(policyServices, {
+        ...unread, ...policy, ...message, messages, messageState, result
+      });
+      if (senderPolicy.terminal) return result;
+      const classified = ThreadPolicy.classify(policyServices, {
+        ...policy, ...message, result
+      });
+      if (classified.terminal) return result;
+      const analysis = ThreadPolicy.quickCheck(policyServices, {
+        ...unread, ...message, ...language, threadId, messages, messageState,
+        threadLogger, result, languageMode, skippedMessageIds
+      });
+      if (analysis.terminal) return result;
       const requestTypeRaw = this.requestClassifier.classify(
-        messageDetails.subject,
-        messageDetails.body,
-        quickCheck.classification
+        message.messageDetails.subject,
+        message.messageDetails.body,
+        analysis.quickCheck.classification
       );
-      // Normalizzazione dell'oggetto requestType per l'elaborazione successiva.
       const requestType = (requestTypeRaw && typeof requestTypeRaw === 'object') ? requestTypeRaw : {};
-
-      // ====================================================================
-      // STEP 5: KB ENRICHMENT CONDIZIONALE
-      // ====================================================================
-      const knowledgeSections = [];
-      const resourceCache = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBAL_CACHE : {};
-      const effectiveDoctrineBase = normalizedDoctrineBase || (resourceCache.doctrineBase || '');
-      const doctrineStructured = Array.isArray(resourceCache.doctrineStructured) ? resourceCache.doctrineStructured : [];
-      const aiCoreLite = (resourceCache.aiCoreLite != null) ? resourceCache.aiCoreLite : '';
-      const aiCore = (resourceCache.aiCore != null) ? resourceCache.aiCore : '';
-
-      // Inclusione della Knowledge Base testuale per il PromptEngine.
-      knowledgeSections.push(normalizedKnowledgeBase);
-
-      // PromptEngine gestisce l'integrazione selettiva di AI_CORE e Dottrina.
-
-      // Placeholder: eventuali regole calendario speciali possono essere
-      // iniettate qui quando verrà implementato un provider dedicato.
-
-      const enrichedKnowledgeBase = knowledgeSections.filter(Boolean).join('\n\n');
-
-      // ====================================================================
-      // STEP 6: STORICO CONVERSAZIONE
-      // ====================================================================
-      let conversationHistory = '';
-      if (messages.length > 1) {
-        const candidateId = candidate.getId();
-        const responseContextIdsForHistory = new Set(responseContextMessageIds || []);
-        if (candidateId) responseContextIdsForHistory.add(candidateId);
-        const historyMessages = messages.filter(m => !responseContextIdsForHistory.has(m.getId()));
-
-        if (historyMessages.length > 0) {
-          const historyLimit = this.config.maxHistoryMessages || 10;
-          conversationHistory = this.gmailService.getThreadHistory(
-            historyMessages,
-            historyLimit,
-            myEmail,
-            gmailAliases
-          );
-        }
-      }
-
-      // ====================================================================
-      // STEP 6.5: CONTESTO MEMORIA
-      // ====================================================================
-      if (memoryContext.lastUpdated) {
-        console.log(`   🧠 Memoria trovata: lang=${memoryContext.language}, topics=${(memoryContext.providedInfo || []).length}`);
-      }
-
-      // ====================================================================
-      // STEP 6.6: CALCOLO DINAMICO SALUTO E RITARDO
-      // ====================================================================
-
-      const salutationMode = computeSalutationMode({
-        isReply: isReplyBySubject || hasPriorOwnMessage,
-        memoryExists: Boolean(ownConversationAnchor.lastMessageDate || memoryContext.lastUpdated),
-        lastUpdated: ownConversationAnchor.lastMessageDate || memoryContext.lastUpdated || null,
-        now: processingTimestamp
+      const contextServices = this._threadContextServices_();
+      const knowledge = ThreadContext.knowledge(contextServices, {
+        normalizedDoctrineBase, normalizedKnowledgeBase
       });
-      console.log(`   📊 Modalità saluto: ${salutationMode}`);
-
-      const responseDelay = computeResponseDelay({
-        messageDate: messageDetails.date,
-        now: processingTimestamp
+      const conversation = ThreadContext.conversation(contextServices, {
+        ...identity, ...message, ...classified, ...analysis, messages,
+        candidate: messageState.candidate, responseContextMessageIds: messageState.responseContextMessageIds
       });
-      if (responseDelay.shouldApologize) {
-        console.log(`   🕐 Ritardo risposta: ${responseDelay.days} giorni`);
-      }
-
-      // ====================================================================
-      // STEP 7: COSTRUISCI PROMPT
-      // ====================================================================
-      let { greeting, closing } = this.geminiService.getAdaptiveGreeting(
-        messageDetails.senderName,
-        detectedLanguage,
-        processingTimestamp
+      const { greeting, closing } = this.geminiService.getAdaptiveGreeting(
+        message.messageDetails.senderName,
+        analysis.detectedLanguage,
+        analysis.processingTimestamp
       );
+      const territory = ThreadContext.territory(contextServices, {
+        ...message, ...language, ...analysis, requestType
+      });
+      const profileDefaults = ThreadContext.profileDefaults(contextServices, {
+        ...analysis, ...conversation
+      });
+      const documentsServices = this._threadDocumentsServices_();
+      const documentCategory = ThreadDocuments.initialCategory(documentsServices, {
+        ...classified, ...analysis, requestType
+      });
 
-      // ====================================================================
-      // PASSO 7.1: VERIFICA TERRITORIO (solo quando richiesta esplicita)
-      // ====================================================================
-      const territoryRequested = this._isTerritoryRequest(
-        messageDetails.subject,
-        messageDetails.body,
-        quickCheck?.classification || {}, // Usa classificazione Gemini evitando errori se null.
+      const routedAiCoreLite = knowledge.aiCoreLite;
+      const routedAiCore = knowledge.aiCore;
+      const routedDoctrine = knowledge.effectiveDoctrineBase;
+      const routedDoctrineStructured = knowledge.doctrineStructured;
+
+      // OCR e interpretazione documentale precedono profilo e routing definitivi.
+      const attachmentsServices = this._threadAttachmentsServices_();
+      const attachments = ThreadAttachments.prepare(attachmentsServices, {
+        ...unread, ...policy, ...message, ...analysis, ...documentCategory,
+        responseContextMessages: messageState.responseContextMessages, candidate: messageState.candidate, threadLogger,
+        messages, result
+      });
+      const documents = ThreadDocuments.interpret(documentsServices, {
+        ...message, ...classified, ...analysis, ...documentCategory, ...attachments,
         requestType
-      );
-      const quickCheckTerritoryCandidates = this._extractQuickCheckTerritoryCandidates_(quickCheck);
-
-      let territoryResult = { addressFound: false };
-      if (territoryRequested && this.territoryValidator) {
-        try {
-          const bodyForTerritory = bodyForLanguageDetection || messageDetails.body;
-          territoryResult = this.territoryValidator.analyzeEmailForAddress(
-            bodyForTerritory,
-            messageDetails.subject
-          ) || { addressFound: false };
-          if (!territoryResult.addressFound) {
-            territoryResult = this._analyzeAiTerritoryCandidates_(quickCheckTerritoryCandidates) || territoryResult;
-          }
-        } catch (territoryError) {
-          console.warn(`⚠️ Verifica territorio fallita: ${territoryError.message}`);
-          territoryResult = { addressFound: false };
-        }
-      }
-
-      const addressLines = territoryResult.addressFound
-        ? (territoryResult.addresses || []).map((entry) => {
-          const v = entry.verification || {};
-          const sanitizedStreet = (entry.street || '').replace(/[=─]/g, '-');
-          const civicLabel = entry.civic ? `n. ${entry.civic}` : 'senza numero civico';
-          const resultLabel = v.needsCivic
-            ? '⚠️ CIVICO NECESSARIO'
-            : (v.inParish ? '✅ RIENTRA' : '❌ NON RIENTRA');
-          const actionLabel = v.needsCivic ? 'Azione: richiedere il numero civico.' : null;
-          return [
-            `Indirizzo: ${sanitizedStreet} ${civicLabel}`,
-            `Risultato: ${resultLabel}`,
-            `Dettaglio: ${v.reason || 'Nessun dettaglio disponibile'}`,
-            actionLabel
-          ].filter(Boolean).join('\n');
-        })
-        : ['Nessun indirizzo rilevato nel testo.'];
-
-      const territoryContext = territoryRequested
-        ? `
- ====================================================================
-🎯 VERIFICA TERRITORIO AUTOMATICA
- ====================================================================
-${addressLines.join('\n\n')}
- ====================================================================
-`
-        : null;
-
-      if (territoryRequested) {
-        const summary = territoryResult.addressFound
-          ? (addressLines.length > 1 ? `${addressLines.length} indirizzi` : (addressLines.length === 1 ? '1 indirizzo' : 'nessun indirizzo valido'))
-          : 'nessun indirizzo';
-        console.log(`   🎯 Verifica territorio: ${summary}`);
-      } else {
-        console.log('   ⊖ Verifica territorio non richiesta: controllo saltato');
-      }
-
-      // ====================================================================
-      // STEP 7.2: PROMPT CONTEXT (profilo e concern dinamici)
-      // ====================================================================
-      let promptProfile = 'standard';
-      let activeConcerns = {};
-      let responseRegister = 'warm_institutional';
-      let crisisCritical = false;
-      let effectiveSalutationMode = salutationMode;
-      let concernSynthesis = null;
-      let continuityCase = null;
-      let responseMode = 'standard_operational';
-      let operationalConstraints = [];
-      let continuityPolicy = null;
-      const memoryProvidedInfo = Array.isArray(memoryContext.providedInfo)
-        ? memoryContext.providedInfo
-        : [];
-      const memoryTopics = memoryProvidedInfo
-        .map((item) => {
-          if (!item) return '';
-          if (typeof item === 'string') return item;
-          return item.topic || item.title || item.category || item.summary || item.detail || '';
-        })
-        .filter(Boolean)
-        .slice(0, 12);
-
-      let attachmentIntentContext = preQuickAttachmentIntentContext;
-      let forceReceiptOnlyForSubmission = false;
-
-      const requestTypeName = requestType && requestType.type ? requestType.type : '';
-      const quickCheckCategory = quickCheck && quickCheck.classification && quickCheck.classification.category
-        ? String(quickCheck.classification.category).toLowerCase()
-        : '';
-      // Priorità al classificatore LLM del quick check rispetto all'euristica locale iniziale.
-      let categoryHintSource = String(quickCheckCategory || classification.category || requestTypeName || '').toLowerCase() || null;
-
-      if (attachmentIntentContext && (
-        attachmentIntentContext.intent === 'document_submission' ||
-        attachmentIntentContext.intent === 'document_submission_with_question'
-      )) {
-        categoryHintSource = attachmentIntentContext.intent;
-        classification.category = 'document_submission';
-        classification.topic = attachmentIntentContext.allowBodyQuestions
-          ? 'documentazione ricevuta con domanda'
-          : 'documentazione ricevuta';
-
-        if (requestType && typeof requestType === 'object') {
-          requestType.type = 'technical';
-          requestType.needsDoctrine = false;
-          requestType.needsDiscernment = false;
-          requestType.topic = classification.topic;
-        }
-      }
-
-      // ====================================================================
-      // CONTEXT ROUTING: inietta moduli KB pesanti solo quando servono.
-      // Manteniamo default conservativo (dottrina attiva) in caso di dubbio.
-      // ====================================================================
-      let routedAiCoreLite = aiCoreLite;
-      let routedAiCore = aiCore;
-      let routedDoctrine = effectiveDoctrineBase;
-      let routedDoctrineStructured = doctrineStructured;
-
-      // Il context routing definitivo viene eseguito dopo l'OCR degli allegati:
-      // _deriveAttachmentIntentContext_ può aggiornare categoryHintSource con segnali
-      // sacramentali/formali estratti dai documenti, quindi filtrare qui sarebbe prematuro.
-
-
-      // ====================================================================
-      // STEP 7.1: PREPARAZIONE ALLEGATI (Multimodale / Vision)
-      // ====================================================================
-      let attachmentBlobs = [];
-      let textFromAttachments = '';
-      let attachmentSkipped = [];
-      let attachmentItems = [];
-      let physicalAttachmentsDetected = false;
-      let attachmentPreCheckFailed = false;
-
-
-      if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
-        if (this._isNearDeadline(this.config.maxExecutionTimeMs)) {
-          attachmentSkipped.push({ reason: 'near_deadline' });
-          console.warn('   ⏳ Allegati multimodali saltati: tempo residuo insufficiente.');
-        } else {
-          const attachmentSettings = Object.assign(
-            { maxFiles: 3 },
-            (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT) ? CONFIG.ATTACHMENT_CONTEXT : {}
-          );
-          const maxAttachmentMessageBytes = this._getAttachmentDownloadLimitBytes_(attachmentSettings);
-          const attachmentSourceMessages = (responseContextMessages && responseContextMessages.length > 0)
-            ? responseContextMessages
-            : [candidate].filter(Boolean);
-          let hasAttachments = false;
-          attachmentPreCheckFailed = false;
-          try {
-            hasAttachments = attachmentSourceMessages.some((message) => {
-              const sizeEstimate = this._getMessageSizeEstimateForAttachmentDownload_(message, threadLogger);
-              if (Number.isFinite(sizeEstimate) && sizeEstimate > maxAttachmentMessageBytes) {
-                let messageId = 'unknown';
-                try {
-                  messageId = message && typeof message.getId === 'function' ? message.getId() : 'unknown';
-                } catch (_) { }
-                attachmentSkipped.push({
-                  messageId: messageId,
-                  reason: 'message_too_large_for_attachment_download',
-                  sizeEstimate: sizeEstimate,
-                  maxBytes: maxAttachmentMessageBytes
-                });
-                console.warn(`   📎 Allegati saltati per ${messageId}: messaggio troppo grande (${sizeEstimate}/${maxAttachmentMessageBytes} byte)`);
-                return false;
-              }
-              const attachments = message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
-              return attachments.length > 0;
-            });
-          } catch (e) {
-            console.warn(`⚠️ Impossibile leggere allegati per pre-check: ${e.message}`);
-            attachmentPreCheckFailed = true;
-          }
-
-          // LOOK-BACK STRETTO: se il messaggio corrente non ha allegati propri, recuperiamo
-          // quello del messaggio immediatamente precedente SOLO se il corpo vi fa esplicito
-          // riferimento testuale (es. "come da documento già inviato", "il modulo precedente")
-          // e SOLO se quel messaggio precedente non è nostro. Nessuna scansione profonda del
-          // thread: un solo salto indietro, ancorato semanticamente, per evitare di ripescare
-          // allegati di mesi prima non più pertinenti al messaggio corrente.
-          const bodyStr = messageDetails.body || '';
-          const explicitPastReference = /\bcome\s.{0,25}\b(invi|alleg|trasmess|anticip)/i.test(bodyStr)
-            || /\b(documento|modulo|certificato|file)\b.{0,30}\b(precedente|di\s+prima|gi[aà]\s+(?:invi|alleg))/i.test(bodyStr);
-
-          if (!hasAttachments && !attachmentPreCheckFailed && messages.length > 1 && explicitPastReference) {
-            const candidateIndex = messages.findIndex((m) => m.getId() === candidate.getId());
-
-            // Finestra mobile invece di candidateIndex-1 fisso: nel flusso reale il bot
-            // risponde quasi sempre al primo invio, quindi il messaggio immediatamente
-            // precedente è spesso la NOSTRA risposta. Risaliamo saltando i nostri messaggi
-            // fino al primo messaggio esterno, con un tetto di 3 passi per restare "stretto"
-            // e non degenerare in una scansione dell'intero thread.
-            let foundValidPastMsg = null;
-            for (let j = candidateIndex - 1; j >= Math.max(0, candidateIndex - 3); j--) {
-              const pastMsgCandidate = messages[j];
-              const pastSenderRawCandidate = (pastMsgCandidate && typeof pastMsgCandidate.getFrom === 'function') ? (pastMsgCandidate.getFrom() || '') : '';
-              const pastSenderEmailCandidate = (this.gmailService && typeof this.gmailService._extractEmailAddress === 'function')
-                ? this._normalizeEmailAddress_(this.gmailService._extractEmailAddress(pastSenderRawCandidate) || '')
-                : '';
-              const pastIsUsCandidate = Boolean(pastSenderEmailCandidate) && ownAddresses.has(pastSenderEmailCandidate);
-              if (!pastIsUsCandidate) {
-                foundValidPastMsg = pastMsgCandidate;
-                break;
-              }
-            }
-
-            if (foundValidPastMsg) {
-              const pastAttachments = foundValidPastMsg.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
-              if (pastAttachments.length > 0) {
-                console.log(`   📎 Look-back stretto: recuperato allegato dal messaggio precedente (${foundValidPastMsg.getId()}) referenziato esplicitamente nel testo.`);
-                attachmentSourceMessages.push(foundValidPastMsg);
-                hasAttachments = true;
-              }
-            } else {
-              console.log('   📎 Look-back stretto: nessun messaggio esterno trovato nel raggio di ricerca (3 passi).');
-            }
-          }
-
-          physicalAttachmentsDetected = Boolean(hasAttachments);
-
-          if (!hasAttachments && !attachmentPreCheckFailed) {
-            attachmentSkipped.push({ reason: 'no_attachments' });
-            console.log('   📎 Elaborazione allegati saltata: nessun allegato nel messaggio candidato');
-          } else {
-            const bodyIsVeryShort = (messageDetails.body || '').trim().length < 50;
-            const quickCheckRequiresAttachmentReading = Boolean(
-              hasAttachments &&
-              (
-                (quickAttachmentIntent && quickAttachmentIntent.requires_attachment_reading === true) ||
-                (quickDocumentDelivery && quickDocumentDelivery.expected_document === true && (
-                  quickDocumentDelivery.requires_file_attachment === true ||
-                  quickDocumentDelivery.delivery_channel === 'attachment' ||
-                  quickDocumentDelivery.delivery_channel === 'both' ||
-                  quickDocumentDelivery.delivery_channel === 'unclear'
-                ))
-              )
-            );
-            const localOcrFallback = this._shouldTryOcr(messageDetails.body, messageDetails.subject, hasAttachments);
-            if (
-              bodyIsVeryShort ||
-              attachmentPreCheckFailed ||
-              quickCheckRequiresAttachmentReading ||
-              localOcrFallback
-            ) {
-            // Body molto corto (<50 char) → l'allegato è probabilmente il contenuto principale
-            if (bodyIsVeryShort) {
-              console.log('   📎 Body corto: elaborazione allegati forzata');
-            } else if (quickCheckRequiresAttachmentReading) {
-              const expectedFromQuickCheck = (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
-                (quickAttachmentIntent && quickAttachmentIntent.expected_attachment_description) ||
-                (quickDocumentDelivery && quickDocumentDelivery.reason) ||
-                (quickAttachmentIntent && quickAttachmentIntent.reason) ||
-                'documento allegato';
-              console.log(`   📎 QuickCheck document_delivery: elaborazione allegati forzata (${expectedFromQuickCheck})`);
-            }
-            console.log('   📎 Elaborazione allegati multimodale (Vision)...');
-            const maxAttachmentFiles = Math.max(1, parseInt(attachmentSettings.maxFiles, 10) || 3);
-            const parsedMaxTotalChars = parseInt(attachmentSettings.maxTotalChars, 10);
-            const maxTextChars = Number.isFinite(parsedMaxTotalChars) && parsedMaxTotalChars >= 0
-              ? parsedMaxTotalChars
-              : 9000;
-            let attachmentData = { blobs: [], textContext: '', skipped: [], items: [], processedCount: 0 };
-            const getReportedProcessedCount = (data) => {
-              const reported = Number(data && data.processedCount);
-              return Number.isFinite(reported) && reported >= 0 ? reported : null;
-            };
-            const inferProcessedAttachmentCount = (data) => Math.max(
-              Array.isArray(data && data.items) ? data.items.length : 0,
-              Array.isArray(data && data.blobs) ? data.blobs.length : 0
-            );
-            const countProcessedAttachments = () => attachmentData.processedCount || 0;
-            // Aggrega allegati dai messaggi esterni inclusi nel contesto corrente, non solo dal candidato.
-            // Evita perdita di contesto quando l'utente invia allegati in messaggi precedenti.
-            for (let i = attachmentSourceMessages.length - 1; i >= 0; i--) {
-              try {
-                const remainingFiles = maxAttachmentFiles - countProcessedAttachments();
-                if (remainingFiles <= 0) break;
-
-                const sizeEstimate = this._getMessageSizeEstimateForAttachmentDownload_(attachmentSourceMessages[i], threadLogger);
-                if (Number.isFinite(sizeEstimate) && sizeEstimate > maxAttachmentMessageBytes) {
-                  let messageId = 'unknown';
-                  try {
-                    messageId = attachmentSourceMessages[i] && attachmentSourceMessages[i].getId ? attachmentSourceMessages[i].getId() : 'unknown';
-                  } catch (_) { }
-                  attachmentData.skipped.push({
-                    messageId: messageId,
-                    reason: 'message_too_large_for_attachment_download',
-                    sizeEstimate: sizeEstimate,
-                    maxBytes: maxAttachmentMessageBytes
-                  });
-                  console.warn(`   📎 Elaborazione allegati saltata per ${messageId}: messaggio troppo grande (${sizeEstimate}/${maxAttachmentMessageBytes} byte)`);
-                  continue;
-                }
-
-                const usedChars = (attachmentData.textContext || '').length;
-                const safeMaxChars = maxTextChars > 0
-                  ? Math.max(0, maxTextChars - usedChars)
-                  : 0;
-                const msgData = this.gmailService.getProcessableAttachments(attachmentSourceMessages[i], {
-                  maxFiles: remainingFiles,
-                  maxTotalChars: safeMaxChars,
-                  shouldContinue: () => !this._isNearDeadline(this.config.maxExecutionTimeMs)
-                });
-                if (Array.isArray(msgData.blobs)) attachmentData.blobs.push(...msgData.blobs);
-                if (msgData.textContext) {
-                  if (maxTextChars > 0) {
-                    const remainingChars = Math.max(0, maxTextChars - (attachmentData.textContext || '').length);
-                    if (remainingChars <= 0) {
-                      attachmentData.skipped.push({ reason: 'max_total_chars' });
-                    } else {
-                      const boundedText = msgData.textContext.length > remainingChars
-                        ? msgData.textContext.substring(0, remainingChars)
-                        : msgData.textContext;
-                      attachmentData.textContext += boundedText;
-                      if (boundedText.length < msgData.textContext.length) {
-                        attachmentData.skipped.push({ reason: 'max_total_chars', kept: boundedText.length });
-                      }
-                    }
-                  } else {
-                    attachmentData.textContext += msgData.textContext;
-                  }
-                }
-                if (Array.isArray(msgData.skipped)) attachmentData.skipped.push(...msgData.skipped);
-                if (Array.isArray(msgData.items)) attachmentData.items.push(...msgData.items);
-                const reportedCount = getReportedProcessedCount(msgData);
-                attachmentData.processedCount += reportedCount !== null
-                  ? reportedCount
-                  : inferProcessedAttachmentCount(msgData);
-                if (countProcessedAttachments() >= maxAttachmentFiles) break;
-              } catch (attError) {
-                let messageId = 'unknown';
-                try {
-                  messageId = attachmentSourceMessages[i] && attachmentSourceMessages[i].getId ? attachmentSourceMessages[i].getId() : 'unknown';
-                } catch (idError) {
-                  threadLogger.debug(`Impossibile recuperare ID messaggio durante errore allegati: ${idError.message}`);
-                }
-                console.warn(`   ⚠️ Errore critico estrazione allegati nel messaggio ${messageId}: ${attError.message}`);
-                attachmentData.skipped.push({ reason: 'extraction_crash', error: attError.message });
-              }
-            }
-            attachmentBlobs = attachmentData.blobs || [];
-            textFromAttachments = attachmentData.textContext || '';
-            attachmentSkipped = attachmentData.skipped || [];
-            attachmentItems = attachmentData.items || [];
-            physicalAttachmentsDetected = Boolean(
-              physicalAttachmentsDetected ||
-              countProcessedAttachments() > 0 ||
-              attachmentBlobs.length > 0 ||
-              attachmentItems.length > 0
-            );
-            const postOcrAttachmentIntentContext = this._deriveAttachmentIntentContext_(
-              messageDetails.body,
-              messageDetails.subject,
-              attachmentItems,
-              textFromAttachments,
-              'post_ocr'
-            );
-            attachmentIntentContext = postOcrAttachmentIntentContext || preQuickAttachmentIntentContext;
-
-            // Se post-OCR cambia la categoria (es. rilevato modulo sbattezzo), aggiorniamo il routing
-            if (attachmentIntentContext && attachmentIntentContext.categoryHintSource) {
-              console.log(`   📎 Routing categoria aggiornato post-OCR: ${attachmentIntentContext.categoryHintSource}`);
-              categoryHintSource = attachmentIntentContext.categoryHintSource;
-            }
-
-            if (attachmentIntentContext && /submission/i.test(String(attachmentIntentContext.intent || ''))) {
-              const hasSubmissionQuestions = Boolean(attachmentIntentContext.hasQuestions);
-              const sponsorSubmission = Boolean(
-                (attachmentIntentContext.detectedDocTypes && attachmentIntentContext.detectedDocTypes.sponsor) ||
-                /sponsor|padrin|madrin|idoneit/i.test(String(attachmentIntentContext.intent || '')) ||
-                /sponsor|padrin|madrin|idoneit/i.test(`${messageDetails.subject || ''} ${messageDetails.body || ''}`)
-              );
-              const canonicalSubmissionText = [
-                messageDetails.subject || '',
-                messageDetails.body || '',
-                Array.isArray(attachmentItems) ? attachmentItems.map((i) => (i && i.name) ? i.name : '').join(' ') : '',
-                textFromAttachments || ''
-              ].join(' ');
-              const hasSacramentalTopic =
-                /battesim|cresim|confermazion|confirmation|comunion|matrimon|sacrament/i.test(canonicalSubmissionText);
-              const hasCanonicalActionRequest =
-                /\b(?:permesso|autorizzazion\w*|nulla\s*osta|consenso|assenso|delega|firmare|firma|timbrare|timbro|restituir\w*|rinviare|approv\w*|permission|permit|authori[sz]ation|consent|sign|stamp|return|approve|approval)\b/i.test(canonicalSubmissionText);
-              const isComplexCanonicalSubmission = Boolean(
-                /sbattezz|apostasi|nullit/i.test(canonicalSubmissionText) ||
-                (hasSacramentalTopic && hasCanonicalActionRequest)
-              );
-              let shouldProvideEligibilityGuidance = false;
-              if (sponsorSubmission) {
-                shouldProvideEligibilityGuidance = this._shouldProvideEligibilityGuidance_(
-                  messageDetails.subject,
-                  messageDetails.body,
-                  attachmentIntentContext,
-                  quickCheck.needs_sponsor_guidance,
-                  detectedLanguage
-                );
-              }
-              const submissionPolicyState = {
-                forceReceiptOnlyForSubmission: forceReceiptOnlyForSubmission
-              };
-              const submissionPolicyContext = buildRuleContext({
-                phase: 'post_ocr_policy',
-                state: submissionPolicyState,
-                isDocumentSubmission: true,
-                hasSubmissionQuestions: hasSubmissionQuestions,
-                isSponsorSubmission: sponsorSubmission,
-                isComplexCanonicalSubmission: isComplexCanonicalSubmission,
-                shouldProvideEligibilityGuidance: shouldProvideEligibilityGuidance
-              });
-              const submissionPolicyDecision = this._evaluatePreAiRules_(submissionPolicyContext);
-              this._applyPreAiRuleDecision_(submissionPolicyDecision, submissionPolicyContext, result);
-              forceReceiptOnlyForSubmission = submissionPolicyState.forceReceiptOnlyForSubmission;
-            }
-
-            if (attachmentBlobs.length > 0) {
-              const blobNames = attachmentBlobs.map((b) => b.getName()).join(', ');
-              console.log(`   📎 Pronti ${attachmentBlobs.length} allegati visivi per Gemini (${blobNames})`);
-            }
-
-            if (attachmentSkipped.length > 0) {
-            const skippedNames = attachmentSkipped.map((s) => s.name || s.reason).join(', ');
-              console.log(`   📎 Allegati ignorati/non supportati: ${attachmentSkipped.length} (${skippedNames})`);
-            }
-          } else {
-            attachmentSkipped.push({ reason: 'precheck_no_ocr' });
-            textFromAttachments = '[Avviso di sistema: sono presenti allegati nel thread, ma sono stati esclusi dall\'analisi automatica perché il pre-check non ha rilevato trigger OCR/multimodali rilevanti.]';
-            console.log('   📎 Elaborazione allegati saltata: keyword trigger non rilevate');
-          }
-          }
-
-        }
-      }
-
-      const certRequestText = `${messageDetails.subject || ''} ${messageDetails.body || ''}`;
-      const documentRequestWithSupportingData = this._detectDocumentRequestWithSupportingData_(
-        messageDetails.subject,
-        messageDetails.body
-      );
-      const hasCertificateSacramentalReference = /\bcertificat[ioa]\b[\s\S]{0,80}\b(battesim[oa]|cresim[ao]|matrimoni[oa]|morte)\b|\b(battesim[oa]|cresim[ao]|matrimoni[oa]|morte)\b[\s\S]{0,80}\bcertificat[ioa]\b/i.test(certRequestText);
-      const hasCertificateRequestCue = /\b(richiesta|richied(?:o|ere|iamo|erei|erebbe|ete)|vorrei|desidero|serve|servirebbe|bisogno|ottenere|rilasci(?:o|are|ate)|prepar(?:are|ate|arlo|i|o)|stamp(?:are|arlo|ate|i|o)|mandar(?:mi|ci)|inviar(?:mi|ci))\b/i.test(certRequestText);
-      const isCertRequest = documentRequestWithSupportingData.detected || (hasCertificateSacramentalReference && hasCertificateRequestCue);
-
-      const documentDeliveryModel = this._buildDocumentDeliveryModel_({
-        subject: messageDetails.subject,
-        body: messageDetails.body,
-        quickDocumentDelivery: quickDocumentDelivery,
-        quickAttachmentIntent: quickAttachmentIntent,
-        physicalAttachmentsDetected: physicalAttachmentsDetected,
-        attachmentItems: attachmentItems,
-        textFromAttachments: textFromAttachments
       });
-      const bodyContainsUsableDocumentContent = documentDeliveryModel.bodyContainsUsableDocumentContent;
-      const expectsDocument = documentDeliveryModel.expectsDocument;
-      const hasDocumentContentAvailable = documentDeliveryModel.hasDocumentContentAvailable;
-      const hasExpectedDocumentMissing = documentDeliveryModel.status === 'missing';
-      const receiptOnlyDeliveryChannel = documentDeliveryModel.receiptOnlyDeliveryChannel;
-      if (
-        !forceReceiptOnlyForSubmission &&
-        expectsDocument &&
-        bodyContainsUsableDocumentContent &&
-        !isCertRequest &&
-        !physicalAttachmentsDetected &&
-        !(attachmentIntentContext && attachmentIntentContext.hasQuestions === true)
-      ) {
-        console.log('   📄 Documento compilato rilevato nel corpo: abilito conferma ricezione dati senza OCR');
-        forceReceiptOnlyForSubmission = true;
-        categoryHintSource = 'document_submission';
-        classification.category = 'document_submission';
-        classification.topic = 'dati documentali ricevuti nel testo';
-        if (requestType && typeof requestType === 'object') {
-          requestType.type = 'technical';
-          requestType.needsDoctrine = false;
-          requestType.needsDiscernment = false;
-          requestType.topic = classification.topic;
-        }
-      }
-      if (hasExpectedDocumentMissing) {
-        console.warn('   ⚠️ Documento atteso ma non disponibile: nessun allegato e nessun contenuto compilato nel corpo');
-      }
-
-      const attachmentIntentName = String((attachmentIntentContext && attachmentIntentContext.intent) || '').toLowerCase();
-      if (!physicalAttachmentsDetected && !attachmentPreCheckFailed && !bodyContainsUsableDocumentContent && !expectsDocument && /submission/i.test(attachmentIntentName)) {
-        console.log('   📎 Guardrail allegati: nessun allegato fisico rilevato → disattivo contesto di consegna documentale');
-        attachmentIntentContext = null;
-        const fallbackCategory = (requestTypeName && requestTypeName !== 'technical') ? requestTypeName : null;
-        if (/^(document_submission|suspected_submission)/i.test(String(categoryHintSource || ''))) {
-          categoryHintSource = fallbackCategory;
-        }
-        if (/^(document_submission|suspected_submission)/i.test(String(classification.category || ''))) {
-          classification.category = fallbackCategory;
-          if (/document|allegat|consegna/i.test(String(classification.topic || ''))) {
-            classification.topic = '';
-          }
-        }
-        if (
-          quickCheck &&
-          quickCheck.classification &&
-          typeof quickCheck.classification === 'object' &&
-          /^(document_submission|suspected_submission)/i.test(String(quickCheck.classification.category || ''))
-        ) {
-          quickCheck.classification.category = fallbackCategory;
-          if (/document|allegat|consegna/i.test(String(quickCheck.classification.topic || ''))) {
-            quickCheck.classification.topic = '';
-          }
-        }
-      }
-
-      if (isCertRequest && categoryHintSource !== 'document_submission') {
-        categoryHintSource = 'document_request';
-      }
-      const requestPurpose = this._resolveRequestPurpose_(
-        quickCheck,
-        messageDetails.subject,
-        messageDetails.body
-      );
-      quickCheck.request_purpose = requestPurpose.type;
-      quickCheck.request_purpose_confidence = requestPurpose.confidence;
-      quickCheck.request_purpose_source = requestPurpose.source;
-      console.log(`   Scopo richiesta: ${requestPurpose.type}, confidence=${requestPurpose.confidence}, source=${requestPurpose.source}`);
-
-      const indirectSbattezzo = this._detectIndirectSbattezzoRequest_(messageDetails.subject, messageDetails.body);
-      if (
-        indirectSbattezzo.detected &&
-        !/^document_submission/i.test(String(categoryHintSource || ''))
-      ) {
-        categoryHintSource = 'formal';
-        classification.category = 'formal';
-        classification.topic = 'sbattezzo';
-        classification.subIntents = Object.assign({}, classification.subIntents || {}, {
-          possible_sbattezzo_indirect: true
-        });
-        if (quickCheck && quickCheck.classification && typeof quickCheck.classification === 'object') {
-          quickCheck.classification.category = 'formal';
-          quickCheck.classification.topic = 'sbattezzo';
-        }
-        if (requestType && typeof requestType === 'object') {
-          requestType.type = 'formal';
-          requestType.isSbattezzo = true;
-          requestType.needsDiscernment = false;
-          requestType.needsDoctrine = false;
-          requestType.formalScore = Math.max(Number(requestType.formalScore) || 0, 0.85);
-        }
-        console.log(`   ⚖️ Sbattezzo indiretto rilevato (${indirectSbattezzo.reason}) → routing FORMAL`);
-      }
-
-      // PromptContext deve vedere la categoria definitiva: gli allegati OCR
-      // possono trasformare una richiesta apparentemente tecnica in contesto
-      // formale/sacramentale e cambiare profilo, concern e registro.
-      if (typeof createPromptContext === 'function') {
-        const promptContextCategory = String(categoryHintSource || classification.category || '').toLowerCase() || null;
-        const promptContext = createPromptContext({
-          email: {
-            subject: safeSubject,
-            body: messageDetails.body,
-            isReply: isReplyBySubject || hasPriorOwnMessage,
-            detectedLanguage: detectedLanguage
-          },
-          classification: {
-            category: promptContextCategory,
-            subIntents: classification.subIntents || {},
-            confidence: classification.confidence || 0.8
-          },
-          requestType: requestType,
-          memory: {
-            exists: hasMeaningfulMemoryContext_(memoryContext),
-            providedInfoCount: memoryProvidedInfo.length,
-            lastUpdated: memoryContext.lastUpdated || null,
-            category: memoryContext.category || null,
-            memorySummary: memoryContext.memorySummary || '',
-            topics: memoryTopics,
-            contextualFlags: memoryContextualFlags,
-            conversationState: memoryContext.conversationState || null
-          },
-          conversation: { messageCount: memoryMessageCount },
-          territory: { addressFound: territoryResult.addressFound },
-          knowledgeBase: enrichedKnowledgeBase,
-          knowledgeBaseMeta: {
-            length: enrichedKnowledgeBase.length,
-            containsDates: /\b(19|20)\d{2}\b/.test(enrichedKnowledgeBase)
-          },
-          temporal: {
-            mentionsDates: this._detectTemporalMentions(messageBodyForSemanticAnalysis, detectedLanguage) || /\b\d{1,2}\/\d{1,2}\b/.test(messageBodyForSemanticAnalysis),
-            mentionsTimes: /\d{1,2}[:.]\d{2}/.test(messageBodyForSemanticAnalysis)
-          },
-          salutationMode: salutationMode,
-          physicalPresenceConstraint: physicalPresenceConstraint,
-          relationalPosture: quickCheck?.relational_posture,
-          relationalPostureConfidence: quickCheck?.relational_posture_confidence,
-          quickCheck: {
-            relational_posture: quickCheck?.relational_posture,
-            relational_posture_confidence: quickCheck?.relational_posture_confidence,
-            request_purpose: requestPurpose.type,
-            request_purpose_confidence: requestPurpose.confidence
-          }
-        });
-        promptProfile = promptContext.profile;
-        activeConcerns = promptContext.concerns;
-        responseRegister = promptContext.meta?.responseRegister || responseRegister;
-        crisisCritical = promptContext.meta?.crisisCritical === true;
-        effectiveSalutationMode = promptContext.meta?.salutationMode || effectiveSalutationMode;
-        concernSynthesis = promptContext.meta?.concernSynthesis || null;
-        continuityCase = promptContext.meta?.continuityCase || null;
-        responseMode = promptContext.meta?.responseMode || responseMode;
-        operationalConstraints = Array.isArray(promptContext.meta?.operationalConstraints)
-          ? promptContext.meta.operationalConstraints
-          : [];
-        continuityPolicy = promptContext.meta?.continuityPolicy || null;
-        const synthesisLog = concernSynthesis && concernSynthesis.key
-          ? `, sintesi=${concernSynthesis.key}`
-          : '';
-        const continuityLog = continuityCase && continuityCase.key
-          ? `, continuità=${continuityCase.key}`
-          : '';
-        console.log(`   🧠 PromptContext: profilo=${promptProfile}, registro=${responseRegister}, modalità=${responseMode}${synthesisLog}${continuityLog}`);
-      }
-
-      // Presa in carico prima della generazione: errori del modello non devono
-      // impedire la revisione umana del segnale critico.
-      const crisisHumanReviewEnabled = !(typeof CONFIG !== 'undefined' && CONFIG && CONFIG.CRISIS_HUMAN_REVIEW === false);
-      if (crisisHumanReviewEnabled && crisisCritical === true) {
-        console.warn('   🆘 Segnale di crisi rilevato: nessun invio automatico, richiesta presa in carico umana.');
-        threadLogger.error('Crisi pastorale rilevata: intervento umano richiesto', {
-          event: 'pastoral_crisis_human_review',
-          threadId: threadId,
-          messageId: candidate.getId()
-        });
-        markFailureForCurrentBurst('validation', {
-          reason: 'pastoral_crisis_human_review',
-          subject: messageDetails.subject,
-          bypassThrottle: true
-        });
-        result.status = 'validation_failed';
-        result.validationFailed = true;
-        result.reason = 'pastoral_crisis_human_review';
-        result.durationMs = Date.now() - startTime;
-        return result;
-      }
-
-      const effectiveSalutationModeKey = String(effectiveSalutationMode || '').trim().toLowerCase();
-      const shouldSuppressRitualGreeting = (
-        effectiveSalutationModeKey === 'none_or_continuity' ||
-        effectiveSalutationModeKey === 'session' ||
-        effectiveSalutationModeKey === 'soft'
-      );
-      if (shouldSuppressRitualGreeting) {
-        greeting = '';
-        if (effectiveSalutationModeKey !== 'soft') {
-          closing = '';
-        }
-      }
-
-      const concernFlags = activeConcerns && typeof activeConcerns === 'object'
-        ? activeConcerns
-        : {};
-      const memoryCategory = memoryContext && memoryContext.category
-        ? String(memoryContext.category).toLowerCase()
-        : '';
-      const memoryPastoralCategories = ['pastoral', 'doctrinal', 'formal', 'sacrament', 'sacramento'];
-      const hasMemoryPastoralContext = memoryPastoralCategories.some((category) =>
-        memoryCategory.includes(category)
-      );
-      const hasPastoralConcern = Boolean(
-        concernFlags.emotional_sensitivity ||
-        concernFlags.discernment_risk ||
-        concernFlags.longitudinal_sensitivity ||
-        concernFlags.pastoral_technical_blend ||
-        concernFlags.relational_warmth ||
-        concernFlags.physical_presence_constraint ||
-        hasMemoryPastoralContext
-      );
-
-      // ====================================================================
-      // CONTEXT ROUTING post-OCR (definitivo)
-      // ====================================================================
-      const isTechnicalOnly = TECHNICAL_CONTEXT_ROUTING_CATEGORIES.has(categoryHintSource) && (
-        !hasPastoralConcern ||
-        categoryHintSource === 'document_request' ||
-        categoryHintSource === 'document_submission'
-      );
-      const routingState = {
-        routedAiCoreLite: routedAiCoreLite,
-        routedAiCore: routedAiCore,
-        routedDoctrine: routedDoctrine,
-        routedDoctrineStructured: routedDoctrineStructured
-      };
-      const routingContext = buildRuleContext({
-        phase: 'context_routing',
-        state: routingState,
-        categoryHintSource: categoryHintSource,
-        hasPastoralConcern: hasPastoralConcern,
-        isTechnicalOnly: isTechnicalOnly
+      const profile = ThreadContext.profile(contextServices, {
+        ...message, ...classified, ...analysis, ...knowledge, ...conversation,
+        ...territory, ...profileDefaults, ...documents, requestType, threadLogger, threadId,
+        messageState, result, startTime
       });
-      const routingDecision = this._evaluatePreAiRules_(routingContext);
-      this._applyPreAiRuleDecision_(routingDecision, routingContext, result);
-      routedAiCoreLite = routingState.routedAiCoreLite;
-      routedAiCore = routingState.routedAiCore;
-      const systemDirectives = [];
-      const pastoralFirewall = "DIVIETO DI DEROGA (CROSS-CONTAMINATION): I principi pastorali non possono MAI modificare, derogare o rendere flessibili le procedure, le date o i requisiti tecnici indicati nella Knowledge Base. Non introdurre percorsi personalizzati o eccezioni non autorizzati dalla Knowledge Base; quando la Knowledge Base li prevede, non negarli né restringerli con limiti non espliciti.";
-      if (routedAiCore || routedAiCoreLite) systemDirectives.push(pastoralFirewall);
-      routedDoctrine = routingState.routedDoctrine;
-      routedDoctrineStructured = routingState.routedDoctrineStructured;
-
-      if (!territoryRequested && quickCheckTerritoryCandidates.length > 0) {
-        systemDirectives.push(
-          "Il messaggio contiene un possibile riferimento di luogo o indirizzo, ma non è stata richiesta una verifica territoriale esplicita: non dedurre competenza parrocchiale senza verifica."
-        );
-      }
-
-      const certificateDirective = this._buildCertificateSystemDirective_(isCertRequest, requestPurpose);
-      if (certificateDirective) systemDirectives.push(certificateDirective);
-
-      const baseRuntimeContext = this._buildRuntimeContext_(
-        messageDetails,
-        processingTimestamp,
-        [routedAiCoreLite, routedAiCore, enrichedKnowledgeBase, routedDoctrine].filter(Boolean).join('\n')
-      );
-      const runtimeContext = Object.freeze(Object.assign({}, baseRuntimeContext, {
-        sacramentalDeadlineContext: this._extractSacramentalDeadlineContext_(
-          messageDetails.subject, messageDetails.body, detectedLanguage, baseRuntimeContext.temporal),
-        physicalPresenceConstraint: physicalPresenceConstraint || null,
-        territoryContext: territoryContext || null,
-        validationContext: this._buildResponseValidationContext_({
-          activeConcerns: activeConcerns,
-          concernSynthesis: concernSynthesis,
-          continuityCase: continuityCase,
-          responseMode: responseMode,
-          operationalConstraints: operationalConstraints,
-          continuityPolicy: continuityPolicy,
-          responseRegister: responseRegister,
-          promptProfile: promptProfile,
-          category: categoryHintSource || classification.category || null,
-          requestType: requestTypeName || null,
-          requestPurpose: requestPurpose,
-          conversationHistory: conversationHistory
-        })
-      }));
-      const scheduleContext = this._resolveScheduleContext(
-        `${messageDetails.subject || ''}\n${messageDetails.body || ''}`,
-        enrichedKnowledgeBase,
-        runtimeContext.temporal,
-        detectedLanguage,
-        runtimeContext.temporal.currentDate
-      );
-
-      const allowedResponseStrategies = new Set([
-        'provide_information',
-        'reduce_user_effort',
-        'confirm_receipt',
-        'guide_next_step',
-        'offer_reassurance',
-        'clarify_requirements',
-        'none'
-      ]);
-      const rawResponseStrategy = String(quickCheck.response_strategy || 'none').trim().toLowerCase();
-      const responseStrategyConfidence = Number(quickCheck.response_strategy_confidence) || 0;
-      const normalizedRelationalPosture = this._normalizeRelationalPostureAlias_(quickCheck.relational_posture);
-      const classifiedResponseStrategy = (
-        allowedResponseStrategies.has(rawResponseStrategy) &&
-        responseStrategyConfidence >= 0.65
-      ) ? rawResponseStrategy : 'none';
-      const hasGoalContinuitySignalForResponseStrategy = Boolean(
-        quickCheck.goal_continuity &&
-        String(quickCheck.goal_continuity || 'none').trim().toLowerCase() !== 'none' &&
-        (Number(quickCheck.goal_continuity_confidence) || 0) >= 0.65
-      );
-      const responseFocusHintState = memoryContext && memoryContext.conversationState
-        ? memoryContext.conversationState
-        : null;
-      const hasResponseFocusHintSignalForResponseStrategy = isResponseFocusApplicable_(
-        responseFocusHintState,
-        quickCheck.classification ? quickCheck.classification.topic : '',
-        processingTimestamp
-      );
-      const hasStrongerResponseRoutingSignal = hasStrongerResponseRoutingSignal_(
-        categoryHintSource, requestTypeName, requestType && requestType.isSbattezzo === true,
-        physicalPresenceConstraint && physicalPresenceConstraint.has_constraint,
-        hasGoalContinuitySignalForResponseStrategy,
-        hasResponseFocusHintSignalForResponseStrategy
-      );
-      const responseStrategy = classifiedResponseStrategy !== 'none'
-        ? classifiedResponseStrategy
-        : (!hasStrongerResponseRoutingSignal ? mapRelationalPostureToResponseStrategy_(normalizedRelationalPosture) : 'none');
-      if (responseStrategy !== 'none') {
-        console.log(`   🧭 Response strategy: ${responseStrategy}, confidence=${responseStrategyConfidence}, threadId=${threadId}`);
-      }
-
-      const rawGoalContinuity = String(quickCheck.goal_continuity || 'none').trim().toLowerCase();
-      const goalContinuityConfidence = Number(quickCheck.goal_continuity_confidence) || 0;
-      const allowedGoalContinuity = new Set(['none', 'maintain_goal_continuity', 'goal_completed']);
-      const goalContinuity = (allowedGoalContinuity.has(rawGoalContinuity) && goalContinuityConfidence >= 0.65)
-        ? rawGoalContinuity
-        : 'none';
-      if (goalContinuity !== 'none') {
-        console.log(`   🔗 Goal continuity: ${goalContinuity}, confidence=${goalContinuityConfidence}, threadId=${threadId}`);
-      }
-
-      const promptOptions = {
-        runtimeContext: runtimeContext,
-        emailContent: messageDetails.body,
-        emailSubject: messageDetails.subject,
-        knowledgeBase: enrichedKnowledgeBase,
-        senderName: messageDetails.senderName,
-        senderEmail: messageDetails.senderEmail,
-        conversationHistory: conversationHistory,
-        category: categoryHintSource,
-        topic: quickCheck.classification ? quickCheck.classification.topic : '',
-        detectedLanguage: detectedLanguage,
-        currentSeason: scheduleContext.season,
-        currentDate: runtimeContext.temporal.currentDate,
-        currentTime: runtimeContext.temporal.currentTime,
-        messageDate: runtimeContext.temporal.messageDate,
-        scheduleContext: scheduleContext,
-        salutation: greeting,
-        closing: closing,
-        subIntents: classification.subIntents || {},
-        memoryContext: memoryContext,
-        salutationMode: effectiveSalutationMode,
-        responseDelay: responseDelay,
-        promptProfile: promptProfile,
-        activeConcerns: activeConcerns,
-        concernSynthesis: concernSynthesis,
-        continuityCase: continuityCase,
-        responseMode: responseMode,
-        operationalConstraints: operationalConstraints,
-        continuityPolicy: continuityPolicy,
-        responseRegister: responseRegister,
-        territoryContext: territoryContext,
-        physicalPresenceConstraint: physicalPresenceConstraint,
-        sponsorGuidancePolicy: this._deriveSponsorGuidancePolicy_(messageDetails.subject, messageDetails.body, attachmentIntentContext, quickCheck.needs_sponsor_guidance, detectedLanguage, conversationHistory),
-        sacramentalDeadlineContext: runtimeContext.sacramentalDeadlineContext,
-        relationalPosture: normalizedRelationalPosture,
-        conversationShift: {
-          shift: quickCheck?.conversation_shift || 'none',
-          confidence: Number(quickCheck?.conversation_shift_confidence) || 0
-        },
-        responseStrategy: responseStrategy,
-        requestPurpose: requestPurpose,
-        responseStrategyInferenceBlocked: hasStrongerResponseRoutingSignal,
-        newInformationProvided: Array.isArray(quickCheck.new_information_provided)
-          ? quickCheck.new_information_provided
-          : [],
-        goalContinuity: {
-          value: goalContinuity,
-          confidence: goalContinuityConfidence
-        },
-        requestType: requestType,
-        attachmentsContext: physicalAttachmentsDetected
-          ? textFromAttachments
-          : (hasExpectedDocumentMissing
-            ? "ATTENZIONE: il documento atteso non è disponibile: non risultano allegati fisici né dati compilati utilizzabili nel corpo del messaggio."
-            : (bodyContainsUsableDocumentContent
-              ? "ATTENZIONE: il documento/la scheda è riportato nel corpo del messaggio come dati compilati utilizzabili; non parlare di allegato."
-              : (attachmentIntentContext
-                ? "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa."
-                : ''))),
-        attachmentIntentContext: attachmentIntentContext
-          ? Object.assign({}, attachmentIntentContext, {
-            hasPhysicalAttachments: physicalAttachmentsDetected,
-            bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent,
-            hasExpectedDocumentMissing: hasExpectedDocumentMissing
-          })
-          : null,
-        systemDirectives: systemDirectives,
-        aiCoreLite: routedAiCoreLite,
-        aiCore: routedAiCore,
-        doctrineBase: routedDoctrine,
-        doctrineStructured: routedDoctrineStructured
-      };
-
-      // Una menzione di documenti ancora attesi non descrive necessariamente
-      // l'allegato presente: la coerenza si valuta solo su una consegna
-      // effettivamente annunciata o riportata nel corpo.
-      const documentConsistency = this.config.documentConsistencyCheckEnabled && documentDeliveryModel.expectsDocument
-        ? this._evaluateDocumentConsistency_(
-          messageDetails.subject,
-          messageDetails.body,
-          attachmentItems,
-          textFromAttachments
-        )
-        : null;
-      const isDocumentDeliveryContext = Boolean(
-        physicalAttachmentsDetected &&
-        attachmentIntentContext &&
-        /submission/i.test(String(attachmentIntentContext.intent || ''))
-      );
-
-      // La tassonomia locale (_evaluateDocumentConsistency_) riconosce solo
-      // documenti sacramentali/anagrafici noti: per qualunque altro allegato
-      // (video, locandine, programmi, documentazione generica) "expected"
-      // risulta sempre 'unknown' e il mismatch non può mai scattare, anche
-      // quando l'allegato è palesemente incongruo. In questo gap (e solo in
-      // questo gap, per non moltiplicare le chiamate Gemini) deleghiamo la
-      // verifica di coerenza a un controllo semantico zero-shot.
-      const hasExplicitQuickDocumentExpectation = Boolean(
-        documentDeliveryModel.expectsDocument &&
-        quickDocumentDelivery &&
-        quickDocumentDelivery.source === 'quick_check' &&
-        quickDocumentDelivery.expected_document === true &&
-        quickDocumentDelivery.expected_document_description
-      );
-      const needsSemanticConsistencyCheck = Boolean(
-        this.config.documentConsistencyCheckEnabled &&
-        documentConsistency &&
-        (
-          documentConsistency.mode === 'unknown_expected' ||
-          (hasExplicitQuickDocumentExpectation && documentConsistency.mode !== 'mismatch')
-        ) &&
-        physicalAttachmentsDetected &&
-        (textFromAttachments || (Array.isArray(attachmentItems) && attachmentItems.length > 0))
-      );
-      const semanticConsistency = needsSemanticConsistencyCheck
-        ? this._evaluateAttachmentSemanticConsistency_({
-          subject: messageDetails.subject,
-          body: messageDetails.body,
-          attachmentItems: attachmentItems,
-          ocrText: textFromAttachments,
-          attachmentBlobs: attachmentBlobs,
-          expectedAttachmentDescription: (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
-            (quickAttachmentIntent ? quickAttachmentIntent.expected_attachment_description : '')
-        })
-        : null;
-
-      const hasTaxonomyMismatch = !!(documentConsistency && documentConsistency.mode === 'mismatch');
-      const hasSemanticMismatch = !!(semanticConsistency && semanticConsistency.consistent === false);
-      const hasDocumentMismatch = hasTaxonomyMismatch || hasSemanticMismatch;
-      const documentMismatchReason = hasSemanticMismatch
-        ? (semanticConsistency.reason || "contenuto dell'allegato non coerente con quanto descritto nell'email")
-        : (hasTaxonomyMismatch
-          ? `atteso ${documentConsistency.expected || 'unknown'}, ricevuto ${documentConsistency.received || 'unknown'}`
-          : null);
-      const hasRiskyUnknownReceived = !!(
-        documentConsistency &&
-        documentConsistency.mode === 'unknown_received' &&
-        (isDocumentDeliveryContext || (
-          documentDeliveryModel.expectsDocument &&
-          documentDeliveryModel.hasAttachmentContent
-        ))
-      );
-      if (hasDocumentMismatch) {
-        documentDeliveryModel.status = 'incongruent';
-        documentDeliveryModel.isCoherent = false;
-        documentDeliveryModel.blocksReceiptOnly = true;
-        documentDeliveryModel.blockReason = documentMismatchReason || 'document_mismatch';
-      } else if (hasRiskyUnknownReceived && (documentDeliveryModel.expectsDocument || isDocumentDeliveryContext)) {
-        // Un allegato non classificabile in un contesto di consegna documentale
-        // non può essere trattato come conferma automatica. Non è però un
-        // mismatch provato: è un allegato ricevuto ma non verificabile con certezza.
-        documentDeliveryModel.status = 'unverified_attachment';
-        documentDeliveryModel.isCoherent = false;
-        documentDeliveryModel.blocksReceiptOnly = true;
-        documentDeliveryModel.blockReason = documentDeliveryModel.expectsDocument
-          ? 'expected_document_with_unknown_attachment'
-          : 'submission_attachment_unknown_content';
-      }
-
-      const hasDocumentDeliveryIncongruent = documentDeliveryModel.status === 'incongruent';
-      const hasDocumentDeliveryUnverified = documentDeliveryModel.status === 'unverified_attachment';
-      const hasDocumentDeliveryBlockingIssue = Boolean(
-        hasExpectedDocumentMissing ||
-        hasDocumentMismatch ||
-        hasDocumentDeliveryIncongruent ||
-        hasDocumentDeliveryUnverified
-      );
-      const effectiveDocumentMismatchReason = documentMismatchReason || documentDeliveryModel.blockReason || null;
-      const shouldUseReceiptOnly = !hasDocumentDeliveryBlockingIssue && forceReceiptOnlyForSubmission;
-      const shouldSkipValidationForReceiptOnly = shouldUseReceiptOnly;
-      let injectedMissingDocumentDirective = null;
-      let injectedMismatchDirective = null;
-      if (hasExpectedDocumentMissing) {
-        const expectedDocumentLabel = this._formatExpectedDocumentLabel_(
-          (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
-          (quickAttachmentIntent && quickAttachmentIntent.expected_attachment_description) ||
-          ''
-        );
-        injectedMissingDocumentDirective = `DOCUMENTO ATTESO NON DISPONIBILE: Scrivi: "Non troviamo allegata né riportata nel testo ${expectedDocumentLabel}. Può cortesemente reinviarla o inserirne i dati nel corpo del messaggio?" Usa questa richiesta come contenuto principale, con saluto istituzionale.`;
-        systemDirectives.unshift(injectedMissingDocumentDirective);
-      }
-
-      if (hasDocumentMismatch || hasDocumentDeliveryIncongruent || hasDocumentDeliveryUnverified) {
-        console.warn(`   ⚠️ Problema documentale rilevato (${hasDocumentDeliveryUnverified ? 'non_verificabile' : (hasSemanticMismatch ? 'semantico' : (hasTaxonomyMismatch ? 'tassonomia' : 'document_delivery'))}): ${effectiveDocumentMismatchReason}`);
-
-        // Il segnale deve arrivare a Gemini, non bypassarlo: iniettiamo una
-        // direttiva di sistema. Se nel messaggio ci sono domande esplicite,
-        // rispondiamo anche a quelle; in una consegna pura evitiamo di
-        // inventare richieste operative non presenti.
-        let directiveText = '';
-        let prefixMsg = '';
-
-        if (hasDocumentDeliveryUnverified) {
-          directiveText = [
-            'Il file è ricevuto ma non classificabile con certezza: questo non prova un errore dell’utente.',
-            'Conferma la ricezione e rispondi alla richiesta corrente con KB e contesto; non imporre verifica o reinvio per la sola incertezza di classificazione.',
-            'Chiedi un dato o una copia leggibile soltanto se indispensabile per rispondere alla richiesta e realmente non disponibile.',
-            'Non confermare che il documento sia corretto o completo.',
-            'Non usare formule come "sembra non corrispondere", "non corrisponde", "allegato incongruo", "allegato sbagliato" o "allegato errato".'
-          ].join(' ');
-          prefixMsg = 'CONTESTO INTERNO: ALLEGATO RICEVUTO, TIPO NON CLASSIFICATO (non è un avviso da riportare all’utente):';
-        } else {
-          directiveText = [
-            'Quando l’allegato non corrisponde a quanto annunciato, scrivi in modo diretto e cortese:',
-            '"L’allegato ricevuto sembra non corrispondere a [documento atteso]. La invitiamo a verificare il file e, se necessario, a reinviare il documento corretto."',
-            'Sostituisci [documento atteso] con il documento atteso quando disponibile; altrimenti usa "quanto annunciato".',
-            'Usa "sembra" per mantenere tono non accusatorio.',
-            'Non spiegare il criterio interno o il processo di verifica.'
-          ].join(' ');
-          prefixMsg = 'AVVISO ALLEGATO NON COERENTE:';
-        }
-
-        if (attachmentIntentContext && attachmentIntentContext.hasQuestions === true) {
-          const questionPriority = hasDocumentDeliveryUnverified
-            ? "Senza imporre un avviso preliminare, rispondi comunque in modo completo e operativo alla richiesta contenuta nell'email, usando il testo del messaggio e il resto del contesto disponibile."
-            : "Subito dopo l'avviso, rispondi comunque in modo completo e operativo alla richiesta contenuta nell'email, usando il testo del messaggio e il resto del contesto disponibile.";
-          injectedMismatchDirective = `${prefixMsg} ${directiveText} Documento atteso/motivo: ${effectiveDocumentMismatchReason}. ${questionPriority}`;
-        } else {
-          const receiptInstruction = hasDocumentDeliveryUnverified
-            ? 'Per una consegna senza domande, conferma la ricezione senza richiedere reinvio per la sola incertezza di classificazione.'
-            : 'Per una consegna senza domande, usa solo questo avviso e il saluto istituzionale.';
-          injectedMismatchDirective = `${prefixMsg} ${directiveText} Documento atteso/motivo: ${effectiveDocumentMismatchReason}. ${receiptInstruction}`;
-        }
-        systemDirectives.unshift(injectedMismatchDirective);
-      } else if (hasRiskyUnknownReceived) {
-        console.warn(`   ⚠️ Documento non classificabile in contesto sponsor: atteso=${documentConsistency.expected || 'unknown'} ricevuto=unknown`);
-      }
-      promptOptions.documentConsistency = documentConsistency;
-      promptOptions.documentDelivery = {
-        quickDocumentDelivery: quickDocumentDelivery,
-        expectsDocument: expectsDocument,
-        bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent,
-        hasDocumentContentAvailable: hasDocumentContentAvailable,
-        hasExpectedDocumentMissing: hasExpectedDocumentMissing,
-        receiptOnlyDeliveryChannel: receiptOnlyDeliveryChannel,
-        status: documentDeliveryModel.status,
-        source: documentDeliveryModel.source,
-        hasPhysicalAttachment: documentDeliveryModel.hasPhysicalAttachment,
-        hasAttachmentAnalyzedContent: documentDeliveryModel.hasAttachmentAnalyzedContent,
-        hasUsableAttachmentText: documentDeliveryModel.hasUsableAttachmentText,
-        hasDocumentDeliveryUnverified: hasDocumentDeliveryUnverified,
-        isCoherent: documentDeliveryModel.isCoherent,
-        blocksReceiptOnly: documentDeliveryModel.blocksReceiptOnly,
-        blockReason: documentDeliveryModel.blockReason
-      };
-      console.log(`   📎 Document consistency decision: ${JSON.stringify({
-        taxonomyMode: documentConsistency ? (documentConsistency.mode || null) : null,
-        semanticConsistent: semanticConsistency ? semanticConsistency.consistent : null,
-        hasTaxonomyMismatch: hasTaxonomyMismatch,
-        hasSemanticMismatch: hasSemanticMismatch,
-        hasDocumentMismatch: hasDocumentMismatch,
-        hasDocumentDeliveryUnverified: hasDocumentDeliveryUnverified,
-        hasDocumentDeliveryBlockingIssue: hasDocumentDeliveryBlockingIssue,
-        expectsDocument: expectsDocument,
-        bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent,
-        hasDocumentContentAvailable: hasDocumentContentAvailable,
-        hasExpectedDocumentMissing: hasExpectedDocumentMissing,
-        forceReceiptOnlyForSubmission: forceReceiptOnlyForSubmission,
-        hasRiskyUnknownReceived: hasRiskyUnknownReceived,
-        documentDeliveryStatus: documentDeliveryModel.status,
-        documentDeliverySource: documentDeliveryModel.source,
-        documentDeliveryBlocksReceiptOnly: documentDeliveryModel.blocksReceiptOnly,
-        documentDeliveryBlockReason: documentDeliveryModel.blockReason,
-        shouldUseReceiptOnly: shouldUseReceiptOnly,
-        shouldSkipValidationForReceiptOnly: shouldSkipValidationForReceiptOnly,
-        injectedMissingDocumentDirective: injectedMissingDocumentDirective,
-        injectedMismatchDirective: injectedMismatchDirective
-      })}`);
-
-      const validationRuntimeContext = (hasDocumentMismatch || hasDocumentDeliveryIncongruent || hasDocumentDeliveryUnverified || hasExpectedDocumentMissing)
-        ? Object.freeze(Object.assign({}, runtimeContext, {
-          validationContext: Object.assign({}, runtimeContext.validationContext || {}, {
-            documentMismatch: (hasDocumentMismatch || hasDocumentDeliveryIncongruent || hasDocumentDeliveryUnverified) ? {
-              active: true,
-              mode: hasDocumentDeliveryUnverified
-                ? 'unverified_attachment'
-                : (hasSemanticMismatch
-                  ? 'semantic'
-                  : (hasTaxonomyMismatch ? 'taxonomy' : 'document_delivery')),
-              reason: effectiveDocumentMismatchReason || '',
-              hasQuestions: Boolean(attachmentIntentContext && attachmentIntentContext.hasQuestions === true),
-              expected: documentConsistency && documentConsistency.expected ? documentConsistency.expected : '',
-              received: documentConsistency && documentConsistency.received ? documentConsistency.received : ''
-            } : null,
-            expectedDocumentMissing: hasExpectedDocumentMissing ? {
-              active: true,
-              expected: (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) || '',
-              deliveryChannel: quickDocumentDelivery ? quickDocumentDelivery.delivery_channel : 'unclear',
-              bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent
-            } : null
-          })
-        }))
-        : runtimeContext;
-
-      const prompt = this.promptEngine.buildPrompt(promptOptions);
-
-      const fullPrompt = prompt;
-
-      // ====================================================================
-      // STEP 8: GENERA RISPOSTA
-      // ====================================================================
-      let response = null;
-      let generationError = null;
-      let initialError = null;
-      let strategyUsed = null;
-      let strategyUsedPlan = null;
-
-      if (this._isNearDeadline(this.config.maxExecutionTimeMs)) {
-        console.warn('⏳ Tempo residuo insufficiente prima della generazione AI: rimando il thread al prossimo turno.');
-        result.status = 'dilata';
-        result.reason = 'near_deadline_before_generation';
-        result.retryDelayMs = 60000;
-        return result;
-      }
-
-      const generationPlan = this._buildGenerationStrategies_(this.geminiService, {
-        warn: (message) => console.warn(message)
+      if (profile.terminal) return result;
+      const routing = ThreadContext.routeKnowledge(contextServices, {
+        ...policy, ...analysis, ...territory, ...documents, ...profile, greeting,
+        closing, routedAiCoreLite, routedAiCore, routedDoctrine, routedDoctrineStructured, result
       });
-      const attemptStrategy = Array.isArray(generationPlan.attemptStrategy)
-        ? generationPlan.attemptStrategy
-        : [];
-      const fallbackModelName = generationPlan.fallbackModelName || 'gemini-3.7-flash';
-
-      if (shouldUseReceiptOnly) {
-        response = this._buildReceiptOnlySubmissionResponse_(
-          detectedLanguage,
-          categoryHintSource,
-          receiptOnlyDeliveryChannel,
-          { senderName: messageDetails.senderName }
-        );
-        strategyUsed = hasRiskyUnknownReceived
-          ? 'DocumentConsistency-UnknownReceivedReceiptOnly'
-          : 'Submission-ReceiptOnlyGuardrail';
-        console.log(`✅ Risposta di sola ricezione generata (${strategyUsed})`);
-      } else {
-        for (const plan of attemptStrategy) {
-          if (!plan.key) continue;
-          if (!plan.usesBackupKey && this.geminiService && this.geminiService.isPrimaryExhausted) {
-            console.warn(`↪️ Strategia '${plan.name}' saltata: chiave primaria già esaurita.`);
-            continue;
-          }
-
-          try {
-            console.log(`🔄 Tentativo Generazione: ${plan.name}...`);
-
-            response = this.geminiService.generateResponse(fullPrompt, {
-              apiKey: plan.key,
-              modelName: plan.model,
-              skipRateLimit: plan.skipRateLimit,
-              attachments: attachmentBlobs
-            });
-
-            if (response && typeof response === 'object') {
-              if (!response.text && response.success) {
-                console.warn(`⚠️ Gemini ha restituito successo senza testo (${plan.name})`);
-              }
-              response = response.text;
-            }
-
-            if (
-              this._isNoReplyToken_(response) &&
-              quickCheck &&
-              quickCheck.shouldRespond === true
-            ) {
-              console.warn(
-                `⚠️ Strategia '${plan.name}' ha restituito NO_REPLY in contrasto con reply_needed=true: provo il fallback successivo.`
-              );
-              response = null;
-              const unexpectedNoReplyError = new Error('NO_REPLY inatteso dopo decisione reply_needed=true');
-              unexpectedNoReplyError.code = 'UNEXPECTED_NO_REPLY';
-              throw unexpectedNoReplyError;
-            }
-
-            if (response) {
-              strategyUsed = plan.name;
-              strategyUsedPlan = plan;
-              console.log(`✅ Generazione riuscita con strategia: ${plan.name}`);
-              break;
-            }
-
-          } catch (err) {
-            generationError = err;
-            if (!initialError) initialError = err;
-            const errorClass = this._classifyError(err);
-            console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass.type}]`);
-
-            if (errorClass.type === 'FATAL' || errorClass.type === 'INVALID_API_KEY') {
-              // Se la chiave corrente è invalida/non autorizzata (401/403),
-              // prova la strategia successiva: una chiave/modello di backup può essere ancora valido.
-              if (/401|403|unauthorized|forbidden|permission_denied|api[_\s-]?key/i.test(String(err && err.message ? err.message : err))) {
-                console.warn('↪️ Errore di autenticazione/permessi rilevato, provo la strategia successiva.');
-                continue;
-              }
-              console.error('🛑 Errore fatale rilevato, interrompo strategia.');
-              break;
-            }
-
-            const planIndex = attemptStrategy.indexOf(plan);
-            const hasNextPlan = planIndex >= 0 && planIndex < attemptStrategy.length - 1;
-            const rawGenerationError = String(err && err.message ? err.message : err).toLowerCase();
-            const isQuotaLike = (
-              errorClass.type === 'QUOTA_EXHAUSTED' ||
-              errorClass.type === 'QUOTA_EXCEEDED' ||
-              rawGenerationError.includes('quota')
-            );
-            const canTryNextPlan = hasNextPlan && (
-              isQuotaLike ||
-              ['RETRYABLE', 'NETWORK', 'TIMEOUT', 'INVALID_RESPONSE', 'UNKNOWN'].includes(errorClass.type)
-            );
-
-            if (canTryNextPlan) {
-              console.warn(`↪️ Errore ${errorClass.type}, provo la strategia successiva.`);
-              continue;
-            }
-
-            if (isQuotaLike) {
-              console.warn('🧯 Errore quota sull\'ultima strategia: nessuna strategia residua, uscita anticipata.');
-              break;
-            }
-
-            if (['CONFIG_ERROR', 'SYSTEM_ERROR', 'DATA'].includes(errorClass.type)) {
-              console.error(`🛑 Errore ${errorClass.type} non recuperabile da fallback modello, interrompo generazione.`);
-              break;
-            }
-
-            console.warn(`🛑 Nessuna strategia residua utile per errore ${errorClass.type}, interrompo generazione.`);
-            break;
-          }
-        }
-      }
-
-
-      if (!response) {
-        const errorToReport = generationError || initialError;
-        const errorClass = errorToReport ? this._classifyError(errorToReport) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
-        console.error('🛑 TUTTE le strategie di generazione sono fallite.');
-        if (!errorClass.retryable) {
-          markFailureForCurrentBurst('error');
-        } else {
-          console.warn(`   ↻ Errore generazione retryable (${errorClass.type}) - nessuna marcatura permanente`);
-        }
-        result.status = 'error';
-        result.error = errorToReport ? String(errorToReport.message || errorToReport) : 'Generation strategies exhausted';
-        result.retryable = !!errorClass.retryable;
-        if (errorToReport && errorToReport.code === 'UNEXPECTED_NO_REPLY') {
-          result.reason = 'unexpected_no_reply_after_reply_required';
-        }
-        if (initialError && generationError && initialError !== generationError) {
-          result.error += ` (Ultimo fallback: ${String(generationError.message || generationError)})`;
-        }
-        result.errorClass = errorClass.type;
-        return result;
-      }
-
-      if (typeof response !== 'string') {
-        console.error(`🛑 Risposta non valida da Gemini: tipo ricevuto '${typeof response}'`);
-        markFailureForCurrentBurst('error');
-        result.status = 'error';
-        result.error = 'Invalid response type from GeminiService';
-        result.errorClass = 'DATA';
-        return result;
-      }
-
-      const parsedResponse = this._parseEmailResponse_(response);
-      response = parsedResponse.text;
-      if (parsedResponse.incomplete) {
-        console.warn('   ⚠️ Blocco <email> incompleto: rinvio per revisione.');
-        markFailureForCurrentBurst('validation', { reason: 'truncated_output' });
-        result.status = 'validation_failed';
-        result.reason = 'truncated_output';
-        return result;
-      }
-      // Lo strip pre-validazione nasconde i pattern statici al validatore
-      // (che quindi non attiva mai il retry per thinking_leak) e puo' lasciare
-      // frasi mozze. Meglio lasciare che il validatore veda il testo integrale.
-
-      if (this._isNoReplyToken_(response)) {
-        console.log('   ⊖ AI ha restituito NO_REPLY');
-        markHandledUnread();
-        result.status = 'filtered';
-        return result;
-      }
-
-
-      response = this._addTimeDiscrepancyNoteIfNeeded(
-        response,
-        { ...messageDetails, body: messageDetails.body || '' },
-        detectedLanguage
-      );
-
-      response = this._sanitizeUnrequestedSponsorGuidance_(
-        response,
-        messageDetails.subject,
-        messageDetails.body,
-        detectedLanguage
-      );
-
-      // Guardrail: blocca saluti confidenziali non giustificati.
-      // Il flag /m abbina solo inizio riga, evitando falsi positivi nel corpo.
-      // Lascia intatto "Dear" (standard formale EN) e "Cher" (formale FR).
-      if (/^it/i.test(detectedLanguage || 'it')) {
-        response = effectiveSalutationModeKey === 'full_warm'
-          ? response.replace(/^(Carissimo|Carissima)\b/gm, 'Gentile')
-          : response.replace(/^(Caro|Cara|Carissimo|Carissima)\b/gm, 'Gentile');
-      } else if (/^pt/i.test(detectedLanguage || '')) {
-        response = response.replace(/^(Caro|Cara)\b/gm, 'Prezado');
-      }
-
-      // ====================================================================
-      // PASSO 9: VALIDAZIONE + RETRY INTELLIGENTE
-      // ====================================================================
-      let finalResponse = this._prepareOutboundResponse(response, messageDetails, detectedLanguage);
-      let validation = null;
-      let retryAttempted = false;
-      let retryInfrastructureFailure = null;
-      let retryPermanentApiFailure = null;
-      let shouldLabelForReview = false;
-
-      if (this.config.validationEnabled && !shouldUseReceiptOnly) {
-        const fullValidationKB = [
-          enrichedKnowledgeBase,
-          routedAiCoreLite,
-          routedAiCore,
-          routedDoctrine
-        ].filter(Boolean).join('\n\n');
-        validation = this.validator.validateResponse(
-          finalResponse,
-          detectedLanguage,
-          fullValidationKB,
-          messageBodyForSemanticAnalysis,
-          messageDetails.subject,
-          effectiveSalutationMode,
-          true,
-          validationRuntimeContext
-        );
-
-        if (validation.fixedResponse) {
-          console.log('   🩹 Usa risposta corretta automaticamente (Self-Healing)');
-          finalResponse = validation.fixedResponse;
-        }
-
-        const retryConfig = (typeof CONFIG !== 'undefined' && CONFIG.INTELLIGENT_RETRY) ? CONFIG.INTELLIGENT_RETRY : null;
-        const retryEnabled = retryConfig && retryConfig.enabled !== false;
-        const parsedMaxRetries = retryConfig ? parseInt(retryConfig.maxRetries, 10) : NaN;
-        const maxRetries = retryEnabled
-          ? (Number.isFinite(parsedMaxRetries) && parsedMaxRetries >= 0 ? parsedMaxRetries : 1)
-          : 0;
-
-        let retryCount = 0;
-        while (!validation.isValid && retryEnabled && retryCount < maxRetries && !this._isNearDeadline(this.config.maxExecutionTimeMs)) {
-          const shouldRetry = this._shouldAttemptIntelligentRetry(validation, detectedLanguage, retryConfig);
-          if (!shouldRetry) break;
-
-          retryAttempted = true;
-          retryCount++;
-          console.log(`🔄 Retry intelligente ${retryCount}/${maxRetries} (score: ${validation.score.toFixed(2)}, errori: ${validation.errors.length})`);
-
-          const correctionPrompt = this._buildCorrectionPrompt(
-            fullPrompt,
-            finalResponse,
-            validation,
-            detectedLanguage,
-            effectiveSalutationMode,
-            validationRuntimeContext
-          );
-
-          const retryPlan = strategyUsedPlan || attemptStrategy.find(p => p && p.key) || {
-            key: this.geminiService.primaryKey,
-            model: fallbackModelName,
-            skipRateLimit: false
-          };
-
-          // Dopo un 503/high-demand privilegia un modello fisico differente, non
-          // un secondo tentativo identico. Le strategie con lo stesso modello
-          // restano in coda solo come ultima risorsa (per esempio su backup key).
-          const retryPlanKey = (plan) => `${String(plan && plan.key || '')}|${String(plan && plan.model || '')}`;
-          const alternativePlans = attemptStrategy.filter(plan => plan && plan.key && retryPlanKey(plan) !== retryPlanKey(retryPlan));
-          const retryPlans = [
-            retryPlan,
-            ...alternativePlans.filter(plan => String(plan.model || '') !== String(retryPlan.model || '')),
-            ...alternativePlans.filter(plan => String(plan.model || '') === String(retryPlan.model || ''))
-          ].filter((plan, index, plans) => plans.findIndex(candidatePlan => retryPlanKey(candidatePlan) === retryPlanKey(plan)) === index);
-
-          // Il retry deve rigenerare con la stessa systemInstruction (persona,
-          // pastoral firewall, vincoli di sicurezza, formato): senza di essa il
-          // modello vede solo la risposta fallita e le istruzioni di correzione.
-          const retryPayload = (fullPrompt && typeof fullPrompt === 'object' && fullPrompt.systemInstruction)
-            ? { systemInstruction: fullPrompt.systemInstruction, prompt: correctionPrompt }
-            : correctionPrompt;
-
-          let retryResponse = null;
-          retryInfrastructureFailure = null;
-          retryPermanentApiFailure = null;
-          for (let retryPlanIndex = 0; retryPlanIndex < retryPlans.length; retryPlanIndex++) {
-            const currentRetryPlan = retryPlans[retryPlanIndex];
-            if (this._isNearDeadline(this.config.maxExecutionTimeMs)) {
-              console.warn('   ⏱️ Deadline vicina: interrompo la catena di retry.');
-              break;
-            }
-            try {
-              console.log(`   ↻ Correzione con modello: ${currentRetryPlan.model || 'default'}`);
-              const retryResult = this.geminiService.generateResponse(retryPayload, {
-                apiKey: currentRetryPlan.key,
-                modelName: currentRetryPlan.model,
-                skipRateLimit: currentRetryPlan.skipRateLimit
-              });
-
-              if (retryResult && typeof retryResult === 'object') {
-                if (!retryResult.text && retryResult.success) {
-                  console.warn('⚠️ Retry: Gemini ha restituito successo senza testo');
-                }
-                retryResponse = retryResult.text;
-              } else if (typeof retryResult === 'string') {
-                retryResponse = retryResult;
-              }
-              if (retryResponse) break;
-            } catch (retryError) {
-              const retryErrorClass = this._classifyError(retryError);
-              const isTransientRetryError = retryErrorClass.retryable === true || retryError.isTransient === true;
-              console.warn(`⚠️ Retry fallito per errore API: ${retryError.message} [${retryErrorClass.type}]`);
-              if (isTransientRetryError) {
-                retryInfrastructureFailure = { error: retryError, classification: retryErrorClass };
-                const hasNextRetryPlan = retryPlanIndex < retryPlans.length - 1;
-                if (hasNextRetryPlan) {
-                  console.warn('   ↪️ Errore transitorio: provo il modello di riserva prima di rinviare il messaggio.');
-                  continue;
-                }
-              } else {
-                retryInfrastructureFailure = null;
-                retryPermanentApiFailure = { error: retryError, classification: retryErrorClass };
-              }
-              break;
-            }
-          }
-
-          if (!retryResponse) break;
-          retryInfrastructureFailure = null;
-          retryPermanentApiFailure = null;
-
-          const parsedRetryResponse = this._parseEmailResponse_(retryResponse);
-          retryResponse = parsedRetryResponse.text;
-          if (parsedRetryResponse.incomplete) {
-            markFailureForCurrentBurst('validation', { reason: 'truncated_output' });
-            result.status = 'validation_failed';
-            result.reason = 'truncated_output';
-            return result;
-          }
-          // Validare anche il retry prima di rimuovere eventuali leak.
-          retryResponse = this._addTimeDiscrepancyNoteIfNeeded(
-            retryResponse,
-            { ...messageDetails, body: messageDetails.body || '' },
-            detectedLanguage
-          );
-          retryResponse = this._sanitizeUnrequestedSponsorGuidance_(
-            retryResponse,
-            messageDetails.subject,
-            messageDetails.body,
-            detectedLanguage
-          );
-          if (/^it/i.test(detectedLanguage || 'it')) {
-            retryResponse = effectiveSalutationModeKey === 'full_warm'
-              ? retryResponse.replace(/^(Carissimo|Carissima)\b/gm, 'Gentile')
-              : retryResponse.replace(/^(Caro|Cara|Carissimo|Carissima)\b/gm, 'Gentile');
-          } else if (/^pt/i.test(detectedLanguage || '')) {
-            retryResponse = retryResponse.replace(/^(Caro|Cara)\b/gm, 'Prezado');
-          }
-
-          const preparedRetryResponse = this._prepareOutboundResponse(
-            retryResponse,
-            messageDetails,
-            detectedLanguage
-          );
-
-          const retryValidation = this.validator.validateResponse(
-            preparedRetryResponse,
-            detectedLanguage,
-            fullValidationKB,
-            messageBodyForSemanticAnalysis,
-            messageDetails.subject,
-            effectiveSalutationMode,
-            true,
-            validationRuntimeContext
-          );
-
-          if (retryValidation.isValid) {
-            console.log(`✅ Retry superato (score: ${retryValidation.score.toFixed(2)})`);
-            finalResponse = retryValidation.fixedResponse || preparedRetryResponse;
-            validation = retryValidation;
-            break;
-          }
-
-          console.warn(
-            `⚠️ Retry non sufficiente (score: ${retryValidation.score.toFixed(2)}). ` +
-            `Errori residui: ${((retryValidation && Array.isArray(retryValidation.errors)) ? retryValidation.errors : []).join('; ')}`
-          );
-          if (retryValidation.score > validation.score) {
-            console.log('   → Uso risposta del retry (score più alto, nonostante non valida)');
-            finalResponse = retryValidation.fixedResponse || preparedRetryResponse;
-            validation = retryValidation;
-          } else {
-            console.warn('   → Retry peggiorativo, mantengo la risposta originale migliore');
-          }
-        }
-
-        if (!validation.isValid) {
-          if (retryInfrastructureFailure) {
-            const retryFailure = retryInfrastructureFailure;
-            console.warn('   ↻ Correzione non completata per indisponibilità transitoria Gemini: nessuna label terminale applicata.');
-            result.status = 'error';
-            result.reason = 'intelligent_retry_transient_failure';
-            result.error = String(retryFailure.error && retryFailure.error.message ? retryFailure.error.message : retryFailure.error);
-            result.errorClass = retryFailure.classification.type;
-            result.retryable = true;
-            result.retryDelayMs = Number(retryFailure.error && retryFailure.error.retryAfterMs) || 60000;
-            return result;
-          }
-
-          if (retryPermanentApiFailure) {
-            const retryFailure = retryPermanentApiFailure;
-            console.warn('   🛑 Correzione interrotta per errore API definitivo: applico la gestione Errore, non Verifica.');
-            markFailureForCurrentBurst('error');
-            result.status = 'error';
-            result.reason = 'intelligent_retry_permanent_api_failure';
-            result.error = String(retryFailure.error && retryFailure.error.message ? retryFailure.error.message : retryFailure.error);
-            result.errorClass = retryFailure.classification.type;
-            result.retryable = false;
-            return result;
-          }
-
-          const retryNote = retryAttempted ? ' (dopo retry)' : '';
-          console.warn(`   🛑 Validazione FALLITA${retryNote} (punteggio: ${validation.score.toFixed(2)})`);
-
-          if (validation.details && validation.details.exposedReasoning && validation.details.exposedReasoning.score === 0.0) {
-            console.warn("⚠️ Risposta bloccata per Thinking Leak. Invio a etichetta 'Verifica'.");
-            result.reason = 'thinking_leak';
-          }
-
-          const validationReason = result.reason || validation.reasonCode || 'validation_score_below_threshold';
-          markFailureForCurrentBurst('validation', {
-            reason: validationReason,
-            validation: validation,
-            subject: messageDetails.subject
-          });
-          result.status = 'validation_failed';
-          result.validationFailed = true;
-          if (!result.reason) {
-            result.reason = validationReason;
-          }
-          return result;
-        }
-
-        const configuredWarningThreshold = Number(this.config.validationWarningThreshold);
-        const warningThreshold = Number.isFinite(configuredWarningThreshold)
-          ? ((typeof normalizeValidationScore === 'function')
-            ? normalizeValidationScore(configuredWarningThreshold)
-            : Math.max(0, Math.min(1, configuredWarningThreshold > 1 ? configuredWarningThreshold / 100 : configuredWarningThreshold)))
-          : 0.90;
-        shouldLabelForReview =
-          validation.warnings && validation.warnings.length > 0 && validation.score < warningThreshold;
-
-        if (shouldLabelForReview) {
-          console.log(`   ⚠️ Label '${this.config.validationErrorLabel}' rinviata a dopo invio riuscito`);
-        } else if (validation.warnings && validation.warnings.length > 0) {
-          console.log(`   ℹ️ Validazione: Punteggio alto (${validation.score.toFixed(2)}). Warning ignorati: ${validation.warnings.join(', ')}`);
-        }
-
-        // L'eventuale testo perfezionato è già stato applicato in fase di validazione.
-
-        console.log(`   ✓ Validazione PASSATA (punteggio: ${validation.score.toFixed(2)})`);
-      }
-
-      response = finalResponse;
-
-      // ====================================================================
-      // STEP 10: INVIA RISPOSTA
-      // ====================================================================
-      if (this.config.dryRun) {
-        console.log('   🔴 DRY RUN - Risposta non inviata');
-        console.log(`   📄 Invierebbe: ${response.substring(0, 100)}...`);
-        result.dryRun = true;
-        result.status = 'dry_run';
-        result.durationMs = Date.now() - startTime;
-        threadLogger.info(`Thread processato in ${result.durationMs}ms`, { duration: result.durationMs });
-        return result;
-      }
-
-      const sendTxn = this._beginSendTransaction(candidate.getId(), skipLock);
-      if (!sendTxn.ok) {
-        console.warn(`   ⊖ Invio saltato per idempotenza (${sendTxn.reason})`);
-        if (sendTxn.reason === 'gmail_send_uncertain') {
-          this._addValidationErrorLabel(candidate, { reason: 'gmail_send_uncertain', subject: messageDetails.subject });
-        }
-        if (sendTxn.reason === 'already_sent') {
-          markHandledUnreadOnce();
-          result.status = 'skipped';
-          result.reason = 'already_sent_recently';
-        } else {
-          result.status = 'skipped';
-          result.reason = sendTxn.reason;
-        }
-        result.durationMs = Date.now() - startTime;
-        return result;
-      }
-
-      try {
-        messageDetails.sendOperationId = 'reply_' + String(candidate.getId()).replace(/[^a-zA-Z0-9_-]/g, '');
-        this.gmailService.sendHtmlReply(candidate, response, messageDetails);
-        replySent = true;
-        this._commitSendTransaction(candidate.getId(), sendTxn);
-        this._recordConfirmedDuplicateReply_(
-          duplicateReplyFingerprintContext,
-          candidate.getId(),
-          threadId
-        );
-        replySent = true;
-      } catch (e) {
-        if (replySent) throw e; // Post-send persistence failure must never roll back delivery.
-        const errorMessage = e && e.message ? e.message : String(e);
-        const classifiedSendError = this._classifyError(e);
-        const ambiguousSendOutcome = classifiedSendError.type === 'NETWORK' || classifiedSendError.type === 'TIMEOUT';
-        if (!ambiguousSendOutcome) {
-          this._rollbackSendTransaction(candidate.getId(), sendTxn);
-        } else {
-          const confirmed = typeof this.gmailService.reconcileSendOperation === 'function' &&
-            this.gmailService.reconcileSendOperation(messageDetails.sendOperationId);
-          if (confirmed) {
-            replySent = true;
-            this._commitSendTransaction(candidate.getId(), sendTxn);
-            markHandledUnreadOnce();
-            result.status = 'replied';
-            result.reason = 'send_reconciled';
-            return result;
-          }
-          responseContextMessages.forEach(message => {
-            this.props.setProperty(`send_uncertain_${message.getId()}`, String(Date.now()));
-          });
-          markFailureForCurrentBurst('validation', { reason: 'gmail_send_uncertain', subject: messageDetails.subject }, false);
-          result.reason = 'gmail_send_uncertain';
-        }
-        console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
-
-        // Errori transienti: lascia il messaggio eleggibile per retry automatico.
-        if (!classifiedSendError.retryable) {
-          try {
-            markFailureForCurrentBurst('error');
-          } catch (markError) {
-            console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
-          }
-        } else if (ambiguousSendOutcome) {
-          console.warn('   ⚠️ Esito invio incerto: invio bloccato in attesa di revisione umana');
-        } else {
-          console.warn(`   ↻ Errore invio retryable (${classifiedSendError.type}) - nessuna marcatura permanente`);
-        }
-
-        result.status = 'error';
-        result.error = `gmail_send_failed: ${errorMessage}`;
-        result.errorClass = classifiedSendError.type;
-        return result;
-      }
-
-      // Chiude il burst subito dopo l'invio confermato: memoria, cleanup e label
-      // di revisione sono post-processing e non devono lasciare il messaggio
-      // riprocessabile in caso di errore successivo.
-      markHandledUnreadOnce();
-
-      // Pulisci le etichette dello stato precedente in caso di risposta positiva
-      try {
-        if (this.gmailService && typeof this.gmailService.removeLabelFromThread === 'function') {
-          this.gmailService.removeLabelFromThread(thread, this.config.errorLabelName);
-        }
-        if (!shouldLabelForReview) {
-          if (this.gmailService && typeof this.gmailService.removeLabelFromThread === 'function') {
-            this.gmailService.removeLabelFromThread(thread, this.config.validationErrorLabel);
-          }
-          if (this.gmailService && typeof this.gmailService.removeLabelFromMessage === 'function') {
-            this.gmailService.removeLabelFromMessage(candidate.getId(), this.config.validationErrorLabel);
-          }
-        }
-      } catch (cleanupError) {
-        console.warn(`⚠️ Cleanup label stato precedente fallito: ${cleanupError.message}`);
-      }
-
-      // Etichettatura non critica: non deve compromettere lo step successivo (memoria).
-      try {
-        if (shouldLabelForReview || hasDocumentMismatch) {
-          this._addValidationErrorLabel(candidate, {
-            reason: hasDocumentMismatch ? 'document_consistency_prudent_response' : 'validation_warning',
-            validation: validation,
-            subject: messageDetails.subject
-          });
-        }
-      } catch (labelErr) {
-        console.warn(`⚠️ Label di verifica non applicata (non bloccante): ${labelErr.message}`);
-      }
-
-      // ====================================================================
-      // STEP 11: AGGIORNA MEMORIA
-      // ====================================================================
-      const providedTopics = this._detectProvidedTopics(response);
-
-      const topicsWithObjects = providedTopics.map(topic => ({
-        topic: topic,
-        userReaction: 'unknown',
-        context: null,
-        timestamp: processingTimestamp.toISOString()
-      }));
-
-      const memorySummary = this._buildMemorySummary({
-        existingSummary: memoryContext.memorySummary || '',
-        responseText: response,
-        providedTopics: providedTopics,
-        referenceDate: processingTimestamp
+      const runtime = ThreadContext.runtime(contextServices, {
+        ...message, ...classified, ...analysis, ...knowledge, ...conversation,
+        ...territory, ...documentCategory, ...documents, ...profile, ...routing
       });
-
-      const inferredReactionData = (memoryContext.providedInfo && memoryContext.providedInfo.length > 0)
-        ? this._computeUserReaction(messageDetails.body, memoryContext.providedInfo)
-        : null;
-
-      const memoryUpdate = {
-        language: detectedLanguage,
-        category: categoryHintSource || classification.category || requestTypeName,
-        _baseMemorySummary: memoryContext.memorySummary || '',
-        _incrementMessageCount: true
-      };
-      const contextualFlagsUpdate = this._deriveContextualFlagsUpdate_({
-        existingFlags: memoryContextualFlags,
-        physicalPresenceConstraint: physicalPresenceConstraint,
-        activeConcerns: activeConcerns,
-        classification: classification,
-        requestType: requestType,
-        categoryHintSource: categoryHintSource
+      const responseRouting = ThreadContext.responseRouting(contextServices, {
+        ...analysis, ...documentCategory, ...documents, requestType, threadId
       });
-      if (Object.keys(contextualFlagsUpdate).length > 0) {
-        memoryUpdate.contextualFlags = contextualFlagsUpdate;
-      }
-
-      const quickCheckTopic = quickCheck && quickCheck.classification
-        ? (quickCheck.classification.topic || null)
-        : null;
-      memoryUpdate.conversationStateUpdate = {
-        currentRelationalPosture: quickCheck?.relational_posture || 'direct',
-        responseFocusHint: quickCheck?.response_focus_hint || null,
-        responseFocusHintConfidence: Number(quickCheck?.response_focus_hint_confidence) || 0,
-        appliesToTopic: quickCheckTopic,
-        updatedAt: processingTimestamp.toISOString(),
-        source: 'quick_check'
-      };
-      if (physicalPresenceConstraint.memoryState) {
-        memoryUpdate.conversationStateUpdate.physicalPresenceState = physicalPresenceConstraint.memoryState;
-      }
-
-      if (memoryUpdate.conversationStateUpdate.responseFocusHint) {
-        console.log(
-          `   🧭 Stato thread: posture=${memoryUpdate.conversationStateUpdate.currentRelationalPosture}, ` +
-          `hint=${memoryUpdate.conversationStateUpdate.responseFocusHint}, ` +
-          `confidence=${memoryUpdate.conversationStateUpdate.responseFocusHintConfidence}, threadId=${threadId}`
-        );
-      }
-
-      if (memorySummary) {
-        memoryUpdate.memorySummary = memorySummary;
-      }
-
-      try {
-        const memorySaved = this.memoryService.updateMemoryAtomic(
-          threadId,
-          memoryUpdate,
-          topicsWithObjects.length > 0 ? topicsWithObjects : null,
-          inferredReactionData
-        );
-
-        if (!memorySaved) {
-          threadLogger.warn('Persistenza memoria non confermata, ma risposta già gestita');
-        }
-      } catch (memoryError) {
-        threadLogger.warn(`Persistenza memoria fallita, ma risposta già gestita: ${memoryError.message}`);
-      }
-
-      // Marca tutti i messaggi non letti esaminati nel thread:
-      // evita reprocessing dei messaggi precedenti quando arrivano più email
-      // ravvicinate prima dell'esecuzione del trigger.
-      markHandledUnreadOnce();
+      const promptInput = ThreadContext.promptOptions(contextServices, {
+        ...message, ...classified, ...analysis, ...knowledge, ...conversation,
+        ...territory, ...attachments, ...documents, ...profile, ...routing,
+        ...runtime, ...responseRouting, requestType
+      });
+      const consistency = ThreadDocuments.consistency(documentsServices, {
+        ...message, ...analysis, ...attachments, ...documents, ...routing,
+        ...runtime, ...promptInput
+      });
+      const fullPrompt = this.promptEngine.buildPrompt(promptInput.promptOptions);
+      const generationServices = this._threadGenerationServices_();
+      const generated = ThreadGeneration.generate(generationServices, {
+        ...message, ...analysis, ...attachments, ...documents, ...consistency,
+        result, fullPrompt, markFailureForCurrentBurst: messageState.markFailureForCurrentBurst
+      });
+      if (generated.terminal) return result;
+      const prepared = ThreadGeneration.prepareResponse(generationServices, {
+        ...message, ...analysis, ...routing, ...generated,
+        markFailureForCurrentBurst: messageState.markFailureForCurrentBurst, result,
+        markHandledUnread: messageState.markHandledUnread
+      });
+      if (prepared.terminal) return result;
+      const validationServices = this._threadValidationServices_();
+      const validated = ThreadValidation.validate(validationServices, {
+        ...message, ...analysis, ...knowledge, ...profile, ...routing,
+        ...consistency, ...generated, ...prepared, fullPrompt,
+        markFailureForCurrentBurst: messageState.markFailureForCurrentBurst, result
+      });
+      if (validated.terminal) return result;
+      // Dopo conferma invio ogni errore passa al recupero post-invio.
+      const deliveryServices = this._threadDeliveryServices_();
+      const sent = ThreadDelivery.send(deliveryServices, {
+        ...message, ...validated, result, startTime, threadLogger, messageState, skipLock,
+        delivery, threadId
+      });
+      if (sent.terminal) return result;
+      const completionServices = this._threadCompletionServices_();
+      ThreadCompletion.labels(completionServices, {
+        ...message, ...consistency, ...validated, thread, messageState
+      });
+      ThreadCompletion.memory(completionServices, {
+        ...message, ...classified, ...analysis, ...documentCategory, ...documents,
+        ...profile, ...validated, requestType, threadId, threadLogger
+      });
+      messageState.markHandledUnreadOnce();
       result.status = 'replied';
       result.durationMs = Date.now() - startTime;
       threadLogger.info(`Thread processato in ${result.durationMs}ms`, { duration: result.durationMs });
       return result;
-
     } catch (error) {
-      threadLogger.error(`Errore elaborazione thread: ${error.message}`, { stack: error && error.stack ? error.stack : undefined });
-
-      if (replySent) {
-        threadLogger.warn('Errore post-invio: thread non etichettato come errore perché la risposta è stata già inviata');
-        try {
-          markHandledUnreadOnce();
-        } catch (markError) {
-          threadLogger.warn(`Errore label post-invio silenziato: ${markError.message}`);
-        }
-        result.status = 'replied';
-        result.warning = `post_send_error: ${error.message}`;
-        result.durationMs = Date.now() - startTime;
-        return result;
-      }
-
-      const unhandledErrorClass = this._classifyError(error);
-      const isSystemic = unhandledErrorClass.type === 'SYSTEM_ERROR' || unhandledErrorClass.type === 'CONFIG_ERROR' || unhandledErrorClass.type === 'INVALID_API_KEY' || /\b(401|403|404)\b/.test(error.message || '');
-      if (!unhandledErrorClass.retryable && !isSystemic) {
-        try {
-          markFailureForCurrentBurst('error');
-        } catch (labelError) {
-          threadLogger.warn(`Errore aggiunta errorLabel silenziato: ${labelError.message}`);
-        }
-      } else {
-        threadLogger.warn(`Errore retryable o sistemico (${unhandledErrorClass.type}): nessuna label permanente applicata.`);
-      }
-      result.status = 'error';
-      result.error = error.message;
-      result.errorClass = isSystemic ? 'SYSTEM_ERROR' : unhandledErrorClass.type;
-      return result;
-
+      return ThreadLifecycle.handleError(lifecycleServices, { threadLogger, error, delivery, messageState, result, startTime });
     } finally {
       restoreServiceLoggers();
       this._releaseThreadLock(lockCtx, threadLogger);
     }
+  }
+
+  /** Narrow dependencies for ThreadLifecycle; resolved per call so overrides remain effective. */
+  _threadLifecycleServices_() {
+    return {
+      logger: this.logger,
+      geminiService: this.geminiService,
+      classifier: this.classifier,
+      validator: this.validator,
+      requestClassifier: this.requestClassifier,
+      gmailService: this.gmailService,
+      memoryService: this.memoryService,
+      _classifyError: this._classifyError.bind(this)
+    };
+  }
+
+  /** Narrow dependencies for ThreadMessageState; resolved per call so overrides remain effective. */
+  _threadMessageStateServices_() {
+    return {
+      _addErrorLabel: this._addErrorLabel.bind(this),
+      _addValidationErrorLabel: this._addValidationErrorLabel.bind(this),
+      _markMessageAsProcessed: this._markMessageAsProcessed.bind(this)
+    };
+  }
+
+  /** Narrow dependencies for ThreadSelection; resolved per call so overrides remain effective. */
+  _threadSelectionServices_() {
+    return {
+      gmailService: this.gmailService,
+      config: this.config,
+      _normalizeEmailAddress_: this._normalizeEmailAddress_.bind(this),
+      _getFiniteOptionNumber_: this._getFiniteOptionNumber_.bind(this),
+      _markMessageAsProcessed: this._markMessageAsProcessed.bind(this),
+      _normalizeConversationEmailAddress_: this._normalizeConversationEmailAddress_.bind(this),
+      _buildDuplicateReplyFingerprintContext_: this._buildDuplicateReplyFingerprintContext_.bind(this),
+      _findConfirmedDuplicateReply_: this._findConfirmedDuplicateReply_.bind(this),
+      _formatBurstMessageDate_: this._formatBurstMessageDate_.bind(this)
+    };
+  }
+
+  /** Narrow dependencies for ThreadPolicy; resolved per call so overrides remain effective. */
+  _threadPolicyServices_() {
+    return {
+      _markMessagesAsSkipped: this._markMessagesAsSkipped.bind(this),
+      _markMessageAsProcessed: this._markMessageAsProcessed.bind(this),
+      config: this.config,
+      _createRuleContext_: this._createRuleContext_.bind(this),
+      _normalizeEmailAddress_: this._normalizeEmailAddress_.bind(this),
+      gmailService: this.gmailService,
+      _evaluatePreAiRules_: this._evaluatePreAiRules_.bind(this),
+      _applyPreAiRuleDecision_: this._applyPreAiRuleDecision_.bind(this),
+      classifier: this.classifier,
+      geminiService: this.geminiService,
+      _normalizeLanguageCode_: this._normalizeLanguageCode_.bind(this),
+      _shouldIgnoreEmail: this._shouldIgnoreEmail.bind(this),
+      _deriveAttachmentIntentContext_: this._deriveAttachmentIntentContext_.bind(this),
+      _classifySponsorGuidanceLocally_: this._classifySponsorGuidanceLocally_.bind(this),
+      memoryService: this.memoryService,
+      _getOwnConversationAnchor_: this._getOwnConversationAnchor_.bind(this),
+      _buildQuickCheckMemoryContext_: this._buildQuickCheckMemoryContext_.bind(this),
+      _classifyError: this._classifyError.bind(this),
+      _resolveQuickCheckAttachmentIntent_: this._resolveQuickCheckAttachmentIntent_.bind(this),
+      _resolveQuickCheckDocumentDelivery_: this._resolveQuickCheckDocumentDelivery_.bind(this),
+      _reconcilePhysicalPresenceConstraint_: this._reconcilePhysicalPresenceConstraint_.bind(this)
+    };
+  }
+
+  /** Narrow dependencies for ThreadContext; resolved per call so overrides remain effective. */
+  _threadContextServices_() {
+    return {
+      config: this.config,
+      gmailService: this.gmailService,
+      _isTerritoryRequest: this._isTerritoryRequest.bind(this),
+      _extractQuickCheckTerritoryCandidates_: this._extractQuickCheckTerritoryCandidates_.bind(this),
+      territoryValidator: this.territoryValidator,
+      _analyzeAiTerritoryCandidates_: this._analyzeAiTerritoryCandidates_.bind(this),
+      _detectTemporalMentions: this._detectTemporalMentions.bind(this),
+      _evaluatePreAiRules_: this._evaluatePreAiRules_.bind(this),
+      _applyPreAiRuleDecision_: this._applyPreAiRuleDecision_.bind(this),
+      _buildCertificateSystemDirective_: this._buildCertificateSystemDirective_.bind(this),
+      _buildRuntimeContext_: this._buildRuntimeContext_.bind(this),
+      _extractSacramentalDeadlineContext_: this._extractSacramentalDeadlineContext_.bind(this),
+      _buildResponseValidationContext_: this._buildResponseValidationContext_.bind(this),
+      _resolveScheduleContext: this._resolveScheduleContext.bind(this),
+      _normalizeRelationalPostureAlias_: this._normalizeRelationalPostureAlias_.bind(this),
+      _deriveSponsorGuidancePolicy_: this._deriveSponsorGuidancePolicy_.bind(this)
+    };
+  }
+
+  /** Narrow dependencies for ThreadDocuments; resolved per call so overrides remain effective. */
+  _threadDocumentsServices_() {
+    return {
+      _detectDocumentRequestWithSupportingData_: this._detectDocumentRequestWithSupportingData_.bind(this),
+      _buildDocumentDeliveryModel_: this._buildDocumentDeliveryModel_.bind(this),
+      _resolveRequestPurpose_: this._resolveRequestPurpose_.bind(this),
+      _detectIndirectSbattezzoRequest_: this._detectIndirectSbattezzoRequest_.bind(this),
+      config: this.config,
+      _evaluateDocumentConsistency_: this._evaluateDocumentConsistency_.bind(this),
+      _evaluateAttachmentSemanticConsistency_: this._evaluateAttachmentSemanticConsistency_.bind(this),
+      _formatExpectedDocumentLabel_: this._formatExpectedDocumentLabel_.bind(this)
+    };
+  }
+
+  /** Narrow dependencies for ThreadAttachments; resolved per call so overrides remain effective. */
+  _threadAttachmentsServices_() {
+    return {
+      _isNearDeadline: this._isNearDeadline.bind(this),
+      config: this.config,
+      _getAttachmentDownloadLimitBytes_: this._getAttachmentDownloadLimitBytes_.bind(this),
+      _getMessageSizeEstimateForAttachmentDownload_: this._getMessageSizeEstimateForAttachmentDownload_.bind(this),
+      gmailService: this.gmailService,
+      _normalizeEmailAddress_: this._normalizeEmailAddress_.bind(this),
+      _shouldTryOcr: this._shouldTryOcr.bind(this),
+      _deriveAttachmentIntentContext_: this._deriveAttachmentIntentContext_.bind(this),
+      _shouldProvideEligibilityGuidance_: this._shouldProvideEligibilityGuidance_.bind(this),
+      _evaluatePreAiRules_: this._evaluatePreAiRules_.bind(this),
+      _applyPreAiRuleDecision_: this._applyPreAiRuleDecision_.bind(this)
+    };
+  }
+
+  /** Narrow dependencies for ThreadGeneration; resolved per call so overrides remain effective. */
+  _threadGenerationServices_() {
+    return {
+      _isNearDeadline: this._isNearDeadline.bind(this),
+      config: this.config,
+      _buildGenerationStrategies_: this._buildGenerationStrategies_.bind(this),
+      geminiService: this.geminiService,
+      _buildReceiptOnlySubmissionResponse_: this._buildReceiptOnlySubmissionResponse_.bind(this),
+      _isNoReplyToken_: this._isNoReplyToken_.bind(this),
+      _classifyError: this._classifyError.bind(this),
+      _parseEmailResponse_: this._parseEmailResponse_.bind(this),
+      _addTimeDiscrepancyNoteIfNeeded: this._addTimeDiscrepancyNoteIfNeeded.bind(this),
+      _sanitizeUnrequestedSponsorGuidance_: this._sanitizeUnrequestedSponsorGuidance_.bind(this)
+    };
+  }
+
+  /** Narrow dependencies for ThreadValidation; resolved per call so overrides remain effective. */
+  _threadValidationServices_() {
+    return {
+      _prepareOutboundResponse: this._prepareOutboundResponse.bind(this),
+      config: this.config,
+      validator: this.validator,
+      _isNearDeadline: this._isNearDeadline.bind(this),
+      _shouldAttemptIntelligentRetry: this._shouldAttemptIntelligentRetry.bind(this),
+      _buildCorrectionPrompt: this._buildCorrectionPrompt.bind(this),
+      geminiService: this.geminiService,
+      _classifyError: this._classifyError.bind(this),
+      _parseEmailResponse_: this._parseEmailResponse_.bind(this),
+      _addTimeDiscrepancyNoteIfNeeded: this._addTimeDiscrepancyNoteIfNeeded.bind(this),
+      _sanitizeUnrequestedSponsorGuidance_: this._sanitizeUnrequestedSponsorGuidance_.bind(this)
+    };
+  }
+
+  /** Narrow dependencies for ThreadDelivery; resolved per call so overrides remain effective. */
+  _threadDeliveryServices_() {
+    return {
+      config: this.config,
+      _beginSendTransaction: this._beginSendTransaction.bind(this),
+      _addValidationErrorLabel: this._addValidationErrorLabel.bind(this),
+      gmailService: this.gmailService,
+      _commitSendTransaction: this._commitSendTransaction.bind(this),
+      _recordConfirmedDuplicateReply_: this._recordConfirmedDuplicateReply_.bind(this),
+      _classifyError: this._classifyError.bind(this),
+      _rollbackSendTransaction: this._rollbackSendTransaction.bind(this),
+      props: this.props
+    };
+  }
+
+  /** Narrow dependencies for ThreadCompletion; resolved per call so overrides remain effective. */
+  _threadCompletionServices_() {
+    return {
+      gmailService: this.gmailService,
+      config: this.config,
+      _addValidationErrorLabel: this._addValidationErrorLabel.bind(this),
+      _detectProvidedTopics: this._detectProvidedTopics.bind(this),
+      _buildMemorySummary: this._buildMemorySummary.bind(this),
+      _computeUserReaction: this._computeUserReaction.bind(this),
+      _deriveContextualFlagsUpdate_: this._deriveContextualFlagsUpdate_.bind(this),
+      memoryService: this.memoryService
+    };
   }
 
   /**

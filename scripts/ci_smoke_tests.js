@@ -146,6 +146,7 @@ function loadScript(path) {
         loadScript('gas_response_strategy.js');
     }
     if (path === 'gas_email_processor.js') {
+            require('../tests/helpers/load_thread_components')();
         loadScript('gas_response_strategy.js');
         loadScript('gas_error_types.js');
     }
@@ -2230,6 +2231,7 @@ function runGoldenCases() {
         'gas_email_processor.js'
     ];
     scripts.forEach((path) => {
+        if (path === 'gas_email_processor.js') require('../tests/helpers/load_thread_components')(sandbox);
         const code = fs.readFileSync(path, 'utf8');
         vm.runInContext(code, sandbox, { filename: path });
     });

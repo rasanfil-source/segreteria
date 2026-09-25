@@ -1,0 +1,10 @@
+{
+  "source": "Workspace restoration copy, not a checkout of HEAD",
+  "sourceFile": "gas_email_processor.js",
+  "sha256": "672f51b64984d73c25814f146a03a5e5c69940ed6c380dbfc0fd8329eb036bb8",
+  "gitHead": "b5a6a75860182c56500a830a542962ab86902919",
+  "scenarioCount": 63,
+  "clock": "2026-09-25T10:00:00.000Z",
+  "random": 0.123456789,
+  "comparison": "Full return values, ordered simulated effects, prompt and validation arguments, properties, label caches and logger restoration."
+}

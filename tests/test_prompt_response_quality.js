@@ -1,3 +1,4 @@
+require('./helpers/load_thread_components')();
 const fs = require('fs');
 const vm = require('vm');
 const path = require('path');
@@ -2891,7 +2892,8 @@ console.log('--- Test anti-persistenza: responseStrategy non entra in MemoryServ
 {
   const repoRoot = path.join(__dirname, '..');
   const memorySource = fs.readFileSync(path.join(repoRoot, 'gas_memory_service.js'), 'utf8');
-  const emailProcessorSource = fs.readFileSync(path.join(repoRoot, 'gas_email_processor.js'), 'utf8');
+  const emailProcessorSource = ['gas_email_processor.js', 'gas_thread_completion.js']
+    .map(file => fs.readFileSync(path.join(repoRoot, file), 'utf8')).join('\n');
   assert(!/response_strategy|responseStrategy/.test(memorySource), 'MemoryService non deve contenere response_strategy/responseStrategy');
   const conversationStateBlocks = emailProcessorSource.match(/conversationStateUpdate\s*=\s*\{[\s\S]*?\n\s*\};/g) || [];
   assert(conversationStateBlocks.length > 0, 'deve esistere almeno un blocco conversationStateUpdate da verificare');

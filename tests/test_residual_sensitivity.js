@@ -16,6 +16,7 @@ const sandbox = {
   Utilities: { formatDate: () => '2026-09-16' }
 };
 vm.createContext(sandbox);
+require('./helpers/load_thread_components')(sandbox);
 for (const file of ['gas_response_strategy.js', 'gas_prompt_context.js', 'gas_prompt_engine.js',
   'gas_memory_service.js', 'gas_email_processor.js', 'gas_response_validator.js', 'gas_gemini_service.js']) {
   const code = baseline ? execFileSync('git', ['show', `HEAD:${file}`], { cwd: root, encoding: 'utf8' })

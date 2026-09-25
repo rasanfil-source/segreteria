@@ -1,3 +1,4 @@
+require('./helpers/load_thread_components')();
 const fs = require('fs');
 const vm = require('vm');
 const path = require('path');

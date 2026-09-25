@@ -19,6 +19,7 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
             global.loadScript('gas_response_strategy.js');
         }
         if (path === 'gas_email_processor.js') {
+            require('./tests/helpers/load_thread_components')();
             global.loadScript('gas_response_strategy.js');
             global.loadScript('gas_error_types.js');
         }

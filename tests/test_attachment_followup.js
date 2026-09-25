@@ -4,6 +4,7 @@ const vm = require('vm');
 const assert = require('assert');
 const sandbox = { console, CONFIG: {} };
 vm.createContext(sandbox);
+require('./helpers/load_thread_components')(sandbox);
 for (const file of ['gas_response_strategy.js', 'gas_email_processor.js', 'gas_prompt_engine.js', 'gas_response_validator.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), sandbox, { filename: file });
 }
