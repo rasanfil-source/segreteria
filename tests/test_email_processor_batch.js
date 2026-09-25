@@ -2763,7 +2763,7 @@ console.log('--- Test processThread: submission receipt-only non chiama Gemini g
     geminiService: {
       primaryKey: 'primary-key',
       backupKey: 'backup-key',
-      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'documentazione ricevuta' } }),
+      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', request_purpose: 'status_update', request_purpose_confidence: 0.99, classification: { topic: 'documentazione ricevuta' } }),
       detectEmailLanguage: () => ({ lang: 'it' }),
       getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
@@ -3178,8 +3178,7 @@ console.log('--- Test expected document missing: scheda compilata nel corpo vale
   assert(scenario.result.status === 'replied', 'scheda nel corpo deve completare il flusso');
   assert(scenario.capturedPromptOptions.documentDelivery.bodyContainsUsableDocumentContent === true, 'fallback locale deve rilevare dati compilati nel body');
   assert(scenario.capturedPromptOptions.documentDelivery.hasExpectedDocumentMissing === false, 'scheda compilata nel corpo non deve risultare mancante');
-  assert(scenario.generationCalls === 0, 'scheda compilata senza domande deve usare risposta di ricezione dati');
-  assert(/dati riportati nel messaggio/i.test(scenario.sentText), `risposta ricezione dati inattesa: ${scenario.sentText}`);
+  assert(scenario.generationCalls === 1, 'senza intento AI esplicito i dati nel corpo richiedono generazione contestuale');
 }
 
 console.log('--- Test body delivery: modulo compilato con richiesta di partecipazione passa alla generazione ---');
@@ -3392,9 +3391,8 @@ console.log('--- Test document consistency flow: Perillo coerente resta receipt-
   });
   assert(scenario.result.status === 'replied', 'Perillo coerente deve completarsi');
   assert(scenario.semanticCalls === 1, 'Perillo coerente deve usare il controllo semantico');
-  assert(scenario.generationCalls === 0, 'Perillo coerente senza domande deve restare receipt-only');
-  assert(scenario.validationCalls === 0, 'receipt-only coerente deve saltare la validazione');
-  assert(/ricevut|documentazione/i.test(scenario.sentText), `risposta receipt-only inattesa: ${scenario.sentText}`);
+  assert(scenario.generationCalls === 1, 'coerenza allegato senza intento AI non autorizza receipt-only');
+  assert(scenario.validationCalls === 1, 'la risposta generata deve essere validata');
   assert(scenario.promptOptions.documentConsistency.mode === 'unknown_expected', 'documentConsistency deve essere osservabile nel promptOptions');
 }
 
@@ -3454,8 +3452,8 @@ console.log('--- Test document consistency flow: fallimento semantic check resta
   });
   assert(scenario.result.status === 'replied', 'fallimento semantico deve restare fail-open');
   assert(scenario.semanticCalls === 1, 'fallimento semantico deve aver tentato il controllo');
-  assert(scenario.generationCalls === 0, 'senza mismatch rilevato deve restare receipt-only');
-  assert(scenario.validationCalls === 0, 'receipt-only dopo fail-open deve saltare validazione');
+  assert(scenario.generationCalls === 1, 'assenza di mismatch senza intento AI richiede generazione');
+  assert(scenario.validationCalls === 1, 'la risposta generata deve essere validata anche dopo fail-open');
   assert(scenario.directives.length === 0, 'fail-open non deve iniettare direttive mismatch');
 }
 
@@ -5903,7 +5901,8 @@ console.log('--- Test processThread: timeout invio rimane incerto e richiede rev
     processor._recordConfirmedDuplicateReply_ = () => { duplicateRecordCalls++; };
 
     const result = processor.processThread(createDuplicateGuardThread('send-timeout'), 'kb valida', '', new Set(), true);
-    assert(result.status === 'error', 'timeout invio deve restituire status error');
+    assert(result.status === 'validation_failed', 'timeout invio ambiguo deve restituire stato di revisione');
+    assert(result.validationFailed === true, 'invio incerto deve essere conteggiato come revisione');
     assert(result.errorClass === 'NETWORK', `timeout invio deve essere classificato come NETWORK retryable, ottenuto ${result.errorClass}`);
     assert(committed === false, 'timeout/network senza evidenza non deve diventare sent');
     assert(rolledBack === false, 'timeout/network non deve rimuovere il marker di invio');
@@ -6075,6 +6074,23 @@ console.log('--- Test processUnreadEmails: stop su errore infrastrutturale retry
 }
 
 console.log('--- Test processUnreadEmails: stop su errore config usa backoff lungo ---');
+{
+  const processor = new EmailProcessor({ gmailService: {
+    getUnprocessedUnreadThreads: () => [createExternalThread('uncertain-stats'), createExternalThread('next')],
+    getMessageIdsWithLabel: () => new Set()
+  } });
+  processor._hasUnreadMessagesToProcess = () => true;
+  let calls = 0;
+  processor.processThread = () => {
+    calls++;
+    return { status: 'validation_failed', validationFailed: true, reason: 'gmail_send_uncertain', errorClass: 'NETWORK' };
+  };
+  let checkpoint = null;
+  processor._storeBatchCheckpointAndScheduleContinuation_ = (_threads, index, delay) => { checkpoint = [index, delay]; };
+  const stats = processor.processUnreadEmails('kb', '', true);
+  assert(stats.validationFailed === 1 && stats.errors === 0, 'invio incerto va contato come revisione anche prima dello stop NETWORK');
+  assert(calls === 1 && checkpoint[1] === 60000, 'conservare stop infrastrutturale e checkpoint');
+}
 {
   let checkpointStartIndex = null;
   let checkpointDelayMs = null;

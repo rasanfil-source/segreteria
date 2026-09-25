@@ -136,7 +136,7 @@ var ThreadDocuments = {
     physicalAttachmentsDetected, attachmentIntentContext, quickDocumentDelivery, attachmentBlobs,
     quickAttachmentIntent, hasExpectedDocumentMissing, forceReceiptOnlyForSubmission, systemDirectives,
     promptOptions, expectsDocument, bodyContainsUsableDocumentContent, hasDocumentContentAvailable,
-    receiptOnlyDeliveryChannel, runtimeContext
+    receiptOnlyDeliveryChannel, runtimeContext, requestPurpose
   }) {
     // Una menzione di documenti ancora attesi non descrive necessariamente
     // l'allegato presente: la coerenza si valuta solo su una consegna
@@ -156,7 +156,15 @@ var ThreadDocuments = {
       hasDocumentDeliveryUnverified
     );
     const effectiveDocumentMismatchReason = documentMismatchReason || documentDeliveryModel.blockReason || null;
-    const shouldUseReceiptOnly = !hasDocumentDeliveryBlockingIssue && forceReceiptOnlyForSubmission;
+    // A local submission heuristic cannot override the quick-check's communicative intent.
+    // Missing/uncertain AI intent goes through normal generation and validation.
+    const aiConfirmsPureDelivery = Boolean(
+      requestPurpose && requestPurpose.source === 'quick_check_model' &&
+      requestPurpose.confidence >= 0.65 &&
+      ['status_update', 'acknowledgment'].includes(requestPurpose.type)
+    );
+    const shouldUseReceiptOnly = !hasDocumentDeliveryBlockingIssue &&
+      forceReceiptOnlyForSubmission && aiConfirmsPureDelivery;
     const shouldSkipValidationForReceiptOnly = shouldUseReceiptOnly;
     const directivesData = ThreadDocuments.directives(deps, {
       hasExpectedDocumentMissing, quickDocumentDelivery, quickAttachmentIntent, systemDirectives,

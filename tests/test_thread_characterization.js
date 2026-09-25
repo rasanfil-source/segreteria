@@ -63,6 +63,14 @@ if (!process.argv.includes('--record-baseline')) {
   assert.equal(markerWrites.length, 1);
   lookback.effects = lookback.effects.filter(effect => effect !== markerWrites[0]);
   lookback.props = lookback.props.filter(([key]) => !key.startsWith('duplicate_reply_v1_'));
+  // These historical quick-check mocks omit intent. They now generate and validate
+  // instead of sending the hardcoded receipt. Original fixture remains immutable.
+  const receiptUpdates = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'thread_receipt_intent.json'), 'utf8'));
+  assert.deepStrictEqual(Object.keys(receiptUpdates).sort(), ['attachment', 'receipt_only']);
+  Object.assign(expected, receiptUpdates);
+  // Ambiguous send: review label and batch metrics now use the same outcome.
+  expected.send_uncertain.result.status = 'validation_failed';
+  expected.send_uncertain.result.validationFailed = true;
 }
 for (const [name, output] of Object.entries(actual)) {
   assert.deepStrictEqual(output, expected[name], `${name}: return value and ordered effects must match the workspace baseline`);
@@ -94,8 +102,8 @@ assert.equal(actual.same_date_reversed.effects.find(([name]) => name === 'extrac
 assert(events('semantic_mismatch').includes('semantic.check'));
 assert.equal(actual.semantic_mismatch.effects.find(([name]) => name === 'validate')[1][7].validationContext.documentMismatch.mode, 'semantic');
 assert.equal(actual.ocr_formal_routing.effects.find(([name]) => name === 'prompt')[1].category, 'formal');
-assert.equal(events('receipt_only').filter(name => name === 'validate').length, 0);
-console.log(`Thread characterization: ${Object.keys(actual).length} deterministic scenarios match baseline plus explicit audit correction #4`);
+assert.equal(events('receipt_only').filter(name => name === 'validate').length, 1);
+console.log(`Thread characterization: ${Object.keys(actual).length} scenarios match baseline plus explicit look-back and receipt-intent corrections`);
 if (!process.argv.includes('--record-baseline')) {
   assert(componentCalls.size > 0, 'Extracted components must actually load');
   assert.deepStrictEqual([...componentCalls].filter(([, count]) => count === 0), [], 'Every component entry point must be exercised');

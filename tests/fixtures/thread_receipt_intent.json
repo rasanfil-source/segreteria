@@ -1,0 +1,1220 @@
+{
+  "attachment": {
+    "result": {
+      "status": "replied",
+      "validationFailed": false,
+      "dryRun": false,
+      "error": null,
+      "durationMs": 0
+    },
+    "effects": [
+      [
+        "lock.acquire",
+        1000
+      ],
+      [
+        "cache.put",
+        [
+          "thread_lock_t1",
+          "1790330400000_4fzzzxjylrx"
+        ]
+      ],
+      [
+        "lock.release",
+        null
+      ],
+      [
+        "thread.refresh",
+        null
+      ],
+      [
+        "messages.read",
+        null
+      ],
+      [
+        "extract",
+        "m2"
+      ],
+      [
+        "attachments.read",
+        "m2"
+      ],
+      [
+        "language",
+        [
+          "Ecco il modulo compilato.",
+          "Informazioni catechismo"
+        ]
+      ],
+      [
+        "lock.acquire",
+        500
+      ],
+      [
+        "cache.put",
+        [
+          "sender_throttle_user@example.org",
+          "1"
+        ]
+      ],
+      [
+        "lock.release",
+        null
+      ],
+      [
+        "classify",
+        [
+          "Informazioni catechismo",
+          "Ecco il modulo compilato.",
+          false
+        ]
+      ],
+      [
+        "memory.get",
+        "t1"
+      ],
+      [
+        "quickCheck",
+        [
+          "Ecco il modulo compilato.",
+          "Informazioni catechismo",
+          {
+            "lang": "it"
+          },
+          {
+            "intent": "suspected_submission",
+            "confidence": 0.75,
+            "phase": "pre_ocr",
+            "suppressAttachmentIntentKeywords": true,
+            "hasQuestions": false,
+            "allowBodyQuestions": false,
+            "responseDirective": "Confermare la ricezione della documentazione allegata.",
+            "sponsorGuidanceCheck": false,
+            "sponsorGuidanceLocalDecision": "exclude",
+            "hasConversationContext": false,
+            "quickMemoryContext": null
+          }
+        ]
+      ],
+      [
+        "request.classify",
+        [
+          "Informazioni catechismo",
+          "Ecco il modulo compilato.",
+          {
+            "category": "technical",
+            "topic": "catechismo"
+          }
+        ]
+      ],
+      [
+        "greeting",
+        [
+          "Mario",
+          "it",
+          "2026-09-25T10:00:00.000Z"
+        ]
+      ],
+      [
+        "attachments.read",
+        "m2"
+      ],
+      [
+        "attachments.process",
+        [
+          "m2",
+          {
+            "maxFiles": 3,
+            "maxTotalChars": 9000,
+            "shouldContinue": "[function]"
+          }
+        ]
+      ],
+      [
+        "prompt",
+        {
+          "runtimeContext": {
+            "temporal": {
+              "timeZone": "Europe/Rome",
+              "processingTimestampIso": "2026-09-25T10:00:00.000Z",
+              "processingEpochMs": 1790330400000,
+              "currentDate": "2026-09-25",
+              "currentTime": "12:00",
+              "messageDate": "2026-09-25",
+              "messageTime": "11:59",
+              "messageDateAvailable": true,
+              "messageDateSource": "gmail_message_date",
+              "messageTimestampIso": "2026-09-25T09:59:00.000Z",
+              "messageEpochMs": 1790330340000,
+              "ageHours": 0.016666666666666666,
+              "daysAgo": 0,
+              "isOldMessage": false
+            },
+            "papal": {
+              "currentName": "Leone XIV",
+              "previousName": "Papa Francesco",
+              "currentSince": "2025-05-08",
+              "ministryStart": "2025-05-18",
+              "source": "knowledge_context"
+            },
+            "sacramentalDeadlineContext": null,
+            "physicalPresenceConstraint": {
+              "has_constraint": false,
+              "type": "none",
+              "confidence": 0,
+              "evidence": "",
+              "reason": "no_new_presence_constraint",
+              "visit_policy": "unknown",
+              "source": "reconciled",
+              "reconciled": true,
+              "memoryState": null
+            },
+            "territoryContext": null,
+            "validationContext": {
+              "activeConcerns": {
+                "language_safety": false,
+                "hallucination_risk": false,
+                "formatting_risk": true,
+                "temporal_risk": false,
+                "discernment_risk": false,
+                "emotional_sensitivity": false,
+                "longitudinal_sensitivity": false,
+                "repetition_risk": false,
+                "identity_consistency": false,
+                "multi_question": false,
+                "user_overload": false,
+                "response_calibration": false,
+                "physical_presence_constraint": false,
+                "pastoral_technical_blend": false,
+                "relational_warmth": false,
+                "residual_sensitivity": false
+              },
+              "concernSynthesis": null,
+              "continuityCase": null,
+              "responseMode": "standard_operational",
+              "operationalConstraints": [],
+              "continuityPolicy": null,
+              "responseRegister": "warm_institutional",
+              "promptProfile": "standard",
+              "category": "sacrament",
+              "requestType": "technical",
+              "requestPurpose": {
+                "type": "unknown",
+                "confidence": 0,
+                "source": "unavailable"
+              },
+              "explicitThreadContext": ""
+            }
+          },
+          "emailContent": "Ecco il modulo compilato.",
+          "emailSubject": "Informazioni catechismo",
+          "knowledgeBase": "Catechismo: iscrizioni in segreteria.",
+          "senderName": "Mario",
+          "senderEmail": "user@example.org",
+          "conversationHistory": "",
+          "category": "sacrament",
+          "topic": "catechismo",
+          "detectedLanguage": "it",
+          "currentSeason": "invernale",
+          "currentDate": "2026-09-25",
+          "currentTime": "12:00",
+          "messageDate": "2026-09-25",
+          "scheduleContext": {
+            "season": "invernale",
+            "currentDate": "2026-09-25",
+            "requestAnchorDate": "2026-09-25",
+            "requestAnchorSource": "gmail_message_date",
+            "messageDateAvailable": true,
+            "requestAnchorDateIsFallback": false,
+            "targetDate": "2026-09-25",
+            "targetDateText": "25 settembre 2026",
+            "isExplicitTarget": false,
+            "targetSource": "current_date",
+            "targetDateFallbackReason": "",
+            "targetDateIsPast": false,
+            "mentionedDateInCurrentYear": "",
+            "mentionedDateInCurrentYearIsPast": false,
+            "temporalIntent": "unspecified",
+            "yearInference": "none",
+            "summerRangeText": "Dal 29 giugno al 30 agosto",
+            "summerStartDate": "2026-06-29",
+            "summerEndDate": "2026-08-30",
+            "source": "fallback_formula"
+          },
+          "salutation": "Gentile Mario,",
+          "closing": "Cordiali saluti",
+          "subIntents": {},
+          "memoryContext": {},
+          "salutationMode": "full",
+          "responseDelay": {
+            "shouldApologize": false,
+            "hours": 0,
+            "days": 0
+          },
+          "promptProfile": "standard",
+          "activeConcerns": {
+            "language_safety": false,
+            "hallucination_risk": false,
+            "formatting_risk": true,
+            "temporal_risk": false,
+            "discernment_risk": false,
+            "emotional_sensitivity": false,
+            "longitudinal_sensitivity": false,
+            "repetition_risk": false,
+            "identity_consistency": false,
+            "multi_question": false,
+            "user_overload": false,
+            "response_calibration": false,
+            "physical_presence_constraint": false,
+            "pastoral_technical_blend": false,
+            "relational_warmth": false,
+            "residual_sensitivity": false
+          },
+          "concernSynthesis": null,
+          "continuityCase": null,
+          "responseMode": "standard_operational",
+          "operationalConstraints": [],
+          "continuityPolicy": null,
+          "responseRegister": "warm_institutional",
+          "territoryContext": null,
+          "physicalPresenceConstraint": {
+            "has_constraint": false,
+            "type": "none",
+            "confidence": 0,
+            "evidence": "",
+            "reason": "no_new_presence_constraint",
+            "visit_policy": "unknown",
+            "source": "reconciled",
+            "reconciled": true,
+            "memoryState": null
+          },
+          "sponsorGuidancePolicy": "no_eligibility_guidance",
+          "sacramentalDeadlineContext": null,
+          "relationalPosture": "direct",
+          "conversationShift": {
+            "shift": "none",
+            "confidence": 0
+          },
+          "responseStrategy": "provide_information",
+          "requestPurpose": {
+            "type": "unknown",
+            "confidence": 0,
+            "source": "unavailable"
+          },
+          "responseStrategyInferenceBlocked": false,
+          "newInformationProvided": [],
+          "goalContinuity": {
+            "value": "none",
+            "confidence": 0
+          },
+          "requestType": {
+            "type": "technical"
+          },
+          "attachmentsContext": "Modulo compilato per il catechismo",
+          "attachmentIntentContext": {
+            "intent": "document_submission",
+            "confidence": 0.9,
+            "phase": "post_ocr",
+            "categoryHintSource": "sacrament",
+            "responseDirective": "Confermare la ricezione della documentazione allegata.",
+            "hasQuestions": false,
+            "detectedDocTypes": {
+              "sponsor": false,
+              "identity": false,
+              "sbattezzo": false,
+              "sacrament": true
+            },
+            "hasPhysicalAttachments": true,
+            "bodyContainsUsableDocumentContent": false,
+            "hasExpectedDocumentMissing": false
+          },
+          "systemDirectives": [
+            "DIVIETO DI DEROGA (CROSS-CONTAMINATION): I principi pastorali non possono MAI modificare, derogare o rendere flessibili le procedure, le date o i requisiti tecnici indicati nella Knowledge Base. Non introdurre percorsi personalizzati o eccezioni non autorizzati dalla Knowledge Base; quando la Knowledge Base li prevede, non negarli né restringerli con limiti non espliciti."
+          ],
+          "aiCoreLite": "",
+          "aiCore": "Principi pastorali",
+          "doctrineBase": "Dottrina",
+          "doctrineStructured": [],
+          "documentConsistency": {
+            "mode": "match",
+            "expected": "scheda_iscrizione_catechesi_comunione_cresima_ragazzi",
+            "received": "scheda_iscrizione_catechesi_comunione_cresima_ragazzi"
+          },
+          "documentDelivery": {
+            "quickDocumentDelivery": {
+              "expected_document": false,
+              "expected_document_description": "",
+              "delivery_channel": "unclear",
+              "body_contains_filled_document": false,
+              "requires_file_attachment": false,
+              "missing_document_if_no_attachment": false,
+              "reason": "",
+              "source": "quick_check_fallback"
+            },
+            "expectsDocument": true,
+            "bodyContainsUsableDocumentContent": false,
+            "hasDocumentContentAvailable": true,
+            "hasExpectedDocumentMissing": false,
+            "receiptOnlyDeliveryChannel": "attachment",
+            "status": "received_attachment",
+            "source": "attachment",
+            "hasPhysicalAttachment": true,
+            "hasAttachmentAnalyzedContent": true,
+            "hasUsableAttachmentText": true,
+            "hasDocumentDeliveryUnverified": false,
+            "isCoherent": true,
+            "blocksReceiptOnly": false,
+            "blockReason": ""
+          }
+        }
+      ],
+      [
+        "generate",
+        [
+          {
+            "systemInstruction": "Persona test",
+            "prompt": "Contenuto test"
+          },
+          {
+            "apiKey": "fake-primary",
+            "modelName": "model-primary",
+            "skipRateLimit": false,
+            "attachments": []
+          }
+        ]
+      ],
+      [
+        "validate",
+        [
+          "Gentile Mario, può contattare la segreteria per iscrivere suo figlio al catechismo. Cordiali saluti.",
+          "it",
+          "Catechismo: iscrizioni in segreteria.\n\nPrincipi pastorali\n\nDottrina",
+          "Ecco il modulo compilato.",
+          "Informazioni catechismo",
+          "full",
+          true,
+          {
+            "temporal": {
+              "timeZone": "Europe/Rome",
+              "processingTimestampIso": "2026-09-25T10:00:00.000Z",
+              "processingEpochMs": 1790330400000,
+              "currentDate": "2026-09-25",
+              "currentTime": "12:00",
+              "messageDate": "2026-09-25",
+              "messageTime": "11:59",
+              "messageDateAvailable": true,
+              "messageDateSource": "gmail_message_date",
+              "messageTimestampIso": "2026-09-25T09:59:00.000Z",
+              "messageEpochMs": 1790330340000,
+              "ageHours": 0.016666666666666666,
+              "daysAgo": 0,
+              "isOldMessage": false
+            },
+            "papal": {
+              "currentName": "Leone XIV",
+              "previousName": "Papa Francesco",
+              "currentSince": "2025-05-08",
+              "ministryStart": "2025-05-18",
+              "source": "knowledge_context"
+            },
+            "sacramentalDeadlineContext": null,
+            "physicalPresenceConstraint": {
+              "has_constraint": false,
+              "type": "none",
+              "confidence": 0,
+              "evidence": "",
+              "reason": "no_new_presence_constraint",
+              "visit_policy": "unknown",
+              "source": "reconciled",
+              "reconciled": true,
+              "memoryState": null
+            },
+            "territoryContext": null,
+            "validationContext": {
+              "activeConcerns": {
+                "language_safety": false,
+                "hallucination_risk": false,
+                "formatting_risk": true,
+                "temporal_risk": false,
+                "discernment_risk": false,
+                "emotional_sensitivity": false,
+                "longitudinal_sensitivity": false,
+                "repetition_risk": false,
+                "identity_consistency": false,
+                "multi_question": false,
+                "user_overload": false,
+                "response_calibration": false,
+                "physical_presence_constraint": false,
+                "pastoral_technical_blend": false,
+                "relational_warmth": false,
+                "residual_sensitivity": false
+              },
+              "concernSynthesis": null,
+              "continuityCase": null,
+              "responseMode": "standard_operational",
+              "operationalConstraints": [],
+              "continuityPolicy": null,
+              "responseRegister": "warm_institutional",
+              "promptProfile": "standard",
+              "category": "sacrament",
+              "requestType": "technical",
+              "requestPurpose": {
+                "type": "unknown",
+                "confidence": 0,
+                "source": "unavailable"
+              },
+              "explicitThreadContext": ""
+            }
+          }
+        ]
+      ],
+      [
+        "lock.acquire",
+        2000
+      ],
+      [
+        "props.set",
+        [
+          "send_uncertain_m2",
+          "1790330400000"
+        ]
+      ],
+      [
+        "cache.put",
+        [
+          "sending_m2",
+          "1790330400000"
+        ]
+      ],
+      [
+        "cache.put",
+        [
+          "sendstarted_m2",
+          "1790330400000"
+        ]
+      ],
+      [
+        "lock.release",
+        null
+      ],
+      [
+        "send",
+        [
+          "m2",
+          "Gentile Mario, può contattare la segreteria per iscrivere suo figlio al catechismo. Cordiali saluti.",
+          {
+            "body": "Ecco il modulo compilato.",
+            "subject": "Informazioni catechismo",
+            "date": "2026-09-25T09:59:00.000Z",
+            "senderEmail": "user@example.org",
+            "senderName": "Mario",
+            "originalFrom": "user@example.org",
+            "headers": {},
+            "isNewsletter": false,
+            "sendOperationId": "reply_m2"
+          }
+        ]
+      ],
+      [
+        "cache.put",
+        [
+          "sent_m2",
+          "1790330400000"
+        ]
+      ],
+      [
+        "props.set",
+        [
+          "sent_backup_m2",
+          "{\"ts\":1790330400000,\"expiresAt\":1790460000000}"
+        ]
+      ],
+      [
+        "props.delete",
+        "send_uncertain_m2"
+      ],
+      [
+        "label.processed",
+        "m2"
+      ],
+      [
+        "label.cleanThread",
+        "Errore"
+      ],
+      [
+        "label.cleanThread",
+        "Verifica"
+      ],
+      [
+        "label.cleanMessage",
+        [
+          "m2",
+          "Verifica"
+        ]
+      ],
+      [
+        "memory.update",
+        [
+          "t1",
+          {
+            "language": "it",
+            "category": "sacrament",
+            "_baseMemorySummary": "",
+            "_incrementMessageCount": true,
+            "contextualFlags": {
+              "remote_user": false
+            },
+            "conversationStateUpdate": {
+              "currentRelationalPosture": "direct",
+              "responseFocusHint": null,
+              "responseFocusHintConfidence": 0,
+              "appliesToTopic": "catechismo",
+              "updatedAt": "2026-09-25T10:00:00.000Z",
+              "source": "quick_check"
+            },
+            "memorySummary": "• [2026-09-25] Risposta con informazioni su: contatti."
+          },
+          [
+            {
+              "topic": "contatti",
+              "userReaction": "unknown",
+              "context": null,
+              "timestamp": "2026-09-25T10:00:00.000Z"
+            }
+          ],
+          null
+        ]
+      ],
+      [
+        "lock.acquire",
+        500
+      ],
+      [
+        "cache.remove",
+        "thread_lock_t1"
+      ],
+      [
+        "lock.release",
+        null
+      ]
+    ],
+    "restored": true,
+    "labeled": [],
+    "skipped": [],
+    "props": [
+      [
+        "sent_backup_m2",
+        "{\"ts\":1790330400000,\"expiresAt\":1790460000000}"
+      ]
+    ]
+  },
+  "receipt_only": {
+    "result": {
+      "status": "replied",
+      "validationFailed": false,
+      "dryRun": false,
+      "error": null,
+      "durationMs": 0
+    },
+    "effects": [
+      [
+        "lock.acquire",
+        1000
+      ],
+      [
+        "cache.put",
+        [
+          "thread_lock_t1",
+          "1790330400000_4fzzzxjylrx"
+        ]
+      ],
+      [
+        "lock.release",
+        null
+      ],
+      [
+        "thread.refresh",
+        null
+      ],
+      [
+        "messages.read",
+        null
+      ],
+      [
+        "extract",
+        "m2"
+      ],
+      [
+        "attachments.read",
+        "m2"
+      ],
+      [
+        "language",
+        [
+          "Invio in allegato la scheda compilata.",
+          "Informazioni catechismo"
+        ]
+      ],
+      [
+        "lock.acquire",
+        500
+      ],
+      [
+        "cache.put",
+        [
+          "sender_throttle_user@example.org",
+          "1"
+        ]
+      ],
+      [
+        "lock.release",
+        null
+      ],
+      [
+        "classify",
+        [
+          "Informazioni catechismo",
+          "Invio in allegato la scheda compilata.",
+          false
+        ]
+      ],
+      [
+        "memory.get",
+        "t1"
+      ],
+      [
+        "quickCheck",
+        [
+          "Invio in allegato la scheda compilata.",
+          "Informazioni catechismo",
+          {
+            "lang": "it"
+          },
+          {
+            "intent": "suspected_submission",
+            "confidence": 0.75,
+            "phase": "pre_ocr",
+            "suppressAttachmentIntentKeywords": true,
+            "hasQuestions": false,
+            "allowBodyQuestions": false,
+            "responseDirective": "Confermare la ricezione della documentazione allegata.",
+            "sponsorGuidanceCheck": false,
+            "sponsorGuidanceLocalDecision": "exclude",
+            "hasConversationContext": false,
+            "quickMemoryContext": null
+          }
+        ]
+      ],
+      [
+        "request.classify",
+        [
+          "Informazioni catechismo",
+          "Invio in allegato la scheda compilata.",
+          {
+            "category": "technical",
+            "topic": "catechismo"
+          }
+        ]
+      ],
+      [
+        "greeting",
+        [
+          "Mario",
+          "it",
+          "2026-09-25T10:00:00.000Z"
+        ]
+      ],
+      [
+        "attachments.read",
+        "m2"
+      ],
+      [
+        "attachments.process",
+        [
+          "m2",
+          {
+            "maxFiles": 3,
+            "maxTotalChars": 9000,
+            "shouldContinue": "[function]"
+          }
+        ]
+      ],
+      [
+        "prompt",
+        {
+          "runtimeContext": {
+            "temporal": {
+              "timeZone": "Europe/Rome",
+              "processingTimestampIso": "2026-09-25T10:00:00.000Z",
+              "processingEpochMs": 1790330400000,
+              "currentDate": "2026-09-25",
+              "currentTime": "12:00",
+              "messageDate": "2026-09-25",
+              "messageTime": "11:59",
+              "messageDateAvailable": true,
+              "messageDateSource": "gmail_message_date",
+              "messageTimestampIso": "2026-09-25T09:59:00.000Z",
+              "messageEpochMs": 1790330340000,
+              "ageHours": 0.016666666666666666,
+              "daysAgo": 0,
+              "isOldMessage": false
+            },
+            "papal": {
+              "currentName": "Leone XIV",
+              "previousName": "Papa Francesco",
+              "currentSince": "2025-05-08",
+              "ministryStart": "2025-05-18",
+              "source": "knowledge_context"
+            },
+            "sacramentalDeadlineContext": null,
+            "physicalPresenceConstraint": {
+              "has_constraint": false,
+              "type": "none",
+              "confidence": 0,
+              "evidence": "",
+              "reason": "no_new_presence_constraint",
+              "visit_policy": "unknown",
+              "source": "reconciled",
+              "reconciled": true,
+              "memoryState": null
+            },
+            "territoryContext": null,
+            "validationContext": {
+              "activeConcerns": {
+                "language_safety": false,
+                "hallucination_risk": false,
+                "formatting_risk": true,
+                "temporal_risk": false,
+                "discernment_risk": false,
+                "emotional_sensitivity": false,
+                "longitudinal_sensitivity": false,
+                "repetition_risk": false,
+                "identity_consistency": false,
+                "multi_question": false,
+                "user_overload": false,
+                "response_calibration": false,
+                "physical_presence_constraint": false,
+                "pastoral_technical_blend": false,
+                "relational_warmth": false,
+                "residual_sensitivity": false
+              },
+              "concernSynthesis": null,
+              "continuityCase": null,
+              "responseMode": "standard_operational",
+              "operationalConstraints": [],
+              "continuityPolicy": null,
+              "responseRegister": "warm_institutional",
+              "promptProfile": "standard",
+              "category": "sacrament",
+              "requestType": "technical",
+              "requestPurpose": {
+                "type": "unknown",
+                "confidence": 0,
+                "source": "unavailable"
+              },
+              "explicitThreadContext": ""
+            }
+          },
+          "emailContent": "Invio in allegato la scheda compilata.",
+          "emailSubject": "Informazioni catechismo",
+          "knowledgeBase": "Catechismo: iscrizioni in segreteria.",
+          "senderName": "Mario",
+          "senderEmail": "user@example.org",
+          "conversationHistory": "",
+          "category": "sacrament",
+          "topic": "catechismo",
+          "detectedLanguage": "it",
+          "currentSeason": "invernale",
+          "currentDate": "2026-09-25",
+          "currentTime": "12:00",
+          "messageDate": "2026-09-25",
+          "scheduleContext": {
+            "season": "invernale",
+            "currentDate": "2026-09-25",
+            "requestAnchorDate": "2026-09-25",
+            "requestAnchorSource": "gmail_message_date",
+            "messageDateAvailable": true,
+            "requestAnchorDateIsFallback": false,
+            "targetDate": "2026-09-25",
+            "targetDateText": "25 settembre 2026",
+            "isExplicitTarget": false,
+            "targetSource": "current_date",
+            "targetDateFallbackReason": "",
+            "targetDateIsPast": false,
+            "mentionedDateInCurrentYear": "",
+            "mentionedDateInCurrentYearIsPast": false,
+            "temporalIntent": "unspecified",
+            "yearInference": "none",
+            "summerRangeText": "Dal 29 giugno al 30 agosto",
+            "summerStartDate": "2026-06-29",
+            "summerEndDate": "2026-08-30",
+            "source": "fallback_formula"
+          },
+          "salutation": "Gentile Mario,",
+          "closing": "Cordiali saluti",
+          "subIntents": {},
+          "memoryContext": {},
+          "salutationMode": "full",
+          "responseDelay": {
+            "shouldApologize": false,
+            "hours": 0,
+            "days": 0
+          },
+          "promptProfile": "standard",
+          "activeConcerns": {
+            "language_safety": false,
+            "hallucination_risk": false,
+            "formatting_risk": true,
+            "temporal_risk": false,
+            "discernment_risk": false,
+            "emotional_sensitivity": false,
+            "longitudinal_sensitivity": false,
+            "repetition_risk": false,
+            "identity_consistency": false,
+            "multi_question": false,
+            "user_overload": false,
+            "response_calibration": false,
+            "physical_presence_constraint": false,
+            "pastoral_technical_blend": false,
+            "relational_warmth": false,
+            "residual_sensitivity": false
+          },
+          "concernSynthesis": null,
+          "continuityCase": null,
+          "responseMode": "standard_operational",
+          "operationalConstraints": [],
+          "continuityPolicy": null,
+          "responseRegister": "warm_institutional",
+          "territoryContext": null,
+          "physicalPresenceConstraint": {
+            "has_constraint": false,
+            "type": "none",
+            "confidence": 0,
+            "evidence": "",
+            "reason": "no_new_presence_constraint",
+            "visit_policy": "unknown",
+            "source": "reconciled",
+            "reconciled": true,
+            "memoryState": null
+          },
+          "sponsorGuidancePolicy": "no_eligibility_guidance",
+          "sacramentalDeadlineContext": null,
+          "relationalPosture": "direct",
+          "conversationShift": {
+            "shift": "none",
+            "confidence": 0
+          },
+          "responseStrategy": "provide_information",
+          "requestPurpose": {
+            "type": "unknown",
+            "confidence": 0,
+            "source": "unavailable"
+          },
+          "responseStrategyInferenceBlocked": false,
+          "newInformationProvided": [],
+          "goalContinuity": {
+            "value": "none",
+            "confidence": 0
+          },
+          "requestType": {
+            "type": "technical"
+          },
+          "attachmentsContext": "Scheda iscrizione catechismo Nome: Mario Cognome: Rossi",
+          "attachmentIntentContext": {
+            "intent": "document_submission",
+            "confidence": 0.9,
+            "phase": "post_ocr",
+            "categoryHintSource": "sacrament",
+            "responseDirective": "Confermare la ricezione della documentazione allegata.",
+            "hasQuestions": false,
+            "detectedDocTypes": {
+              "sponsor": false,
+              "identity": false,
+              "sbattezzo": false,
+              "sacrament": true
+            },
+            "hasPhysicalAttachments": true,
+            "bodyContainsUsableDocumentContent": false,
+            "hasExpectedDocumentMissing": false
+          },
+          "systemDirectives": [
+            "DIVIETO DI DEROGA (CROSS-CONTAMINATION): I principi pastorali non possono MAI modificare, derogare o rendere flessibili le procedure, le date o i requisiti tecnici indicati nella Knowledge Base. Non introdurre percorsi personalizzati o eccezioni non autorizzati dalla Knowledge Base; quando la Knowledge Base li prevede, non negarli né restringerli con limiti non espliciti."
+          ],
+          "aiCoreLite": "",
+          "aiCore": "Principi pastorali",
+          "doctrineBase": "Dottrina",
+          "doctrineStructured": [],
+          "documentConsistency": {
+            "mode": "match",
+            "expected": "scheda_iscrizione_catechesi_comunione_cresima_ragazzi",
+            "received": "scheda_iscrizione_catechesi_comunione_cresima_ragazzi"
+          },
+          "documentDelivery": {
+            "quickDocumentDelivery": {
+              "expected_document": false,
+              "expected_document_description": "",
+              "delivery_channel": "unclear",
+              "body_contains_filled_document": false,
+              "requires_file_attachment": false,
+              "missing_document_if_no_attachment": false,
+              "reason": "",
+              "source": "quick_check_fallback"
+            },
+            "expectsDocument": true,
+            "bodyContainsUsableDocumentContent": false,
+            "hasDocumentContentAvailable": true,
+            "hasExpectedDocumentMissing": false,
+            "receiptOnlyDeliveryChannel": "attachment",
+            "status": "received_attachment",
+            "source": "attachment",
+            "hasPhysicalAttachment": true,
+            "hasAttachmentAnalyzedContent": true,
+            "hasUsableAttachmentText": true,
+            "hasDocumentDeliveryUnverified": false,
+            "isCoherent": true,
+            "blocksReceiptOnly": false,
+            "blockReason": ""
+          }
+        }
+      ],
+      [
+        "generate",
+        [
+          {
+            "systemInstruction": "Persona test",
+            "prompt": "Contenuto test"
+          },
+          {
+            "apiKey": "fake-primary",
+            "modelName": "model-primary",
+            "skipRateLimit": false,
+            "attachments": []
+          }
+        ]
+      ],
+      [
+        "validate",
+        [
+          "Gentile Mario, può contattare la segreteria per iscrivere suo figlio al catechismo. Cordiali saluti.",
+          "it",
+          "Catechismo: iscrizioni in segreteria.\n\nPrincipi pastorali\n\nDottrina",
+          "Invio in allegato la scheda compilata.",
+          "Informazioni catechismo",
+          "full",
+          true,
+          {
+            "temporal": {
+              "timeZone": "Europe/Rome",
+              "processingTimestampIso": "2026-09-25T10:00:00.000Z",
+              "processingEpochMs": 1790330400000,
+              "currentDate": "2026-09-25",
+              "currentTime": "12:00",
+              "messageDate": "2026-09-25",
+              "messageTime": "11:59",
+              "messageDateAvailable": true,
+              "messageDateSource": "gmail_message_date",
+              "messageTimestampIso": "2026-09-25T09:59:00.000Z",
+              "messageEpochMs": 1790330340000,
+              "ageHours": 0.016666666666666666,
+              "daysAgo": 0,
+              "isOldMessage": false
+            },
+            "papal": {
+              "currentName": "Leone XIV",
+              "previousName": "Papa Francesco",
+              "currentSince": "2025-05-08",
+              "ministryStart": "2025-05-18",
+              "source": "knowledge_context"
+            },
+            "sacramentalDeadlineContext": null,
+            "physicalPresenceConstraint": {
+              "has_constraint": false,
+              "type": "none",
+              "confidence": 0,
+              "evidence": "",
+              "reason": "no_new_presence_constraint",
+              "visit_policy": "unknown",
+              "source": "reconciled",
+              "reconciled": true,
+              "memoryState": null
+            },
+            "territoryContext": null,
+            "validationContext": {
+              "activeConcerns": {
+                "language_safety": false,
+                "hallucination_risk": false,
+                "formatting_risk": true,
+                "temporal_risk": false,
+                "discernment_risk": false,
+                "emotional_sensitivity": false,
+                "longitudinal_sensitivity": false,
+                "repetition_risk": false,
+                "identity_consistency": false,
+                "multi_question": false,
+                "user_overload": false,
+                "response_calibration": false,
+                "physical_presence_constraint": false,
+                "pastoral_technical_blend": false,
+                "relational_warmth": false,
+                "residual_sensitivity": false
+              },
+              "concernSynthesis": null,
+              "continuityCase": null,
+              "responseMode": "standard_operational",
+              "operationalConstraints": [],
+              "continuityPolicy": null,
+              "responseRegister": "warm_institutional",
+              "promptProfile": "standard",
+              "category": "sacrament",
+              "requestType": "technical",
+              "requestPurpose": {
+                "type": "unknown",
+                "confidence": 0,
+                "source": "unavailable"
+              },
+              "explicitThreadContext": ""
+            }
+          }
+        ]
+      ],
+      [
+        "lock.acquire",
+        2000
+      ],
+      [
+        "props.set",
+        [
+          "send_uncertain_m2",
+          "1790330400000"
+        ]
+      ],
+      [
+        "cache.put",
+        [
+          "sending_m2",
+          "1790330400000"
+        ]
+      ],
+      [
+        "cache.put",
+        [
+          "sendstarted_m2",
+          "1790330400000"
+        ]
+      ],
+      [
+        "lock.release",
+        null
+      ],
+      [
+        "send",
+        [
+          "m2",
+          "Gentile Mario, può contattare la segreteria per iscrivere suo figlio al catechismo. Cordiali saluti.",
+          {
+            "body": "Invio in allegato la scheda compilata.",
+            "subject": "Informazioni catechismo",
+            "date": "2026-09-25T09:59:00.000Z",
+            "senderEmail": "user@example.org",
+            "senderName": "Mario",
+            "originalFrom": "user@example.org",
+            "headers": {},
+            "isNewsletter": false,
+            "sendOperationId": "reply_m2"
+          }
+        ]
+      ],
+      [
+        "cache.put",
+        [
+          "sent_m2",
+          "1790330400000"
+        ]
+      ],
+      [
+        "props.set",
+        [
+          "sent_backup_m2",
+          "{\"ts\":1790330400000,\"expiresAt\":1790460000000}"
+        ]
+      ],
+      [
+        "props.delete",
+        "send_uncertain_m2"
+      ],
+      [
+        "label.processed",
+        "m2"
+      ],
+      [
+        "label.cleanThread",
+        "Errore"
+      ],
+      [
+        "label.cleanThread",
+        "Verifica"
+      ],
+      [
+        "label.cleanMessage",
+        [
+          "m2",
+          "Verifica"
+        ]
+      ],
+      [
+        "memory.update",
+        [
+          "t1",
+          {
+            "language": "it",
+            "category": "sacrament",
+            "_baseMemorySummary": "",
+            "_incrementMessageCount": true,
+            "contextualFlags": {
+              "remote_user": false
+            },
+            "conversationStateUpdate": {
+              "currentRelationalPosture": "direct",
+              "responseFocusHint": null,
+              "responseFocusHintConfidence": 0,
+              "appliesToTopic": "catechismo",
+              "updatedAt": "2026-09-25T10:00:00.000Z",
+              "source": "quick_check"
+            },
+            "memorySummary": "• [2026-09-25] Risposta con informazioni su: contatti."
+          },
+          [
+            {
+              "topic": "contatti",
+              "userReaction": "unknown",
+              "context": null,
+              "timestamp": "2026-09-25T10:00:00.000Z"
+            }
+          ],
+          null
+        ]
+      ],
+      [
+        "lock.acquire",
+        500
+      ],
+      [
+        "cache.remove",
+        "thread_lock_t1"
+      ],
+      [
+        "lock.release",
+        null
+      ]
+    ],
+    "restored": true,
+    "labeled": [],
+    "skipped": [],
+    "props": [
+      [
+        "sent_backup_m2",
+        "{\"ts\":1790330400000,\"expiresAt\":1790460000000}"
+      ]
+    ]
+  }
+}
