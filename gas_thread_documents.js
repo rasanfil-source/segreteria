@@ -9,7 +9,7 @@ var ThreadDocuments = {
     messageDetails, quickDocumentDelivery, quickAttachmentIntent, physicalAttachmentsDetected,
     attachmentItems, textFromAttachments, forceReceiptOnlyForSubmission, attachmentIntentContext,
     categoryHintSource, classification, requestType, attachmentPreCheckFailed, requestTypeName,
-    quickCheck
+    quickCheck, attachmentSkipped
   }) {
     const certRequestText = `${messageDetails.subject || ''} ${messageDetails.body || ''}`;
     const documentRequestWithSupportingData = deps._detectDocumentRequestWithSupportingData_(
@@ -27,7 +27,8 @@ var ThreadDocuments = {
       quickAttachmentIntent: quickAttachmentIntent,
       physicalAttachmentsDetected: physicalAttachmentsDetected,
       attachmentItems: attachmentItems,
-      textFromAttachments: textFromAttachments
+      textFromAttachments: textFromAttachments,
+      attachmentSkipped: attachmentSkipped
     });
     const bodyContainsUsableDocumentContent = documentDeliveryModel.bodyContainsUsableDocumentContent;
     const expectsDocument = documentDeliveryModel.expectsDocument;
@@ -271,7 +272,8 @@ var ThreadDocuments = {
     physicalAttachmentsDetected, attachmentIntentContext, quickDocumentDelivery, attachmentBlobs,
     quickAttachmentIntent
   }) {
-    const documentConsistency = deps.config.documentConsistencyCheckEnabled && documentDeliveryModel.expectsDocument
+    const inspectionSkippedForSize = documentDeliveryModel.blockReason === 'attachment_inspection_skipped_for_size';
+    const documentConsistency = !inspectionSkippedForSize && deps.config.documentConsistencyCheckEnabled && documentDeliveryModel.expectsDocument
       ? deps._evaluateDocumentConsistency_(
         messageDetails.subject,
         messageDetails.body,
@@ -368,12 +370,13 @@ var ThreadDocuments = {
     let injectedMissingDocumentDirective = null;
     let injectedMismatchDirective = null;
     if (hasExpectedDocumentMissing) {
-      const expectedDocumentLabel = deps._formatExpectedDocumentLabel_(
+      // A fixed feminine referent avoids guessing gender/number of arbitrary descriptions.
+      const expectedDocumentLabel = String(
         (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
         (quickAttachmentIntent && quickAttachmentIntent.expected_attachment_description) ||
-        ''
-      );
-      injectedMissingDocumentDirective = `DOCUMENTO ATTESO NON DISPONIBILE: Scrivi: "Non troviamo allegata né riportata nel testo ${expectedDocumentLabel}. Può cortesemente reinviarla o inserirne i dati nel corpo del messaggio?" Usa questa richiesta come contenuto principale, con saluto istituzionale.`;
+        'documento atteso'
+      ).trim();
+      injectedMissingDocumentDirective = `DOCUMENTO ATTESO NON DISPONIBILE: Scrivi: "Non troviamo allegata né riportata nel testo la documentazione richiesta («${expectedDocumentLabel}»). Può cortesemente reinviarla o inserirne i dati nel corpo del messaggio?" Usa questa richiesta come contenuto principale, con saluto istituzionale.`;
       systemDirectives.unshift(injectedMissingDocumentDirective);
     }
 
@@ -387,7 +390,16 @@ var ThreadDocuments = {
       let directiveText = '';
       let prefixMsg = '';
 
-      if (hasDocumentDeliveryUnverified) {
+      const inspectionSkippedForSize = effectiveDocumentMismatchReason === 'attachment_inspection_skipped_for_size';
+      if (hasDocumentDeliveryUnverified && inspectionSkippedForSize) {
+        directiveText = [
+          'Il messaggio supera il limite di dimensioni per la lettura degli allegati: la loro presenza e il contenuto non sono verificati.',
+          'Non affermare che il documento manca, è errato, è stato ricevuto, è corretto o completo.',
+          'Conferma soltanto la ricezione del messaggio e rispondi alle domande usando i dati disponibili.',
+          'Se il documento è indispensabile, spiega che non è stato possibile verificarlo e chiedi una copia di dimensioni ridotte o i dati nel corpo del messaggio.'
+        ].join(' ');
+        prefixMsg = 'CONTESTO INTERNO: LETTURA ALLEGATI NON ESEGUITA PER DIMENSIONI:';
+      } else if (hasDocumentDeliveryUnverified) {
         directiveText = [
           'Il file è ricevuto ma non classificabile con certezza: questo non prova un errore dell’utente.',
           'Conferma la ricezione e rispondi alla richiesta corrente con KB e contesto; non imporre verifica o reinvio per la sola incertezza di classificazione.',
@@ -413,7 +425,9 @@ var ThreadDocuments = {
           : "Subito dopo l'avviso, rispondi comunque in modo completo e operativo alla richiesta contenuta nell'email, usando il testo del messaggio e il resto del contesto disponibile.";
         injectedMismatchDirective = `${prefixMsg} ${directiveText} Documento atteso/motivo: ${effectiveDocumentMismatchReason}. ${questionPriority}`;
       } else {
-        const receiptInstruction = hasDocumentDeliveryUnverified
+        const receiptInstruction = inspectionSkippedForSize
+          ? 'Per una consegna senza domande, conferma solo il messaggio, senza confermare la ricezione del documento.'
+          : hasDocumentDeliveryUnverified
           ? 'Per una consegna senza domande, conferma la ricezione senza richiedere reinvio per la sola incertezza di classificazione.'
           : 'Per una consegna senza domande, usa solo questo avviso e il saluto istituzionale.';
         injectedMismatchDirective = `${prefixMsg} ${directiveText} Documento atteso/motivo: ${effectiveDocumentMismatchReason}. ${receiptInstruction}`;

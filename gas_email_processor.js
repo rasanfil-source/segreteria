@@ -970,7 +970,7 @@ var EmailProcessor = class EmailProcessor {
       const deliveryServices = this._threadDeliveryServices_();
       const sent = ThreadDelivery.send(deliveryServices, {
         ...message, ...validated, result, startTime, threadLogger, messageState, skipLock,
-        delivery, threadId
+        delivery, threadId, usedLookbackAttachments: attachments.usedLookbackAttachments
       });
       if (sent.terminal) return result;
       const completionServices = this._threadCompletionServices_();
@@ -1098,6 +1098,7 @@ var EmailProcessor = class EmailProcessor {
   /** Narrow dependencies for ThreadAttachments; resolved per call so overrides remain effective. */
   _threadAttachmentsServices_() {
     return {
+      _hasPastAttachmentReference_: this._hasPastAttachmentReference_.bind(this),
       _isNearDeadline: this._isNearDeadline.bind(this),
       config: this.config,
       _getAttachmentDownloadLimitBytes_: this._getAttachmentDownloadLimitBytes_.bind(this),
@@ -2180,7 +2181,8 @@ var EmailProcessor = class EmailProcessor {
     quickAttachmentIntent,
     physicalAttachmentsDetected,
     attachmentItems,
-    textFromAttachments
+    textFromAttachments,
+    attachmentSkipped = []
   } = {}) {
     const bodyContainsUsableDocumentContent = Boolean(
       (quickDocumentDelivery && quickDocumentDelivery.body_contains_filled_document === true) ||
@@ -2230,9 +2232,13 @@ var EmailProcessor = class EmailProcessor {
 
     let status = 'none';
     let source = 'none';
+    const inspectionSkippedForSize = attachmentSkipped.some(s => s.reason === 'message_too_large_for_attachment_download');
     if (expectsDocument && bodyContainsUsableDocumentContent) {
       status = 'received_body';
       source = 'body';
+    } else if (expectsDocument && inspectionSkippedForSize) {
+      status = 'unverified_attachment';
+      source = 'announced';
     } else if (expectsDocument && hasAttachmentContent) {
       status = 'received_attachment';
       source = 'attachment';
@@ -2244,7 +2250,7 @@ var EmailProcessor = class EmailProcessor {
       source = 'attachment';
     }
 
-    const blocksReceiptOnly = status === 'missing';
+    const blocksReceiptOnly = status === 'missing' || status === 'unverified_attachment';
     const hasExpectedDocumentMissing = status === 'missing';
     return {
       expectedDocumentDescription: expectedDescription,
@@ -2261,9 +2267,9 @@ var EmailProcessor = class EmailProcessor {
       hasExpectedDocumentMissing: hasExpectedDocumentMissing,
       status: status,
       source: source,
-      isCoherent: status !== 'missing',
+      isCoherent: !blocksReceiptOnly,
       blocksReceiptOnly: blocksReceiptOnly,
-      blockReason: blocksReceiptOnly ? 'expected_document_missing' : '',
+      blockReason: status === 'unverified_attachment' ? 'attachment_inspection_skipped_for_size' : (blocksReceiptOnly ? 'expected_document_missing' : ''),
       receiptOnlyDeliveryChannel: bodyContainsUsableDocumentContent && !hasAttachmentContent
         ? 'body'
         : 'attachment'
@@ -2412,12 +2418,20 @@ var EmailProcessor = class EmailProcessor {
     }).join('');
   }
 
+  _hasPastAttachmentReference_(body) {
+    const text = String(body || '');
+    return /\bcome\s.{0,25}\b(invi|alleg|trasmess|anticip)/i.test(text)
+      || /\b(documento|modulo|certificato|file)\b.{0,30}\b(precedente|di\s+prima|gi[aà]\s+(?:invi|alleg))/i.test(text);
+  }
+
   _buildDuplicateReplyFingerprintContext_(message, messageDetails = {}) {
     if (!this.config.duplicateReplyGuardEnabled || this.config.duplicateReplyWindowSeconds <= 0) return null;
 
     // La v1 non confronta messaggi con allegati: lo stesso testo può accompagnare
     // documenti diversi. In caso di errore di lettura si procede (fail-open).
     if (!message) return null;
+    // Exclude before lookup too: an old text marker must not hide referenced files.
+    if (this._hasPastAttachmentReference_(messageDetails.body)) return null;
     if (messageDetails.hasAttachments === true) return null;
     const attachmentSettings = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.ATTACHMENT_CONTEXT)
       ? CONFIG.ATTACHMENT_CONTEXT

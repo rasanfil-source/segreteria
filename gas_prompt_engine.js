@@ -640,7 +640,7 @@ Vincoli:
       closing = 'Cordiali saluti,',
       subIntents = {},
       memoryContext = {},
-      promptProfile = 'heavy',
+      promptProfile: rawPromptProfile = 'heavy',
       activeConcerns = {},
       concernSynthesis = null,
       continuityCase = null,
@@ -666,6 +666,8 @@ Vincoli:
       newInformationProvided = [],
       decisionFrame = null
     } = options;
+
+    const promptProfile = rawPromptProfile === 'light' ? 'lite' : rawPromptProfile;
 
     const runtimeContext = (options && options.runtimeContext && typeof options.runtimeContext === 'object')
       ? options.runtimeContext

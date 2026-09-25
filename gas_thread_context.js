@@ -51,7 +51,7 @@ var ThreadContext = {
     // STEP 6.5: CONTESTO MEMORIA
     // ====================================================================
     if (memoryContext.lastUpdated) {
-      console.log(`   🧠 Memoria trovata: lang=${memoryContext.language}, topics=${(memoryContext.providedInfo || []).length}`);
+      console.log(`   🧠 Memoria trovata: lang=${memoryContext.language || 'n/a'}, topics=${(memoryContext.providedInfo || []).length}`);
     }
 
     // ====================================================================

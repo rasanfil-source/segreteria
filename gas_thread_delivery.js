@@ -7,7 +7,7 @@ var ThreadDelivery = {
   /** send: ingressi locali espliciti; restituisce i dati della fase. */
   send(deps, {
     response, result, startTime, threadLogger, messageState, skipLock, messageDetails, delivery,
-    duplicateReplyFingerprintContext, threadId
+    duplicateReplyFingerprintContext, threadId, usedLookbackAttachments
   }) {
     if (deps.config.dryRun) {
       console.log('   🔴 DRY RUN - Risposta non inviata');
@@ -42,7 +42,7 @@ var ThreadDelivery = {
       deps.gmailService.sendHtmlReply(messageState.candidate, response, messageDetails);
       delivery.confirmed = true;
       deps._commitSendTransaction(messageState.candidate.getId(), sendTxn);
-      deps._recordConfirmedDuplicateReply_(
+      if (!usedLookbackAttachments) deps._recordConfirmedDuplicateReply_(
         duplicateReplyFingerprintContext,
         messageState.candidate.getId(),
         threadId

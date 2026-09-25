@@ -165,12 +165,16 @@ function runScenario(root, scenario = {}, instrumentation = {}) {
   processor._addValidationErrorLabel = (target, review) => record('label.review', [target.getId(), review]);
   if (scenario.commitError) processor._commitSendTransaction = () => fail('commit failure');
   if (scenario.nearDeadline) processor._isNearDeadline = () => true;
+  if (scenario.sizeEstimates) processor._getMessageSizeEstimateForAttachmentDownload_ = message => scenario.sizeEstimates[message.getId()] || 0;
   if (scenario.alreadySent) cache.set('sent_m2', String(NOW));
   if (scenario.uncertainMarker) props.set('send_uncertain_m2', String(NOW));
   if (scenario.throttled) cache.set('sender_throttle_user@example.org', '1');
-  if (scenario.duplicate) {
+  if (scenario.duplicate || scenario.legacyDuplicate) {
     const details = services.gmailService.extractMessageDetails(candidate);
+    const pastReference = processor._hasPastAttachmentReference_;
+    if (scenario.legacyDuplicate) processor._hasPastAttachmentReference_ = () => false;
     const fingerprint = processor._buildDuplicateReplyFingerprintContext_(candidate, details);
+    if (scenario.legacyDuplicate) processor._hasPastAttachmentReference_ = pastReference;
     processor._recordConfirmedDuplicateReply_(fingerprint, 'previous', 'previous-thread', NOW - 1000);
     effects.length = 0;
   }

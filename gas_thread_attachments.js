@@ -16,6 +16,7 @@ var ThreadAttachments = {
     let attachmentItems = [];
     let physicalAttachmentsDetected = false;
     let attachmentPreCheckFailed = false;
+    let usedLookbackAttachments = false;
 
     if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
       if (deps._isNearDeadline(deps.config.maxExecutionTimeMs)) {
@@ -33,7 +34,9 @@ var ThreadAttachments = {
         let hasAttachments = false;
         attachmentPreCheckFailed = false;
         try {
-          hasAttachments = attachmentSourceMessages.some((message) => {
+          // Inspect size metadata for every source even after finding one attachment.
+          // Otherwise a file budget can hide an oversized second message.
+          hasAttachments = attachmentSourceMessages.reduce((found, message) => {
             const sizeEstimate = deps._getMessageSizeEstimateForAttachmentDownload_(message, threadLogger);
             if (Number.isFinite(sizeEstimate) && sizeEstimate > maxAttachmentMessageBytes) {
               let messageId = 'unknown';
@@ -47,11 +50,12 @@ var ThreadAttachments = {
                 maxBytes: maxAttachmentMessageBytes
               });
               console.warn(`   📎 Allegati saltati per ${messageId}: messaggio troppo grande (${sizeEstimate}/${maxAttachmentMessageBytes} byte)`);
-              return false;
+              return found;
             }
+            if (found) return true;
             const attachments = message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
             return attachments.length > 0;
-          });
+          }, false);
         } catch (e) {
           console.warn(`⚠️ Impossibile leggere allegati per pre-check: ${e.message}`);
           attachmentPreCheckFailed = true;
@@ -65,14 +69,17 @@ var ThreadAttachments = {
         // allegati di mesi prima non più pertinenti al messaggio corrente.
         const lookBackData = ThreadAttachments.lookBack(deps, {
           messageDetails, hasAttachments, attachmentPreCheckFailed, messages, candidate, ownAddresses,
-          attachmentSourceMessages
+          attachmentSourceMessages, attachmentSkipped, maxAttachmentMessageBytes, threadLogger
         });
         ({ hasAttachments } = lookBackData);
+        usedLookbackAttachments = Boolean(lookBackData.usedLookbackAttachments);
         physicalAttachmentsDetected = Boolean(hasAttachments);
 
         if (!hasAttachments && !attachmentPreCheckFailed) {
-          attachmentSkipped.push({ reason: 'no_attachments' });
-          console.log('   📎 Elaborazione allegati saltata: nessun allegato nel messaggio candidato');
+          if (!attachmentSkipped.some(s => s.reason === 'message_too_large_for_attachment_download')) {
+            attachmentSkipped.push({ reason: 'no_attachments' });
+            console.log('   📎 Elaborazione allegati saltata: nessun allegato nel messaggio candidato');
+          }
         } else {
           const bodyIsVeryShort = (messageDetails.body || '').trim().length < 50;
           const quickCheckRequiresAttachmentReading = Boolean(
@@ -112,7 +119,7 @@ var ThreadAttachments = {
             let { attachmentData, countProcessedAttachments } = collectData;
             attachmentBlobs = attachmentData.blobs || [];
             textFromAttachments = attachmentData.textContext || '';
-            attachmentSkipped = attachmentData.skipped || [];
+            attachmentSkipped = attachmentSkipped.concat(attachmentData.skipped || []);
             attachmentItems = attachmentData.items || [];
             physicalAttachmentsDetected = Boolean(
               physicalAttachmentsDetected ||
@@ -147,7 +154,8 @@ var ThreadAttachments = {
 
     return {
       attachmentBlobs, textFromAttachments, attachmentItems, physicalAttachmentsDetected,
-      attachmentPreCheckFailed, attachmentIntentContext, categoryHintSource, forceReceiptOnlyForSubmission
+      attachmentPreCheckFailed, attachmentIntentContext, categoryHintSource, forceReceiptOnlyForSubmission,
+      attachmentSkipped, usedLookbackAttachments
     };
   },
   /** collect: returns attachmentData, countProcessedAttachments; preserves the caller's service-effect order. */
@@ -311,11 +319,10 @@ var ThreadAttachments = {
   /** lookBack: returns hasAttachments; preserves the caller's service-effect order. */
   lookBack(deps, {
     messageDetails, hasAttachments, attachmentPreCheckFailed, messages, candidate, ownAddresses,
-    attachmentSourceMessages
+    attachmentSourceMessages, attachmentSkipped = [], maxAttachmentMessageBytes, threadLogger
   }) {
-    const bodyStr = messageDetails.body || '';
-    const explicitPastReference = /\bcome\s.{0,25}\b(invi|alleg|trasmess|anticip)/i.test(bodyStr)
-      || /\b(documento|modulo|certificato|file)\b.{0,30}\b(precedente|di\s+prima|gi[aà]\s+(?:invi|alleg))/i.test(bodyStr);
+    const explicitPastReference = deps._hasPastAttachmentReference_(messageDetails.body);
+    let usedLookbackAttachments = false;
 
     if (!hasAttachments && !attachmentPreCheckFailed && messages.length > 1 && explicitPastReference) {
       const candidateIndex = messages.findIndex((m) => m.getId() === candidate.getId());
@@ -340,16 +347,23 @@ var ThreadAttachments = {
       }
 
       if (foundValidPastMsg) {
+        const sizeEstimate = deps._getMessageSizeEstimateForAttachmentDownload_(foundValidPastMsg, threadLogger);
+        if (Number.isFinite(sizeEstimate) && sizeEstimate > maxAttachmentMessageBytes) {
+          attachmentSkipped.push({ messageId: foundValidPastMsg.getId(),
+            reason: 'message_too_large_for_attachment_download', sizeEstimate, maxBytes: maxAttachmentMessageBytes });
+          return { hasAttachments, usedLookbackAttachments };
+        }
         const pastAttachments = foundValidPastMsg.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
         if (pastAttachments.length > 0) {
           console.log(`   📎 Look-back stretto: recuperato allegato dal messaggio precedente (${foundValidPastMsg.getId()}) referenziato esplicitamente nel testo.`);
           attachmentSourceMessages.push(foundValidPastMsg);
           hasAttachments = true;
+          usedLookbackAttachments = true;
         }
       } else {
         console.log('   📎 Look-back stretto: nessun messaggio esterno trovato nel raggio di ricerca (3 passi).');
       }
     }
-    return { hasAttachments };
+    return { hasAttachments, usedLookbackAttachments };
   },
 };

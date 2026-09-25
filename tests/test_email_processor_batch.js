@@ -3120,7 +3120,7 @@ console.log('--- Test expected document missing: solo annuncio senza allegato --
   assert(scenario.result.status === 'replied', 'documento mancante deve comunque produrre risposta');
   assert(scenario.capturedPromptOptions.documentDelivery.hasExpectedDocumentMissing === true, 'solo annuncio senza allegato deve segnare hasExpectedDocumentMissing true');
   assert(scenario.generationCalls === 1, 'documento mancante non deve usare receipt-only');
-  assert(scenario.directives[0].includes('Non troviamo allegata né riportata nel testo la scheda di iscrizione al corso prematrimoniale'), 'direttiva documento mancante deve usare il template positivo');
+  assert(scenario.directives[0].includes('Non troviamo allegata né riportata nel testo la documentazione richiesta («scheda di iscrizione al corso prematrimoniale»)'), 'direttiva documento mancante deve usare il template positivo con referente grammaticalmente stabile');
   assert(!/ricevut/i.test(scenario.sentText), 'documento mancante non deve confermare ricezione');
 }
 

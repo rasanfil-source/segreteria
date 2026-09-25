@@ -2177,6 +2177,18 @@ var ResponseValidator = class ResponseValidator {
       .map((entry) => entry.label);
 
     if (mode === 'unverified_attachment') {
+      if (mismatchContext.reason === 'attachment_inspection_skipped_for_size') {
+        const hasUnsupportedCertainty = hasAny([
+          /\b(?:abbiamo\s+)?ricevut[oaie]\s+(?:(?:il|lo|la|i|gli|le|un|una)\s+|l[’']\s*)?(?:allegat\w*|file|document\w*|sched\w*|modul\w*|certificat\w*)\b/i,
+          /\bnon\s+troviamo\s+allegat[aoie]\b|\b(?:document\w*|allegat\w*|file)\s+(?:mancant\w*|assent\w*|non\s+(?:presente|allegato)|(?:è|sono)\s+(?:corrett\w*|complet\w*|mancant\w*))\b/i,
+          /\b(?:we(?:'ve|\s+have)?\s+received\s+(?:the\s+)?(?:attachment|file|document)|(?:attachment|file|document)\s+is\s+(?:missing|correct|complete))\b/i
+        ]);
+        if (hasUnsupportedCertainty) {
+          errors.push('Allegati non verificati per dimensioni: non confermare né negare la consegna o la correttezza del documento.');
+          score = 0.0;
+        }
+        return { score, errors, warnings, checked: true, hasUnsupportedCertainty, mode };
+      }
       const hasReceivedAttachment = hasAny([
         /\babbiamo\s+ricevut[oa]\s+l[’']?\s*allegat[oa]\b/i, /\bl[’']?\s*allegat[oa]\s+ricevut[oa]\b/i,
         /\bwe(?:'ve|\s+have)?\s+received\s+(?:the\s+)?(?:attachment|file)\b/i,
