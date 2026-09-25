@@ -1543,6 +1543,8 @@ var EmailProcessor = class EmailProcessor {
           { ...options, logger: runLogger, lockAlreadyCovered: threadLockAlreadyCovered }
         );
         stats.total++;
+        // Count review outcomes before infrastructure/quota branches can stop the batch.
+        if (result && result.validationFailed) stats.validationFailed++;
         if (result && result.status === 'error' && !result.validationFailed) {
           stats.errors++;
         }
@@ -1611,7 +1613,7 @@ var EmailProcessor = class EmailProcessor {
         processedCount++;
 
         if (result.validationFailed) {
-          stats.validationFailed++;
+          // Already counted before early exits above.
         } else if (result.status === 'replied') {
           stats.replied++;
         } else if (result.status === 'dry_run') {
@@ -2728,10 +2730,7 @@ var EmailProcessor = class EmailProcessor {
         if (lockAcquired) scriptLock.releaseLock();
         return { ok: false, reason: 'send_state_unavailable' };
       }
-      if (props.getProperty(`send_uncertain_${messageId}`)) {
-        if (lockAcquired) scriptLock.releaseLock();
-        return { ok: false, reason: 'gmail_send_uncertain' };
-      }
+      // Confirmed evidence wins over a durable uncertainty guard left by a partial commit.
       if (cache.get(sentKey)) {
         if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
           try { scriptLock.releaseLock(); } catch (_) { }
@@ -2749,6 +2748,10 @@ var EmailProcessor = class EmailProcessor {
           try { scriptLock.releaseLock(); } catch (_) { }
         }
         return { ok: false, reason: 'already_sent' };
+      }
+      if (props.getProperty(`send_uncertain_${messageId}`)) {
+        if (lockAcquired) scriptLock.releaseLock();
+        return { ok: false, reason: 'gmail_send_uncertain' };
       }
       const sendingMarker = cache.get(sendingKey);
       if (sendingMarker && !isStaleMarker(sendingMarker, sendingTtlSeconds * 1000)) {

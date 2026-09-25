@@ -87,7 +87,8 @@ var ThreadDelivery = {
         console.warn(`   ↻ Errore invio retryable (${classifiedSendError.type}) - nessuna marcatura permanente`);
       }
 
-      result.status = 'error';
+      result.status = ambiguousSendOutcome ? 'validation_failed' : 'error';
+      if (ambiguousSendOutcome) result.validationFailed = true;
       result.error = `gmail_send_failed: ${errorMessage}`;
       result.errorClass = classifiedSendError.type;
       return { terminal: true };
