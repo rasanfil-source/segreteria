@@ -326,10 +326,10 @@ console.log('--- Test request purpose: EmailProcessor usa il segnale operativo e
   assert(purpose.type === 'operational_request', 'la richiesta di preparazione/ritiro non deve essere trattata come domanda procedurale');
   const operationalDirective = processor._buildCertificateSystemDirective_(true, purpose);
   const informationalDirective = processor._buildCertificateSystemDirective_(true, { type: 'information_request' });
-  assert(operationalDirective.includes('RICHIESTA OPERATIVA DI CERTIFICATO'), 'la richiesta operativa deve usare la direttiva di presa in carico');
-  assert(operationalDirective.includes('Non riaprire con spiegazioni generiche'), 'la direttiva operativa deve vietare la riapertura della procedura già compresa');
-  assert(operationalDirective.includes('non trattare il messaggio come semplice trasmissione di dati'), 'la direttiva operativa deve distinguere richiesta certificato e dati di supporto');
-  assert(operationalDirective.includes('data o una modalita di ritiro'), 'la direttiva operativa deve recepire proposta di ritiro senza confermarla automaticamente');
+  assert(operationalDirective.includes('RICHIESTA OPERATIVA DI DOCUMENTO'), 'la richiesta operativa deve usare la direttiva di presa in carico');
+  assert(operationalDirective.includes('Non riaprire spiegazioni già acquisite'), 'la direttiva operativa deve vietare la riapertura della procedura già compresa');
+  assert(operationalDirective.includes('anche quando trasmette i dati necessari'), 'la direttiva operativa deve distinguere richiesta certificato e dati di supporto');
+  assert(operationalDirective.includes('preferenze di formato, consegna o data come richieste, senza trasformarle in accordi confermati'), 'la direttiva operativa deve recepire proposta di ritiro senza confermarla automaticamente');
   assert(!operationalDirective.includes('Specifica che il certificato va richiesto'), 'la regola generale non deve essere imposta alla richiesta operativa');
   assert(informationalDirective.includes('RICHIESTA INFORMATIVA SUI CERTIFICATI'), 'la domanda informativa deve conservare la procedura pertinente');
   assert(informationalDirective.includes('parrocchia in cui e stato celebrato'), 'la regola della parrocchia di celebrazione resta disponibile quando risponde davvero alla domanda');

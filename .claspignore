@@ -37,9 +37,5 @@ outputs/**
 *.md
 *.html
 !appsscript.json
-tests/*
-tests/**/*
 **/tests/**
-scripts/*
-maintenance/*
 maintenance/**/*
