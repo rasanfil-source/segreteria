@@ -1985,18 +1985,24 @@ var ResponseValidator = class ResponseValidator {
     }
 
     const text = this._stripDiacritics_(String(response || '').toLowerCase());
+    const outsidePatterns = [
+      /\bnon\s+rientra\b/,
+      /\bfuori\s+(?:dal\s+)?territorio\b/,
+      /\bnon\s+fa\s+parte\s+(?:del|della)\s+(?:territorio|parrocchia|competenza)/,
+      /\bnon\s+e\s+(?:nel|nella|in)\s+(?:nostro|nostra)\s+(?:territorio|parrocchia|competenza)/
+    ];
+    // Mask each negative claim, preserving separate affirmative claims and
+    // sentence boundaries so a mixed/contradictory reply is still rejected.
+    const affirmativeText = outsidePatterns.reduce(
+      (value, pattern) => value.replace(new RegExp(pattern.source, 'g'), '.'), text
+    );
     const saysInside = [
       /\bsi[,:\s]+[^.\n!?]{0,120}\brientra\b/,
       /\brientra\s+(?:nel|nella|in)\s+(?:territorio|parrocchia|competenza)/,
       /\bfa\s+parte\s+(?:del|della)\s+(?:territorio|parrocchia|competenza)/,
       /\be\s+(?:nel|nella|in)\s+(?:nostro|nostra)\s+(?:territorio|parrocchia|competenza)/
-    ].some(pattern => pattern.test(text));
-    const saysOutside = [
-      /\bnon\s+rientra\b/,
-      /\bfuori\s+(?:dal\s+)?territorio\b/,
-      /\bnon\s+fa\s+parte\s+(?:del|della)\s+(?:territorio|parrocchia|competenza)/,
-      /\bnon\s+e\s+(?:nel|nella|in)\s+(?:nostro|nostra)\s+(?:territorio|parrocchia|competenza)/
-    ].some(pattern => pattern.test(text));
+    ].some(pattern => pattern.test(affirmativeText));
+    const saysOutside = outsidePatterns.some(pattern => pattern.test(text));
     const asksCivic = /\b(?:indicare|comunicare|specificare|inviare|serve|necessario|necessita|abbiamo bisogno)[^.\n!?]{0,120}\b(?:civico|numero)\b/.test(text) ||
       /\b(?:civico|numero)\b[^.\n!?]{0,120}\b(?:necessario|mancante|serve|indicare|comunicare|specificare)\b/.test(text);
 
@@ -3927,6 +3933,14 @@ Rispondi SOLO con questo JSON (senza markdown):
     const hasIrrelevantDetails = irrelevantDetails.length > 0;
 
     const inferredIsValid = !(hasThinkingLeak || hasHallucinations || hasIrrelevantDetails);
+    // Explicit findings may still reject a legacy payload without a verdict.
+    // An approval, however, requires a boolean verdict and numeric confidence.
+    if (inferredIsValid &&
+        (typeof payload.isValid !== 'boolean' ||
+          (payload.isValid === true &&
+            (typeof payload.confidence !== 'number' || !Number.isFinite(payload.confidence))))) {
+      throw new Error('Contratto semantico incompleto: verdetto o confidenza non validi');
+    }
     const normalizedIsValid = (typeof payload.isValid === 'boolean')
       ? payload.isValid && inferredIsValid
       : inferredIsValid;
@@ -3949,7 +3963,7 @@ Rispondi SOLO con questo JSON (senza markdown):
   }
 
   _cacheKey(prefix, text) {
-    return `${prefix}_${this._hashText(text)}`;
+    return `semantic_v5_${prefix}_${this._hashText(text)}`;
   }
 
   _readCache(cacheKey) {
@@ -3973,8 +3987,9 @@ Rispondi SOLO con questo JSON (senza markdown):
   }
 
   _hashText(text) {
-    // Campiona inizio+fine per ridurre collisioni su testi lunghi ma simili
-    const sample = text.length > 500 ? text.slice(0, 250) + text.slice(-250) : text;
+    // Every character participates: equal-length edits in the middle must
+    // invalidate the cached verdict just like edits at either end.
+    const sample = text;
     let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
     for (let i = 0; i < sample.length; i++) {
       const ch = sample.charCodeAt(i);

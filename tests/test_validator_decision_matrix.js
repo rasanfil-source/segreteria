@@ -122,6 +122,10 @@ for (const active of bools) for (const formal of bools) for (const human of bool
 // Explicit semantic validity must never override evidence of an error.
 const semantic = new SemanticValidator();
 for (const explicit of [undefined, false, true]) for (const leak of bools) for (const examples of bools) for (const hallucination of bools) for (const irrelevant of bools) row(`semantic payload ${explicit}/${leak}/${examples}/${hallucination}/${irrelevant}`, () => {
+  if (explicit === undefined && !leak && !examples && !hallucination && !irrelevant) {
+    assert.throws(() => semantic._normalizeSemanticPayload({ confidence: 95 }), /Contratto semantico/);
+    return;
+  }
   const result = semantic._normalizeSemanticPayload({ isValid: explicit, thinkingLeakDetected: leak, examples: examples ? ['leak'] : [], hallucinations: { dates: hallucination ? ['invented'] : [] }, irrelevantDetails: irrelevant ? ['off topic'] : [], confidence: 95 });
   assert.equal(result.isValid, explicit !== false && !leak && !examples && !hallucination && !irrelevant);
   assert.equal(result.confidence, 0.95);

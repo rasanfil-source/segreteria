@@ -3240,6 +3240,11 @@ var GmailService = class GmailService {
     /** Invia risposta come HTML con threading corretto. */
     sendHtmlReply(resource, responseText, messageDetails = {}) {
         const finalResponse = responseText == null ? '' : String(responseText);
+        const ambiguousSendError = (description, cause) => {
+            const error = new Error(`Network: ${description} (${cause.message || String(cause)})`);
+            error.isTransient = true;
+            return error;
+        };
         const isAmbiguousSendError = (error) => {
             if (typeof classifyError === 'function') {
                 const classification = classifyError(error);
@@ -3458,7 +3463,7 @@ var GmailService = class GmailService {
             } catch (apiError) {
                 apiSendError = apiError;
                 if (apiSendAttempted && isAmbiguousSendError(apiError)) {
-                    throw new Error(`Network: esito invio Gmail API ambiguo: fallback nativo bloccato (${apiError.message})`);
+                    throw ambiguousSendError('esito invio Gmail API ambiguo: fallback nativo bloccato', apiError);
                 }
                 console.warn(`⚠️ Gmail API fallita, ripiego su GmailApp: ${apiError.message}`);
             }
@@ -3499,27 +3504,32 @@ var GmailService = class GmailService {
         } catch (error) {
             console.error(`❌ Risposta fallita: ${error.message}`);
             if (isAmbiguousSendError(error)) {
-                throw new Error(`Network: esito invio GmailApp ambiguo: ulteriori fallback bloccati (${error.message})`);
+                throw ambiguousSendError('esito invio GmailApp ambiguo: ulteriori fallback bloccati', error);
             }
             try {
                 mailEntity.reply(plainText || this._stripHtmlTags(finalResponse));
                 console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (alternativa)`);
             } catch (fallbackError) {
                 if (isAmbiguousSendError(fallbackError)) {
-                    throw new Error(`Esito fallback plain text ambiguo: fallback thread bloccato (${fallbackError.message})`);
+                    throw ambiguousSendError('Esito fallback plain text ambiguo: fallback thread bloccato', fallbackError);
                 }
                 let threadFallbackError = null;
+                let threadSendAttempted = false;
                 try {
                     const threadEntity = (mailEntity && typeof mailEntity.getThread === 'function')
                         ? mailEntity.getThread()
                         : null;
                     if (threadEntity && typeof threadEntity.reply === 'function') {
                         this._assertNativeReplyRecipient_(threadEntity, messageDetails.senderEmail);
+                        threadSendAttempted = true;
                         threadEntity.reply(plainText || this._stripHtmlTags(finalResponse));
                         console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (fallback thread-level)`);
                         return;
                     }
                 } catch (e) {
+                    if (threadSendAttempted && isAmbiguousSendError(e)) {
+                        throw ambiguousSendError('esito fallback thread ambiguo', e);
+                    }
                     threadFallbackError = e;
                 }
 
