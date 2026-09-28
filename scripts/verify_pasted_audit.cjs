@@ -1,0 +1,37 @@
+// Read-only, offline reproduction of the pasted audit. No external services.
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..');
+const ctx = vm.createContext({console: {log(){}, warn(){}, error(){}, debug(){}}, CONFIG: {}});
+for (const f of ['gas_classifier.js', 'gas_email_processor.js']) vm.runInContext(fs.readFileSync(path.join(root,f),'utf8'),ctx);
+const c = new ctx.Classifier();
+const p = Object.create(ctx.EmailProcessor.prototype);
+const results = [];
+function probe(name, fn) { try { results.push({name, result: fn()}); } catch(e) { results.push({name,error:e.message}); } }
+probe('quoted punctuation', () => c._extractMainContent('> vecchio testo\n| citazione\n* citazione\n- citazione\n[testo]\nRisposta nuova'));
+for (const [subject,body,reply] of [['Re: Informazioni','Buongiorno',true],['Informazioni','Buongiorno',false],['Re: Grazie','',true],['Re: Risposta automatica: sono in ferie','',true],['Informazioni','Cordiali saluti',false]]) probe('classify '+JSON.stringify([subject,body,reply]),()=>c.classifyEmail(subject,body,reply));
+probe('null greeting',()=>c._isGreetingOnly(null));
+for (const text of ['Vorrei sapere se alle 18.30 del 15/07/2026 c’è messa','C’è messa alle 9.10?','15 LUGLIO 2026']) probe('date '+text,()=>p._extractExplicitDateFromText_(text,2026));
+probe('uppercase date through caller',()=>p._resolveRequestedScheduleDate_('15 LUGLIO 2026', new Date('2026-06-01T12:00:00Z')));
+for (const text of ['15.05.2026','10 ore','Luca 15:9','ore 10']) probe('time '+text,()=>p._extractTimes(text));
+for (const [text,lang] of [['demain','fr'],['tomorrow','EN'],['tomorrow','en-US'],['tomorrow','en']]) probe('temporal '+text+' '+lang,()=>p._detectTemporalMentions(text,lang));
+for (const text of ["Vivo all'estero e non posso venire all'incontro", "Je n'ai plus de difficulté à marcher jusqu'à l'église", "I don't live in Rome and I can't come",'Sì, ora posso venire','si trova in ospedale']) probe('assertion '+text,()=>p._presenceAssertionText_(text));
+for (const text of ['Sono ricoverato in ospedale e non posso venire','Sono anziano e non riesco']) probe('presence '+text,()=>p._detectPhysicalPresenceConstraint_('',p._presenceAssertionText_(text),true));
+for (const text of ['non ho ricevuto','non è tutto chiaro','not received','no he recibido','non ho capito']) probe('reaction '+text,()=>p._computeUserReaction(text,['battesimo']));
+probe('XML cut',()=>{const output=p._repairRetryPromptXmlFences_('<user_email>'+'x'.repeat(100)+'</user_email>',60);return {output,pending:p._getPendingRetryPromptXmlFenceClosures_(output)};});
+const props = new Map();
+ctx.PropertiesService = {getScriptProperties:()=>({getProperty:k=>props.get(k)||null,setProperty:(k,v)=>props.set(k,v),deleteProperty:k=>props.delete(k)})};
+probe('timestamp overwrite',()=>{const key='VALIDATION_REVIEW_ALERT_STATE',hash=p._hashValidationReviewSignature_('audit');const old=Date.now()-10000;props.set(key,JSON.stringify({[hash]:old}));p._markValidationReviewAlertSent_('audit');return {old,stored:JSON.parse(props.get(key))[hash]};});
+probe('rollback no cache',()=>{let released=0;p._rollbackSendTransaction('audit',{lock:{releaseLock(){released++;}}});return {released};});
+probe('rollback properties failure',()=>{let released=0;const prev=ctx.PropertiesService;ctx.PropertiesService={getScriptProperties(){throw Error('service failure');}};let error;try {p._rollbackSendTransaction('audit',{lock:{releaseLock(){released++;}}});} catch(e){error=e.message;}finally{ctx.PropertiesService=prev;}return {released,error};});
+let created=[],deleted=[];
+ctx.ScriptApp={getProjectTriggers:()=>[{getHandlerFunction:()=> 'resumeEmailBatchFromCheckpoint',getUniqueId:()=> 'old'}],deleteTrigger:t=>deleted.push(t),newTrigger:()=>({timeBased(){return this;},after(n){created.push(n);return this;},create(){return {getUniqueId:()=> 'new'};}})};
+probe('checkpoint 260s delay',()=>{p._storeBatchCheckpointAndScheduleContinuation_([{getId:()=> 'a'}],0,260000);return {created,checkpoint:JSON.parse(props.get('EMAIL_BATCH_CHECKPOINT'))};});
+probe('checkpoint empty',()=>{created=[];deleted=[];p._storeBatchCheckpointAndScheduleContinuation_([],0,5000);return {created,deleted:deleted.length,checkpoint:JSON.parse(props.get('EMAIL_BATCH_CHECKPOINT'))};});
+probe('checkpoint depth limit',()=>{created=[];deleted=[];props.set('EMAIL_BATCH_CHECKPOINT',JSON.stringify({depth:5,pendingThreadIds:['a'],pendingCount:1}));p._storeBatchCheckpointAndScheduleContinuation_([{getId:()=> 'a'}],0,5000);return {created,deleted:deleted.length,checkpoint:props.get('EMAIL_BATCH_CHECKPOINT')||null};});
+probe('skipLock alone releases caller lock',()=>{let releases=0;ctx.CacheService={getScriptCache:()=>({get:()=>null,put(){},remove(){}})};ctx.LockService={getScriptLock:()=>({tryLock:()=>true,releaseLock(){releases++;}})};const result=p._acquireThreadLock('a',true,ctx.console,{});return {ok:result.ok,releases};});
+probe('proposed removal of si admits hypotheses',()=>{const method=p._presenceAssertionText_.toString().replace('(se|if|si|wenn|','(se|if|wenn|');const patched=vm.runInContext('({'+method+'})',ctx);return patched._presenceAssertionText_('Si je peux venir');});
+probe('proposed hour prefix misses sentence-final time',()=>['ore 10','ore 10.'].map(text=>({text,matches:text.match(/(?<=\b(?:alle|ore|dalle)\s+)(?:[01]?\d|2[0-3])(?![\p{L}\p{N}_.:])/giu)||[]})));
+probe('greeting checks still miss prefixed subject',()=>({clean:c._isGreetingOnly('Buongiorno'),prefixed:c._isGreetingOnly('Re: Buongiorno')}));
+process.stdout.write(JSON.stringify(results,null,2)+'\n');

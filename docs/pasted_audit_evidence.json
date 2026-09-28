@@ -1,0 +1,339 @@
+[
+  {
+    "name": "quoted punctuation",
+    "result": "| citazione\n* citazione\n- citazione\n[testo]\nRisposta nuova"
+  },
+  {
+    "name": "classify [\"Re: Informazioni\",\"Buongiorno\",true]",
+    "result": {
+      "shouldReply": true,
+      "reason": "needs_ai_analysis",
+      "category": null,
+      "subIntents": {},
+      "confidence": 0.8
+    }
+  },
+  {
+    "name": "classify [\"Informazioni\",\"Buongiorno\",false]",
+    "result": {
+      "shouldReply": true,
+      "reason": "needs_ai_analysis",
+      "category": "information",
+      "subIntents": {},
+      "confidence": 0.85
+    }
+  },
+  {
+    "name": "classify [\"Re: Grazie\",\"\",true]",
+    "result": {
+      "shouldReply": true,
+      "reason": "needs_ai_analysis",
+      "category": null,
+      "subIntents": {},
+      "confidence": 0.8
+    }
+  },
+  {
+    "name": "classify [\"Re: Risposta automatica: sono in ferie\",\"\",true]",
+    "result": {
+      "shouldReply": true,
+      "reason": "needs_ai_analysis",
+      "category": null,
+      "subIntents": {},
+      "confidence": 0.8
+    }
+  },
+  {
+    "name": "classify [\"Informazioni\",\"Cordiali saluti\",false]",
+    "result": {
+      "shouldReply": true,
+      "reason": "needs_ai_analysis",
+      "category": "information",
+      "subIntents": {},
+      "confidence": 0.85
+    }
+  },
+  {
+    "name": "null greeting",
+    "error": "Cannot read properties of null (reading 'includes')"
+  },
+  {
+    "name": "date Vorrei sapere se alle 18.30 del 15/07/2026 c’è messa",
+    "result": null
+  },
+  {
+    "name": "date C’è messa alle 9.10?",
+    "result": {
+      "date": "2026-10-09T10:00:00.000Z",
+      "source": "explicit:numeric",
+      "hasExplicitYear": false
+    }
+  },
+  {
+    "name": "date 15 LUGLIO 2026",
+    "result": null
+  },
+  {
+    "name": "uppercase date through caller",
+    "result": {
+      "date": "2026-07-15T10:00:00.000Z",
+      "isExplicit": true,
+      "source": "explicit:textual",
+      "hasExplicitYear": true,
+      "originalInferredDate": "2026-07-15T10:00:00.000Z",
+      "temporalIntent": "unspecified",
+      "yearInference": "explicit_year"
+    }
+  },
+  {
+    "name": "time 15.05.2026",
+    "result": [
+      "15:05"
+    ]
+  },
+  {
+    "name": "time 10 ore",
+    "result": [
+      "10:00"
+    ]
+  },
+  {
+    "name": "time Luca 15:9",
+    "result": [
+      "15:00"
+    ]
+  },
+  {
+    "name": "time ore 10",
+    "result": []
+  },
+  {
+    "name": "temporal demain fr",
+    "result": false
+  },
+  {
+    "name": "temporal tomorrow EN",
+    "result": false
+  },
+  {
+    "name": "temporal tomorrow en-US",
+    "result": false
+  },
+  {
+    "name": "temporal tomorrow en",
+    "result": true
+  },
+  {
+    "name": "assertion Vivo all'estero e non posso venire all'incontro",
+    "result": "vivo allincontro"
+  },
+  {
+    "name": "assertion Je n'ai plus de difficulté à marcher jusqu'à l'église",
+    "result": "je na l'eglise"
+  },
+  {
+    "name": "assertion I don't live in Rome and I can't come",
+    "result": "i dont come"
+  },
+  {
+    "name": "assertion Sì, ora posso venire",
+    "result": ""
+  },
+  {
+    "name": "assertion si trova in ospedale",
+    "result": ""
+  },
+  {
+    "name": "presence Sono ricoverato in ospedale e non posso venire",
+    "result": [
+      {
+        "has_constraint": true,
+        "type": "temporary_unavailability",
+        "confidence": 0.75,
+        "evidence": "",
+        "reason": "cannot_attend",
+        "visit_policy": "conditional_only",
+        "source": "local_fallback"
+      }
+    ]
+  },
+  {
+    "name": "presence Sono anziano e non riesco",
+    "result": []
+  },
+  {
+    "name": "reaction non ho ricevuto",
+    "result": {
+      "reaction": "acknowledged",
+      "topics": [
+        "battesimo"
+      ],
+      "source": "user_reply",
+      "matchedPhrase": "ricevuto",
+      "excerpt": "non ho ricevuto"
+    }
+  },
+  {
+    "name": "reaction non è tutto chiaro",
+    "result": {
+      "reaction": "acknowledged",
+      "topics": [
+        "battesimo"
+      ],
+      "source": "user_reply",
+      "matchedPhrase": "tutto chiaro",
+      "excerpt": "non è tutto chiaro"
+    }
+  },
+  {
+    "name": "reaction not received",
+    "result": {
+      "reaction": "acknowledged",
+      "topics": [
+        "battesimo"
+      ],
+      "source": "user_reply",
+      "matchedPhrase": "received",
+      "excerpt": "not received"
+    }
+  },
+  {
+    "name": "reaction no he recibido",
+    "result": {
+      "reaction": "acknowledged",
+      "topics": [
+        "battesimo"
+      ],
+      "source": "user_reply",
+      "matchedPhrase": "recibido",
+      "excerpt": "no he recibido"
+    }
+  },
+  {
+    "name": "reaction non ho capito",
+    "result": {
+      "reaction": "questioned",
+      "topics": [
+        "battesimo"
+      ],
+      "source": "user_reply",
+      "matchedPhrase": "non ho capito",
+      "excerpt": "non ho capito"
+    }
+  },
+  {
+    "name": "XML cut",
+    "result": {
+      "output": "<user_email>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "pending": [
+        "</user_email>"
+      ]
+    }
+  },
+  {
+    "name": "timestamp overwrite",
+    "result": {
+      "old": 1790628238794,
+      "stored": 1790628238794
+    }
+  },
+  {
+    "name": "rollback no cache",
+    "result": {
+      "released": 0
+    }
+  },
+  {
+    "name": "rollback properties failure",
+    "result": {
+      "released": 0,
+      "error": "service failure"
+    }
+  },
+  {
+    "name": "checkpoint 260s delay",
+    "result": {
+      "created": [
+        260000
+      ],
+      "checkpoint": {
+        "version": 2,
+        "runId": "1790628248795_bvxzbm",
+        "createdAt": "2026-09-28T20:44:08.795Z",
+        "notBefore": "2026-09-28T20:48:28.795Z",
+        "expiresAt": "2026-09-28T21:48:28.795Z",
+        "startIndex": 0,
+        "remainingTimeMs": 260000,
+        "pendingCount": 1,
+        "pendingThreadIds": [
+          "a"
+        ],
+        "depth": 1,
+        "retryCount": 1
+      }
+    }
+  },
+  {
+    "name": "checkpoint empty",
+    "result": {
+      "created": [
+        5000
+      ],
+      "deleted": 1,
+      "checkpoint": {
+        "version": 2,
+        "runId": "1790628248796_m0c9yl",
+        "createdAt": "2026-09-28T20:44:08.796Z",
+        "notBefore": "2026-09-28T20:44:13.796Z",
+        "expiresAt": "2026-09-28T21:44:13.796Z",
+        "startIndex": 0,
+        "remainingTimeMs": 5000,
+        "pendingCount": 0,
+        "pendingThreadIds": [],
+        "depth": 1,
+        "retryCount": 1
+      }
+    }
+  },
+  {
+    "name": "checkpoint depth limit",
+    "result": {
+      "created": [],
+      "deleted": 0,
+      "checkpoint": null
+    }
+  },
+  {
+    "name": "skipLock alone releases caller lock",
+    "result": {
+      "ok": true,
+      "releases": 1
+    }
+  },
+  {
+    "name": "proposed removal of si admits hypotheses",
+    "result": "si je peux venir"
+  },
+  {
+    "name": "proposed hour prefix misses sentence-final time",
+    "result": [
+      {
+        "text": "ore 10",
+        "matches": [
+          "10"
+        ]
+      },
+      {
+        "text": "ore 10.",
+        "matches": []
+      }
+    ]
+  },
+  {
+    "name": "greeting checks still miss prefixed subject",
+    "result": {
+      "clean": true,
+      "prefixed": false
+    }
+  }
+]

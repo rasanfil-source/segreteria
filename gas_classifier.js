@@ -167,10 +167,23 @@ var Classifier = class Classifier {
       };
     }
 
+    const subjectForChecks = safeSubject.replace(/^(?:(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]\s*)+/i, '').trim();
+    if (this._isOutOfOfficeAutoReply(safeSubject, safeBody)) {
+      return { shouldReply: false, reason: 'out_of_office_auto_reply', category: null, subIntents: {}, confidence: 0.98 };
+    }
+    const greetingBody = this._extractMainContent(safeBody, { preserveGreetings: true });
+    // Un oggetto operativo resta una richiesta anche con corpo composto da saluti.
+    const subjectHasRequest = Boolean(subjectForChecks) &&
+      !/^(?:messaggio|saluti|nessun oggetto|\(no subject\))$/i.test(subjectForChecks) &&
+      !this._isGreetingOnly(subjectForChecks) && !this._isUltraSimpleAcknowledgment(subjectForChecks);
+    const greetingLines = greetingBody.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (!mainContent && greetingLines.length && greetingLines.every(line => this._isGreetingOnly(line)) && !subjectHasRequest) {
+      return { shouldReply: false, reason: 'greeting_only', category: null, subIntents: {}, confidence: 0.95 };
+    }
     // Corpo vuoto + soggetto generico (es. "Re: Orari messe") → passa a Gemini
     if ((!mainContent || !mainContent.trim()) && isReply) {
       const subjectClean = safeSubject.replace(/^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]\s*/i, '').trim();
-      if (subjectClean.length > 3 && subjectClean.length < 50) {
+      if (subjectClean.length > 3 && subjectClean.length < 50 && !this._isGreetingOnly(subjectForChecks) && !this._isUltraSimpleAcknowledgment(subjectForChecks)) {
         console.log('      ✓ Body vuoto ma subject ragionevole -> Passa a Gemini');
         return {
           shouldReply: true,
@@ -183,7 +196,7 @@ var Classifier = class Classifier {
     }
 
     // Se il body è vuoto e NON soddisfa criterio sopra, usa subject per filtri rapidi
-    const contentForQuickChecks = this._isTrivialReplyBody(mainContent) ? safeSubject : mainContent;
+    const contentForQuickChecks = this._isTrivialReplyBody(mainContent) ? subjectForChecks : mainContent;
 
     // FILTRO 1: Acknowledgment ultra-semplice
     if (this._isUltraSimpleAcknowledgment(contentForQuickChecks)) {
@@ -206,18 +219,6 @@ var Classifier = class Classifier {
         category: null,
         subIntents: {},
         confidence: 0.95
-      };
-    }
-
-    // FILTRO 3: Auto-risposte esplicite (OOO/ferie)
-    if (this._isOutOfOfficeAutoReply(safeSubject, safeBody)) {
-      console.log('      ✗ Auto-risposta Out of Office rilevata');
-      return {
-        shouldReply: false,
-        reason: 'out_of_office_auto_reply',
-        category: null,
-        subIntents: {},
-        confidence: 0.98
       };
     }
 
@@ -251,7 +252,7 @@ var Classifier = class Classifier {
    * Estrae contenuto principale, rimuovendo citazioni e firme.
    * Input atteso: plain-text (body email).
    */
-  _extractMainContent(body) {
+  _extractMainContent(body, options = {}) {
     let processedBody = typeof body === 'string' ? body : '';
 
     const MAX_LENGTH = 50000;
@@ -294,7 +295,7 @@ var Classifier = class Classifier {
       }
 
       // Salta saluti standalone all'inizio
-      if (/^(salve|buongiorno|buonasera|ciao)[\s,!.]{0,5}$/i.test(stripped)) {
+      if (!options.preserveGreetings && /^(salve|buongiorno|buonasera|ciao)[\s,!.]{0,5}$/i.test(stripped)) {
         continue;
       }
 
@@ -317,6 +318,11 @@ var Classifier = class Classifier {
         inQuoteBlock = false;
       }
 
+      // A clearly operational bullet can reopen an inline reply; punctuation alone cannot.
+      if (inQuoteBlock && /^(?:[-*•]|\[)[\s\S]*\b(?:vorrei|posso|chiedo|allego|confermo|please|could|would)\b/i.test(stripped)) {
+        inQuoteBlock = false;
+      }
+      if (inQuoteBlock) continue;
       cleanLines.push(safeLine);
     }
 
@@ -349,7 +355,7 @@ var Classifier = class Classifier {
       }
     }
 
-    if (signatureStartIndex !== -1) {
+    if (signatureStartIndex !== -1 && !options.preserveGreetings) {
       const remainingLines = contentLines
         .slice(signatureStartIndex + 1)
         .map(line => (line || '').trim())
@@ -435,6 +441,7 @@ var Classifier = class Classifier {
    * Verifica se solo saluto
    */
   _isGreetingOnly(text) {
+    if (typeof text !== 'string' || !text.trim()) return false;
     // Controllo presenza domanda prima della normalizzazione
     if (text.includes('?')) return false;
 

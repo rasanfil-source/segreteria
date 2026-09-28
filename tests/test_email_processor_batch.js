@@ -340,7 +340,8 @@ console.log('--- Test _extractTimes: boundary Unicode evita match dentro parole 
   const processor = new EmailProcessor({ gmailService: {} });
   const times = processor._extractTimes('Alle 9:30 va bene. Anche 10 ore. Ignora abc10:30, codiceé11:45 e tel33110:30.');
   assert(times.includes('09:30'), 'deve riconoscere orari con ora a una cifra');
-  assert(times.includes('10:00'), 'deve riconoscere ore isolate se seguite da "ore"');
+  assert(!times.includes('10:00'), 'una durata di 10 ore non deve diventare un orario');
+  assert(processor._extractTimes('ore 10.').includes('10:00'), 'riconosce ore 10 anche a fine frase');
   assert(!times.includes('11:45'), 'non deve estrarre orari incorporati dopo lettere accentate');
   assert(!times.includes('10:30'), 'non deve estrarre orari incorporati in parole o sequenze numeriche');
 }
@@ -775,7 +776,7 @@ console.log('--- Test thread lock: lockAlreadyCovered salta solo lo ScriptLock m
   }
 }
 
-console.log('--- Test thread lock: skipLock senza copertura acquisisce ScriptLock per atomicità ---');
+console.log('--- Test thread lock: skipLock dichiara copertura del chiamante come nella transazione invio ---');
 {
   const originalPropertiesService = global.PropertiesService;
   const originalLockService = global.LockService;
@@ -807,9 +808,9 @@ console.log('--- Test thread lock: skipLock senza copertura acquisisce ScriptLoc
     const processor = new EmailProcessor({ gmailService: {} });
     const ctx = processor._acquireThreadLock('t-skip-uncovered', true, global.createLogger());
     assert(ctx.ok === true && ctx.acquired === true, 'skipLock non coperto deve comunque creare il lock logico di thread');
-    assert(ctx.lockCovered === false, 'ctx non deve indicare copertura esterna se manca lockAlreadyCovered');
-    assert(tryLockCalls === 1, 'skipLock non coperto deve acquisire lo ScriptLock per check-and-set atomico');
-    assert(releaseCalls === 1, 'lo ScriptLock acquisito internamente deve essere rilasciato dopo il check-and-set');
+    assert(ctx.lockCovered === true, 'skipLock deve propagare la copertura del chiamante');
+    assert(tryLockCalls === 0, 'non deve riacquisire il lock del chiamante');
+    assert(releaseCalls === 0, 'non deve rilasciare il lock del chiamante');
     assert(!props.has('thread_lock_t-skip-uncovered'), 'non deve scrivere il token in PropertiesService');
     assert(cacheStore.get('thread_lock_t-skip-uncovered') === ctx.value, 'deve scrivere il token in CacheService');
   } finally {

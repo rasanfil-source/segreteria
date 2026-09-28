@@ -621,7 +621,7 @@ var EmailProcessor = class EmailProcessor {
       ? Utilities.getUuid()
       : Math.random().toString(36).slice(2);
     const value = `${Date.now()}_${tokenSuffix}`;
-    const lockAlreadyCovered = !!(options && options.lockAlreadyCovered);
+    const lockAlreadyCovered = Boolean(skipLock || (options && options.lockAlreadyCovered));
     const shouldAcquirePhysicalLock = !lockAlreadyCovered;
     const scriptLock = (shouldAcquirePhysicalLock &&
       typeof LockService !== 'undefined' &&
@@ -780,9 +780,10 @@ var EmailProcessor = class EmailProcessor {
    * @param {string} knowledgeBase - KB testo semplice
    * @param {Array} doctrineBase - KB strutturata
    * @param {?Set} labeledMessageIds - ID messaggi già etichettati (opzionale)
-   * @param {boolean} skipLock - Se true, salta acquisizione lock
+   * @param {boolean} skipLock - Se true, il chiamante possiede già lo ScriptLock
    */
   processThread(thread, knowledgeBase, doctrineBase, labeledMessageIds = null, skipLock = false, skippedMessageIds = null, options = {}) {
+    skipLock = Boolean(skipLock || (options && options.lockAlreadyCovered));
     const threadId = thread.getId();
     const startTime = Date.now();
     const lifecycleServices = this._threadLifecycleServices_();
@@ -799,7 +800,7 @@ var EmailProcessor = class EmailProcessor {
     const languageMode = this._getLanguageProcessingMode_();
 
     const lockCtx = this._acquireThreadLock(threadId, skipLock, threadLogger, {
-      lockAlreadyCovered: !!(options && options.lockAlreadyCovered)
+      lockAlreadyCovered: skipLock
     });
     if (!lockCtx.ok) {
       restoreServiceLoggers();
@@ -1506,7 +1507,7 @@ var EmailProcessor = class EmailProcessor {
         const safeLimit = getEffectiveMaxEmailsPerRun();
         if (processedCount >= safeLimit) {
           console.log(`🛑 Raggiunti ${safeLimit} thread elaborati. Stop.`);
-          deferBatchCheckpoint(threads, index, this._getRemainingTimeMs(MAX_EXECUTION_TIME));
+          deferBatchCheckpoint(threads, index, 5000);
           break;
         }
 
@@ -1515,7 +1516,7 @@ var EmailProcessor = class EmailProcessor {
         const remainingTimeMs = this._getRemainingTimeMs(MAX_EXECUTION_TIME);
         if (remainingTimeMs < this.config.minRemainingTimeMs || this._isNearDeadline(MAX_EXECUTION_TIME)) {
           console.warn(`⏳ Tempo insufficiente per un nuovo thread (${Math.round(remainingTimeMs / 1000)}s restanti). Stop preventivo.`);
-          deferBatchCheckpoint(threads, index, remainingTimeMs);
+          deferBatchCheckpoint(threads, index, 5000);
           break;
         }
 
@@ -1794,6 +1795,10 @@ var EmailProcessor = class EmailProcessor {
         .filter(Boolean);
 
       const storedPendingThreadIds = pendingThreadIds.slice(0, maxCheckpointThreads);
+      if (pendingThreadIds.length === 0) {
+        this._clearBatchCheckpoint_('nessun thread residuo');
+        return;
+      }
       const previousPendingThreadIds = previousCheckpoint && Array.isArray(previousCheckpoint.pendingThreadIds)
         ? previousCheckpoint.pendingThreadIds
         : [];
@@ -1812,9 +1817,7 @@ var EmailProcessor = class EmailProcessor {
 
       if (nextDepth > 5) {
         console.error('Limite massimo di continuazioni batch (5) raggiunto sullo stesso checkpoint. Interruzione per prevenire loop di trigger.');
-        if (typeof props.deleteProperty === 'function') {
-          props.deleteProperty('EMAIL_BATCH_CHECKPOINT');
-        }
+        this._clearBatchCheckpoint_('limite continuazioni raggiunto');
         return;
       }
 
@@ -2823,14 +2826,14 @@ var EmailProcessor = class EmailProcessor {
   }
 
   _rollbackSendTransaction(messageId, sendTxn = null) {
-    if (!messageId) return;
-    const props = PropertiesService.getScriptProperties();
-    if (props && typeof props.deleteProperty === 'function') props.deleteProperty(`send_uncertain_${messageId}`);
-    const cache = (typeof CacheService !== 'undefined' && CacheService && typeof CacheService.getScriptCache === 'function')
-      ? CacheService.getScriptCache()
-      : null;
-    if (!cache) return;
     try {
+      if (!messageId) return;
+      const props = typeof PropertiesService !== 'undefined' && PropertiesService
+        ? PropertiesService.getScriptProperties() : null;
+      if (props && typeof props.deleteProperty === 'function') props.deleteProperty(`send_uncertain_${messageId}`);
+      const cache = typeof CacheService !== 'undefined' && CacheService
+        ? CacheService.getScriptCache() : null;
+      if (!cache) return;
       cache.remove(`sending_${messageId}`);
       // Il rollback viene usato soltanto per esiti classificati non ambigui.
       // Rimuoviamo quindi anche il marker started per consentire il retry pianificato.
@@ -2839,7 +2842,7 @@ var EmailProcessor = class EmailProcessor {
       console.warn(`  Impossibile eseguire il rollback della transazione in cache per ${messageId}: ${e.message}`);
     } finally {
       if (sendTxn && sendTxn.lock && typeof sendTxn.lock.releaseLock === 'function') {
-        sendTxn.lock.releaseLock();
+        try { sendTxn.lock.releaseLock(); } catch (_) { }
       }
     }
   }
@@ -3142,11 +3145,11 @@ var EmailProcessor = class EmailProcessor {
   _extractExplicitDateFromText_(text, defaultYear) {
     const monthMap = this._getItalianMonthMap_();
     const monthNames = Object.keys(monthMap).join('|');
-    const textualPattern = new RegExp(`(?<!\\d)(\\d{1,2})\\s+(${monthNames})(?:\\s+(\\d{4}))?(?!\\d)`, 'i');
-    const textualMatch = String(text || '').match(textualPattern);
-    if (textualMatch) {
+    const textualPattern = new RegExp(`(?<!\\d)(\\d{1,2})\\s+(${monthNames})(?:\\s+(\\d{4}))?(?!\\d)`, 'gi');
+    let textualMatch;
+    while ((textualMatch = textualPattern.exec(String(text || ''))) !== null) {
       const day = parseInt(textualMatch[1], 10);
-      const month = monthMap[textualMatch[2]];
+      const month = monthMap[textualMatch[2].toLowerCase()];
       const year = textualMatch[3] ? parseInt(textualMatch[3], 10) : defaultYear;
       const date = this._makeValidDateOnly_(year, month, day);
       if (date) {
@@ -3158,8 +3161,10 @@ var EmailProcessor = class EmailProcessor {
       }
     }
 
-    const numericMatch = String(text || '').match(/\b(\d{1,2})([\/.-])(\d{1,2})(?:\2(\d{2,4}))?(?![\/.-]\d)\b/);
-    if (numericMatch) {
+    const numericPattern = /\b(\d{1,2})([\/.-])(\d{1,2})(?:\2(\d{2,4}))?(?![\/.-]\d)\b/g;
+    let numericMatch;
+    while ((numericMatch = numericPattern.exec(String(text || ''))) !== null) {
+      if (numericMatch[2] === '.' && !numericMatch[4]) continue;
       const day = parseInt(numericMatch[1], 10);
       const month = parseInt(numericMatch[3], 10);
       let year = numericMatch[4] ? parseInt(numericMatch[4], 10) : defaultYear;
@@ -4005,6 +4010,7 @@ var EmailProcessor = class EmailProcessor {
         const ts = Number(state[existingHash]);
         if (Number.isFinite(ts) && ((now - ts) < cooldownSeconds * 1000)) nextState[existingHash] = ts;
       });
+      nextState[hash] = now;
       props.setProperty(stateKey, JSON.stringify(nextState));
     } catch (_) { }
   }
@@ -4422,7 +4428,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       // system instruction e farebbe fallire il vincolo "retry chirurgico".
       return '';
     }
-    return this._sliceRetryPromptTextSafely_(blocks.join('\n\n'), limit);
+    return this._repairRetryPromptXmlFences_(blocks.join('\n\n'), limit);
   }
 
   _renderRuntimeContextForCorrection_(runtimeContext = null, detectedLanguage = 'it', salutationMode = 'full') {
@@ -4731,6 +4737,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     if (!candidate || !Number.isFinite(limit) || limit <= 0) return '';
 
     for (let guard = 0; guard < 5; guard++) {
+      if (candidate.length > limit) candidate = this._sliceRetryPromptTextSafely_(candidate, limit);
       candidate = this._stripDanglingRetryPromptTagFragment_(candidate);
       const pendingClosures = this._getPendingRetryPromptXmlFenceClosures_(candidate);
       if (pendingClosures.length === 0) {
@@ -4744,16 +4751,16 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
 
       const bodyBudget = limit - suffix.length;
       if (bodyBudget <= 0) {
-        return this._sliceRetryPromptTextSafely_(candidate, limit);
+        return '';
       }
       const trimmed = this._sliceRetryPromptTextSafely_(candidate, bodyBudget).trimEnd();
       if (trimmed === candidate) {
-        return this._sliceRetryPromptTextSafely_(candidate, limit);
+        return '';
       }
       candidate = trimmed;
     }
 
-    return this._sliceRetryPromptTextSafely_(candidate, limit);
+    return '';
   }
 
   _getPendingRetryPromptXmlFenceClosures_(text) {
@@ -5208,8 +5215,11 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   _extractTimes(text) {
     if (!text || typeof text !== 'string') return [];
 
-    // Boundary Unicode: evita match dentro parole/sequenze numeriche, preservando "9:30" e "10 ore".
-    const matches = text.match(/(?<![\p{L}\p{N}_])(?:[01]?\d|2[0-3])(?:[:.][0-5]\d)(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_])(?:[01]?\d|2[0-3])(?=\s*(?:ore\b|am\b|pm\b|:))/giu) || [];
+    // Boundary Unicode: evita match dentro parole; distingue "ore 10" dalla durata "10 ore".
+    // Strip full numeric dates and explicit chapter:verse references before time parsing.
+    const source = text.replace(/\b\d{1,2}([./-])\d{1,2}\1\d{2,4}\b/g, ' ')
+      .replace(/\b(?:luca|matteo|marco|giovanni|luke|matthew|mark|john)\s+\d+:\d+(?:-\d+)?/gi, ' ');
+    const matches = source.match(/(?<![\p{L}\p{N}_]|\d[.:/-])(?:[01]?\d|2[0-3])[:.][0-5]\d(?![\p{L}\p{N}_]|[.:/-]\d)|(?<=\b(?:ore|alle|dalle)\s+)(?:[01]?\d|2[0-3])(?![\p{L}\p{N}_]|[.:]\d)|(?<![\p{L}\p{N}_])(?:[01]?\d|2[0-3])(?=\s*(?:am|pm)\b)/giu) || [];
     const normalized = matches.map((time) => {
       const parts = time.replace('.', ':').split(':');
       const hh = parts[0];
@@ -5467,7 +5477,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
 
     const matchedQuestioned = patterns.questioned.find(p => bodyLower.includes(p));
     const matchedExpansion = patterns.needs_expansion.find(p => bodyLower.includes(p));
-    const matchedAcknowledged = patterns.acknowledged.find(p => bodyLower.includes(p));
+    const negatedAck = /\b(?:non\s+(?:ho\s+)?ricevut\w*|non\s+[eè]\s+(?:tutto\s+)?chiar\w*|non\s+(?:ho\s+)?compreso|not\s+(?:received|understood|all\s+clear)|haven't\s+received|no\s+(?:he\s+)?recibid\w*)\b/i.test(bodyLower);
+    const matchedAcknowledged = !negatedAck && patterns.acknowledged.find(p => bodyLower.includes(p));
     const acknowledgementIsPure = Boolean(
       matchedAcknowledged &&
       wordCount <= 16 &&
@@ -5792,7 +5803,9 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     return String(text || '').split(/\r?\n/)
       .filter(line => !/^\s*>/.test(line))
       .join('\n').split(/(?:-{2,}\s*(?:original|messaggio)|on .{0,100}wrote:|il .{0,100}ha scritto:)/i)[0]
-      .replace(/"[^"\n]*"|“[^”\n]*”|«[^»\n]*»|'[^'\n]{3,}'/g, '')
+      .replace(/"[^"\n]*"|“[^”\n]*”|«[^»\n]*»|(?<![\p{L}\p{N}])'[^'\n]{3,}'(?![\p{L}\p{N}])/gu, '')
+      .replace(/\bsì(?=\W|$)/gi, 'certamente')
+      .replace(/\bsi\s+(trova|trovano|puo|può|riesce)\b/gi, '$1')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
       .replace(/[^.!?;\n]*\?/g, '')
       .replace(/\b(?:ma|but|mais|pero|mas|aber)\b/g, '\n')
@@ -5988,7 +6001,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
             if (!rule.pattern.test(clause)) return false;
             if (['health', 'mobility', 'legal_restriction'].includes(rule.type)) {
               return /\b(?:sono|siamo|ho|abbiamo|mi trovo|ci troviamo|soffro)\b/.test(clause) &&
-                !/\b(?:non|mai)\b/.test(clause);
+                !/\b(?:non|mai)\s+(?:sono|siamo|ho|abbiamo|mi\s+trovo|ci\s+troviamo|soffro)\b/.test(clause);
             }
             if (rule.type === 'remote_request') return /\b(?:vorrei|vorremmo|preferisco|preferiamo|chiedo|chiediamo|posso|possiamo)\b/.test(clause);
             return true;
@@ -6084,7 +6097,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     };
 
     // Fallback su italiano se lingua non supportata
-    const pattern = monthPatterns[language] || monthPatterns['it'];
+    monthPatterns.fr = /\b(?:aujourd'hui|demain|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|janvier|f[eé]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[eé]cembre)\b/i;
+    const pattern = monthPatterns[this._normalizeLanguageCode_(language, 'it')] || monthPatterns['it'];
     return pattern.test(text);
   }
 

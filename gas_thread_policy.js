@@ -165,19 +165,19 @@ var ThreadPolicy = {
       const senderThrottleLock = LockService.getScriptLock();
       let senderThrottleLockAcquired = false;
       try {
-        senderThrottleLockAcquired = senderThrottleLock.tryLock(500);
-        if (senderThrottleLockAcquired) {
+        const callerOwnsLock = Boolean(lockCtx && lockCtx.lockCovered);
+        senderThrottleLockAcquired = !callerOwnsLock && senderThrottleLock.tryLock(500);
+        if (callerOwnsLock || senderThrottleLockAcquired) {
           senderThrottleAlreadySet = Boolean(senderThrottleCache.get(senderThrottleKey));
           if (!senderThrottleAlreadySet) {
             senderThrottleCache.put(senderThrottleKey, '1', senderThrottleWindowSeconds);
           }
         } else {
-          // Fallback best-effort: in assenza lock evitiamo di bloccare il flusso.
-          senderThrottleAlreadySet = Boolean(senderThrottleCache.get(senderThrottleKey));
-          if (!senderThrottleAlreadySet) {
-            senderThrottleCache.put(senderThrottleKey, '1', senderThrottleWindowSeconds);
-          }
-          threadLogger.warn('Sender throttle lock non acquisito, applicazione in modalità best-effort');
+          // Rinvia senza check+put non atomici e senza consumare il burst.
+          threadLogger.warn('Sender throttle lock occupato: rinvio il thread');
+          result.status = 'dilata';
+          result.reason = 'sender_throttle_lock_busy';
+          return { terminal: true };
         }
       } finally {
         if (senderThrottleLockAcquired && senderThrottleLock && typeof senderThrottleLock.releaseLock === 'function') {
