@@ -1,5 +1,7 @@
 # 📁 Asset Visivi
 
+> Gli SVG e il PDF in questa cartella sono esportazioni statiche precedenti; non sono stati rigenerati con questa revisione. I [diagrammi Markdown correnti](../ARCHITECTURE_DIAGRAMS_IT.md) e la [guida lingua](../LANGUAGE_MODES_IT.md) descrivono il codice al 29 settembre 2026.
+
 [![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](README.md)
 
 > **Cartella per diagrammi e asset visivi del sistema**

@@ -1,55 +1,29 @@
-# ❓ Frequently Asked Questions (FAQ)
+# FAQ
 
-[![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](FAQ_IT.md)
+Updated 29 September 2026.
 
-> **Answers to common questions for non-technical users and administrators**
+## Does it handle Italian?
 
----
+Yes, with **Tutte le lingue** in Controllo!F2. **Solo straniere** defers identified Italian with `·`. Switching back makes still-unread, otherwise eligible messages candidates again. [Details](LANGUAGE_MODES.md).
 
-## 👥 Non-Technical Section (Priests, Secretaries)
+## Does IA prove a reply was sent?
 
-### 1. Does the system replace the human secretary?
-**No.** The system is an *assistant*. It handles repetitive questions (times, certificates, addresses) to free up valuable time for the human secretariat, who can then dedicate themselves to listening and handling complex situations.
+No. It means handled and is also used by some no-reply filters. Check sent mail and individual message state.
 
-### 2. What if the AI gives a wrong answer?
-The system has an internal check ("self-evaluation"). If it is not sure of the answer, it does not send it but saves it in the **"Verifica" (Check)** folder in Gmail. A human will have to check that folder and reply manually.
+## Does Verifica contain an approval draft?
 
-### 3. How do I teach it new things?
-Just write the information in the Google Sheet (Knowledge Base). For example, if mass times change, just update the "Instructions" sheet and the system will immediately use the new times. No need to touch the code.
+The code does not automatically create a draft. Review can mean a block, a warning after sending or uncertain delivery; inspect before replying manually.
 
-### 4. Can it handle attachments?
-**Yes and No.** The system **READS** the content of PDF and image attachments (receipts, documents, IBANs) using built-in OCR to better understand the request. However, it responds only with **text**. If it needs to send a form, it sends the download link.
+## Does it always run?
 
-### 5. Does it reply to everyone? Even spam?
-No. The system has intelligent filters. It ignores newsletters, advertising, and spam. It only responds to emails that seem written by real people with legitimate requests.
+It depends on the switch, triggers, suspension, filters, quotas and deadlines. Office attendance ranges suspend it; handled holidays and vacation periods keep it active unless switched off.
 
-### 6. What happens if someone writes offensive or strange things?
-The system tries to respond courteously if possible, but if the request is inappropriate or out of context, it classifies it as such and leaves it for human management.
+## Is dry-run offline?
 
-### 7. Does it reply at night?
-It depends on how it is configured. By default, to seem more "human", it can be set not to reply at night or to pause responses until the next morning. However, technically it can reply 24/7 if desired.
+No. It prevents the response send but can call services and write logs/technical state. Use Node suites for offline tests.
 
----
+## Does configuration guarantee free service or error-free replies?
 
-## 💻 Technical Section (System Administrators)
+No. Model IDs and quotas are local settings; access and terms depend on the provider project. Validators reduce errors without eliminating them.
 
-### 1. How do I load the script?
-If you use GitHub integration, do a `git pull` and then `clasp push`. Otherwise, copy the code into the Apps Script editor. **Warning**: do not overwrite `gas_config.js` if it contains your customizations.
-
-### 2. What happens if the Gemini API quota runs out?
-The system will stop responding and will log the error. You can monitor the quota on the Google Cloud Console. We recommend setting up an alert. If it happens, the system will resume the next day upon quota reset.
-
-### 3. How does the Knowledge Base cache work?
-To save Sheet reads and speed up, the KB is saved in `CacheService` for 6 hours. Additionally, on each load the system compares the Spreadsheet `modifiedTime`: if the sheet was modified after `lastLoadedAt`, cache is selectively invalidated and resources are reloaded immediately.
-
-### 4. Can I use a model other than Gemini?
-The system is built modularly around the Google Vertex AI / Gemini SDK. Changing providers (e.g., OpenAI) would require rewriting the `GeminiService` class. Changing Gemini *version* (e.g., from `flash` to `pro`) is very easy: just change a constant in `gas_config.js`.
-
-### 5. Where do I see error logs?
-In the Apps Script dashboard under "Executions". The system also uses `console.error` which is captured by StackDriver (Google Cloud Logging) if associated with a standard GCP project.
-
-### 6. How does it manage concurrency?
-It uses `LockService` to prevent two simultaneous executions from replying to the same email. Additionally, it uses an "Optimistic Locking" mechanism for conversational memory on Sheet to avoid overwrites.
-
-### 7. Is it possible to test changes without sending real emails?
-Yes. Set `DRY_RUN: true` in `gas_config.js`. The system will do everything (reading, reasoning, draft generation) but **will not send** the final email, writing instead in the logs what it would have done.
+[Configuration](CONFIGURATION.md) · [Troubleshooting](TROUBLESHOOTING.md)

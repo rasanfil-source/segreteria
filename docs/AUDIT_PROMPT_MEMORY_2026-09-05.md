@@ -1,5 +1,7 @@
 # Audit di prompting e memoria conversazionale — 5 settembre 2026
 
+> **Rapporto storico.** Risultati e conteggi si riferiscono alla data del documento. Per il funzionamento corrente vedere [architettura](ARCHITECTURE_IT.md), [configurazione](CONFIGURATION_IT.md) e [modalità lingua](LANGUAGE_MODES_IT.md). La pulizia del 29 settembre 2026 ha rimosso script scratch, log e risultati intermedi citati; non sono prerequisiti della suite attuale. Sono conservati la base di conoscenza Excel aggiornata e la baseline del confronto opzionale. I comandi storici che usano file rimossi non vanno eseguiti.
+
 Analisi locale successiva alle correzioni Gmail del commit `f32d156`.
 Le correzioni Gmail sono state pubblicate su `main` e applicate ai progetti GAS Parrocchia e donRaimondo. Una lettura via Apps Script API ha verificato che entrambi i file modificati coincidono con il codice locale. Per donRaimondo la scrittura è stata effettuata dall'editor con l'account autorizzato, perché le credenziali CLI avevano accesso in sola lettura.
 
@@ -45,7 +47,7 @@ Correzione proposta: stabilire un ordinamento coerente per ultima interazione, s
 
 ## Riproduzione e limiti
 
-Eseguire `node scratch/audit_prompt_memory_repros.js` dalla radice del repository.
+La riproduzione storica usava `scratch/audit_prompt_memory_repros.js`, rimosso nella pulizia. Per la regressione permanente eseguire `node tests/test_presence_memory_reconciliation.js` dalla radice del repository.
 Lo script esegue i metodi reali e, per i due passaggi di orchestrazione, i blocchi estratti direttamente da `processThread`. Gli assert confermano i difetti attuali: è diagnostica, non una suite che ne dichiara la risoluzione.
 
 I tre problemi di questo rapporto non sono stati corretti o distribuiti: questa fase della richiesta era un'analisi. Non sono state lette conversazioni personali o modificate le righe della memoria reale. Gli effetti sulle risposte del modello sono dedotti dalle istruzioni prodotte; le contraddizioni e la perdita dei topic sono riprodotte deterministicamente.

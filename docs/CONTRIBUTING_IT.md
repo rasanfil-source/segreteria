@@ -20,8 +20,17 @@ Grazie per il tuo interesse nel contribuire a SPA! Accogliamo contributi da svil
 *   I nomi variabili devono essere descrittivi (camelCase).
 
 ### Testing
+
+Su Windows usare PowerShell 7:
+
+```powershell
+pwsh.exe -NoLogo -NoProfile -Command "node scripts/run_ci_test_suite.js"
+```
+
+La suite comprende copertura V8 e servizi simulati. Non richiede scratch o vecchi log. Una modifica alla modalità lingua va verificata anche sui messaggi con · e sul cambio modalità.
+
 *   **Unit Tests**: Esegui `node gas_unit_tests.js` localmente o `runAllTests()` nell'editor GAS.
-*   **Suite Node equivalente CI**: Esegui `bash scripts/run_ci_test_suite.sh` per lanciare smoke + unit + test modulari Node (`tests/test_*.js`) con la stessa orchestrazione usata in GitHub Actions.
+*   **Suite Node equivalente CI**: Esegui `node scripts/run_ci_test_suite.js` per lanciare smoke + unit + test modulari Node (`tests/test_*.js`) con la stessa orchestrazione usata in GitHub Actions.
 *   **Sicurezza**: Assicurati che le tue modifiche non compromettano la "Safety Valve" o la logica di Rate Limiting.
 *   **Sensibilità Pastorale**: Ogni modifica che influenza la generazione delle risposte deve essere testata contro scenari pastorali (es. lutto, disagio spirituale) per garantire che il tono rimanga appropriato.
 

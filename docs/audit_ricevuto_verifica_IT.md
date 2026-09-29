@@ -1,5 +1,7 @@
 # Verifica dell'audit ricevuto — 25 settembre 2026
 
+> **Rapporto storico.** Risultati e conteggi si riferiscono alla data del documento. Per il funzionamento corrente vedere [architettura](ARCHITECTURE_IT.md), [configurazione](CONFIGURATION_IT.md) e [modalità lingua](LANGUAGE_MODES_IT.md). La pulizia del 29 settembre 2026 ha rimosso script scratch, log e risultati intermedi citati; non sono prerequisiti della suite attuale. Sono conservati la base di conoscenza Excel aggiornata e la baseline del confronto opzionale. I comandi storici che usano file rimossi non vanno eseguiti.
+
 Riferimento della valutazione iniziale: workspace pulito, commit `a16a7d9639564d6b6213dd928e269782afaa7e86`. Le prove iniziali qui sotto precedono le correzioni. Su successiva autorizzazione sono stati implementati i punti 1, 4, 2, 5a e 5b, nell'ordine concordato; risultati nella sezione finale. Nessun invio o chiamata Google/Gemini reale.
 
 ## Esito
@@ -101,11 +103,11 @@ Un fallback `n/a` nel solo log è appropriato e di bassa priorità.
 
 ## Riproducibilità e priorità
 
-Script locale: `scratch/verify_received_audit.js`.
+Script storico rimosso: `scratch/verify_received_audit.js`.
 Risultati completi: `outputs/received-audit-reproductions.json`.
 
 ```text
-pwsh.exe -NoLogo -NoProfile -Command "node scratch/verify_received_audit.js"
+pwsh.exe -NoLogo -NoProfile -Command "node scripts/run_ci_test_suite.js"
 ```
 
 Lo script riproduce e asserisce il comportamento difettoso attuale: è materiale di audit, non un test di regressione da aggiungere alla CI senza cambiarne le aspettative. Le chiamate AI e Gmail sono simulate. La suite completa non è stata rieseguita per questa valutazione perché il codice applicativo non è cambiato.
@@ -142,4 +144,4 @@ pwsh.exe -NoLogo -NoProfile -Command "node scripts/run_ci_test_suite.js"
 pwsh.exe -NoLogo -NoProfile -Command "git diff --check"
 ```
 
-Le verifiche sono offline: dimostrano routing, contratti, prompt e controlli deterministici con servizi simulati, non l'efficacia linguistica di ogni futura risposta Gemini. I controlli aggiunti alle false certezze coprono formulazioni italiane e inglesi; non costituiscono un riconoscitore esaustivo di ogni parafrasi. Nessun deploy, push, merge o invio reale è stato eseguito. Lo script `scratch/verify_received_audit.js` resta una riproduzione storica dei difetti e non va usato come suite dopo le correzioni.
+Le verifiche sono offline: dimostrano routing, contratti, prompt e controlli deterministici con servizi simulati, non l'efficacia linguistica di ogni futura risposta Gemini. I controlli aggiunti alle false certezze coprono formulazioni italiane e inglesi; non costituiscono un riconoscitore esaustivo di ogni parafrasi. Nessun deploy, push, merge o invio reale è stato eseguito. Lo script storico `scratch/verify_received_audit.js` è stato rimosso; il comando sopra esegue la suite corrente, non riproduce gli esiti precedenti alle correzioni.

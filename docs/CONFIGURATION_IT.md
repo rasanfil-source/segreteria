@@ -1,88 +1,77 @@
-# Configurazione Avanzata
+# Configurazione
 
-[![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](CONFIGURATION.md)
+Codice locale verificato il 29 settembre 2026. [English](CONFIGURATION.md)
 
-Questo documento descrive i parametri di configurazione disponibili nel file `gas_config.js`.
-Usa `gas_config.example.js` come template nel repository e crea il file locale `gas_config.js` per i valori runtime.
+## Dove configurare
 
-## Configurazione Principale (`CONFIG`)
+`gas_config.js` è tracciato e contiene i parametri runtime. `gas_config.example.js` è il modello di riferimento, escluso da clasp: non sovrascrivere una configurazione esistente per applicare una modifica puntuale. Credenziali e impostazioni per ambiente vanno nelle Script Properties.
 
-### Impostazioni API
-- **GEMINI_API_KEY**: La tua chiave API Gemini (salvata nelle Proprietà dello Script).
-- **MODEL_NAME**: Modello predefinito per la generazione qualità (attuale `gemini-3.5-flash`).
-- **GEMINI_CONTEXT_CACHE**: Di default è disabilitata per Free Tier. Abilitala solo se AI Studio mostra `cachedContents` disponibile per il progetto; se l'endpoint non è disponibile, il servizio degrada a `generateContent` diretto.
-- **GEMINI_FREE_TIER_NOTES**: Valori storici di pianificazione locale, non garanzie del fornitore. `GEMINI_MODELS` configura Gemini 3.7 Flash per la generazione e Gemini 3.5 Flash-Lite per i task ausiliari. Verificare accesso ai modelli e quote del progetto in AI Studio. Vedi [audit operativo e migrazione](RELIABILITY_AUDIT_2026-09-22.md).
+| Proprietà | Uso |
+|---|---|
+| `GEMINI_API_KEY` | Chiave primaria, richiesta. |
+| `SPREADSHEET_ID` | Spreadsheet delle risorse e memoria, richiesto. |
+| `GEMINI_API_KEY_BACKUP` | Chiave di riserva opzionale. |
+| `BOT_EMAIL`, `KNOWN_ALIASES` | Identità e alias del bot; verificare quelli dell'ambiente. |
+| `PERSONAL_IGNORE_SENDERS` | Caselle personali escluse; array JSON o elenco separato supportato dal parser. |
+| `ADMIN_EMAIL` | Destinatario delle notifiche amministrative configurate. |
+| `VALIDATION_REVIEW_EMAIL` | Destinatario delle notifiche di revisione. |
+| `METRICS_SHEET_ID` | Spreadsheet opzionale per `DailyMetrics`. |
 
-### Gmail e Processamento
-- **LABEL_NAME**: `IA` (Email processate con successo).
-- **ERROR_LABEL_NAME**: `Errore` (Elaborazione fallita).
-- **VALIDATION_ERROR_LABEL**: `Verifica` (Richiede revisione umana).
-- **SKIP_LABEL_NAME**: `·` (Email italiane saltate quando è attiva la modalità `foreign_only`).
-- **MAX_EMAILS_PER_RUN**: `2` (Numero massimo di email per esecuzione per evitare timeout). Impostalo a `0` per sospendere temporaneamente l'elaborazione senza fare discovery Gmail.
-- **MESSAGE_DISCOVERY_MODE**: `metadata` (Discovery message-level predefinita via list/get metadata Gmail; `query` resta il fallback legacy).
+La migrazione degli indirizzi personali dai vecchi sorgenti è descritta nel [rapporto affidabilità](RELIABILITY_AUDIT_2026-09-22.md). Una proprietà assente non ricostruisce la vecchia blacklist.
 
-### Knowledge Base (Google Sheets)
-- **SPREADSHEET_ID**: ID del tuo foglio Google (salvato nelle Proprietà dello Script).
-- **Nomi Fogli**:
-    - `KB_SHEET_NAME`: Istruzioni e info generali.
-    - `AI_CORE_LITE_SHEET`: Info tecniche/semplici.
-    - `AI_CORE_SHEET`: Info pastorali profonde.
-    - `DOCTRINE_SHEET`: Riferimenti dottrinali.
-    - `MEMORY_SHEET_NAME`: Memoria conversazioni.
+## Foglio Controllo
 
-### Funzionalità
-- **DRY_RUN**: `false` (Imposta a `true` per testare senza inviare email reali).
-- **USE_RATE_LIMITER**: `true` (Abilita il limitatore di velocità intelligente).
-- **VALIDATION_ENABLED**: `true` (Abilita il controllo qualità sulle risposte).
+| Celle | Significato |
+|---|---|
+| `B2` | Interruttore; un valore contenente `Spento` disabilita il sistema. |
+| `F2` | `Tutte le lingue` → `all`; `Solo straniere` → `foreign_only`. |
+| `B5:E7` | Assenze; inizio B, fine D nel layout corrente, con varianti legacy gestite dal parser. |
+| `A10:D16` | Sospensione settimanale: giorno A, inizio B, fine D; compatibile con giorno in B e inizio in C del layout legacy. |
+| `E13:F` | Domini/mittenti e parole da escludere, uniti ai filtri statici. |
+| `A19` | Email per la revisione letta nella configurazione avanzata. |
 
-### Configurazione Modelli Gemini
-Il sistema usa una strategia per selezionare i modelli:
-1. **flash-3.5**: Percorso principale per generare risposte finali di qualità.
-2. **flash-3.5-backup**: Stesso modello qualità su chiave di riserva.
-3. **flash-lite / flash-3.5-lite**: Controlli rapidi, categoria, lingua AI, controlli semantici e scarti newsletter.
-4. **flash-3.5-lite-backup**: Fallback lite su chiave di riserva.
+Le fasce sospendono l'automatismo durante la presenza della segreteria. Le assenze e le festività gestite dal codice lo mantengono attivo, salvo `B2` spento. Se `Controllo` manca si usa il fallback statico `SUSPENSION_HOURS`; se esiste senza fasce valide, con `STRICT_SUSPENSION_CONFIG=false` non ci sono fasce di sospensione. Una riga oraria non vuota e malformata causa errore di configurazione. Con modalità rigorosa attiva anche l'assenza di fasce valide è errore.
 
-## Proprietà dello Script
-Questi valori devono essere impostati in **Impostazioni Progetto > Proprietà dello Script**:
-- `GEMINI_API_KEY`
-- `SPREADSHEET_ID`
-- `METRICS_SHEET_ID` (Opzionale, per statistiche giornaliere)
-- `ADMIN_EMAIL` (Opzionale, notifiche errori critici)
-- `VALIDATION_REVIEW_EMAIL` (Opzionale, alert di validazione per revisione umana)
+In **Tutte le lingue** italiano e altre lingue sono ammissibili. In **Solo straniere** l'italiano riconosciuto viene rinviato con `·`, senza risposta e mantenendo lo stato non letto. Tornando a tutte le lingue può rientrare tra i candidati, se ancora lavorabile. F2 vuota/non riconosciuta ripiega su tutte le lingue. Vedi [rilevamento e cambio modalità](LANGUAGE_MODES_IT.md).
 
-## OCR Allegati (`ATTACHMENT_CONTEXT`)
+`setupConfigurationSheets()` prepara il layout usando lo spreadsheet attivo e può cancellare il contenuto di `Controllo!A1:Z300`: usarlo per il setup, dopo aver salvato i dati necessari. `applyValidationOnly()` applica i vincoli senza ricreare l'intero layout. Un cambio F2 non richiede di ripetere il setup.
 
-> **Prerequisito**: Abilitare il **Drive Advanced Service** nell'editor dello script e la **Drive API** nel progetto GCP collegato.
+## Parametri effettivi
 
-Questa funzionalità estrae il testo da allegati PDF e immagini utilizzando l'OCR integrato di Google Drive, includendo poi il testo nel prompt per l'analisi.
+| Parametro | Valore nel codice |
+|---|---:|
+| `MAX_EMAILS_PER_RUN` | 2; 0 sospende prima della discovery nel processor |
+| `MAX_EXECUTION_TIME_MS` | 280000 |
+| `MIN_REMAINING_TIME_MS` | 90000 |
+| `MAX_HISTORY_MESSAGES` | 8 |
+| `CACHE_LOCK_TTL` | 310 secondi |
+| `SUSPENSION_STALE_UNREAD_HOURS` | 12 ore |
+| `MESSAGE_DISCOVERY_MODE` | `metadata` |
+| `BATCH_CHECKPOINT_TTL_MS` | 600000 |
+| `BATCH_CHECKPOINT_MAX_RETRIES` | 3 |
+| `VALIDATION_MIN_SCORE` | 0.6 |
+| `VALIDATION_WARNING_THRESHOLD` | 0.9 |
+| `CRISIS_HUMAN_REVIEW` | true |
+| `INTELLIGENT_RETRY.maxRetries` | 1 |
+| `MAX_SAFE_TOKENS` / `MAX_SAFE_PROMPT_CHARS` | 100000 / 100000 |
+| `MAX_OUTPUT_TOKENS` | 6000 |
+| `MAX_PROVIDED_TOPICS` | 50 |
+| `MEMORY_MAX_SUMMARY_BULLETS` | 5 |
+| `SENSITIVE_FLAGS_TTL_DAYS` | 180 |
+| `DRY_RUN` / `USE_RATE_LIMITER` | false / true |
 
-### Parametri
-| Parametro | Default | Descrizione |
-|-----------|---------|-------------|
-| `enabled` | `true` | Abilita/disabilita l'elaborazione OCR degli allegati |
-| `maxFiles` | `3` | Numero massimo di allegati da processare per email |
-| `maxBytesPerFile` | `3MB` | Dimensione massima per allegato |
-| `maxMessageBytesForAttachmentDownload` | `25MB` | Dimensione massima stimata del messaggio prima di scaricare gli allegati |
-| `maxCharsPerFile` | `3000` | Caratteri massimi estratti per file |
-| `maxTotalChars` | `9000` | Caratteri totali massimi da tutti gli allegati |
-| `ocrLanguage` | `'it'` | Codice lingua OCR (può essere sovrascritto dinamicamente con lingua email rilevata) |
-| `ocrConfidenceWarningThreshold` | `0.8` | Soglia minima di affidabilità OCR per aggiungere una nota di leggibilità in risposta |
-| `pdfMaxPages` | `2` | Limite pagine stimato per PDF |
-| `pdfCharsPerPage` | `1800` | Caratteri stimati per pagina PDF |
-| `ocrTriggerKeywords` | `iban`, `bonifico`, `ricevuta`, `documento`, `allego`, `in allegato`, `coordinate`, `modulo` | Keyword che attivano OCR quando il body è rilevante |
-| `ibanFocusEnabled` | `true` | Riduce il contesto OCR attorno all'IBAN quando viene rilevato |
-| `maxCharsWhenKbTruncated` | `1500` | Limite più prudente per allegati quando la KB è già troncata |
+Le soglie non sono una garanzia di qualità: alcuni errori bloccano a prescindere dallo score. Diagnosticare la causa di `Verifica` prima di modificare la validazione. Il dry-run blocca l'invio della risposta ma può accedere ai servizi, consumare chiamate Gemini, modificare stato tecnico e produrre log.
 
-### Tipi di File Supportati
-- **Documenti PDF** (`.pdf`)
-- **Immagini** (`.jpg`, `.png`, `.gif`, `.bmp`, ecc.)
+## Modelli
 
-### Funzionamento
-1. Il sistema carica l'allegato su Google Drive con OCR abilitato
-2. Drive converte automaticamente il file in un Google Doc con testo estratto
-3. Il testo viene recuperato e il file temporaneo eliminato
-4. Il testo estratto viene incluso nel prompt come contesto
+La generazione usa nell'ordine `flash-3.7`, `flash-3.7-backup`, `flash-lite`, `flash-lite-backup`. I primi due risolvono a `gemini-3.7-flash`; gli altri a `gemini-3.5-flash-lite`. Quick-check, classificazione, lingua, semantica e riassunto newsletter hanno strategie Lite. `MODEL_NAME` è `gemini-3.7-flash`.
 
-## Soglie di Validazione
-- **VALIDATION_MIN_SCORE**: `0.6` (Punteggio minimo per invio automatico). Abbassalo a 0.5 se troppe email vengono marcate come "Verifica".
+Questi sono identificativi e budget configurati localmente: disponibilità, quote e condizioni effettive vanno verificate nell'ambiente del fornitore. Alias e chiavi backup non dimostrano quote indipendenti. Il conteggio token resta locale; `GEMINI_CONTEXT_CACHE` non è una configurazione implementata nel codice attuale.
 
+## Allegati
+
+`ATTACHMENT_CONTEXT` è abilitato: massimo 3 file, 3 MiB per file, precontrollo messaggio 25 MiB, 3000 caratteri per file e 9000 totali. L'elaborazione supporta PDF, immagini e formati Office tramite percorsi di estrazione/conversione; dipende da tipo, intento, tempo e servizi disponibili. La stima PDF usa 2 pagine e 1800 caratteri per pagina, non un parser che garantisce un taglio fisico esatto.
+
+Il codice può recuperare allegati precedenti pertinenti nel thread: la presenza di un allegato storico non prova una nuova consegna. Testo OCR, nome del file e intento del messaggio vengono valutati insieme. In caso di OCR incompleto/non disponibile non si deve documentare l'allegato come certamente verificato.
+
+Vedi [architettura](ARCHITECTURE_IT.md), [deploy](DEPLOYMENT_IT.md) e [test](validator_testing.md).

@@ -182,8 +182,7 @@ var Classifier = class Classifier {
     }
     // Corpo vuoto + soggetto generico (es. "Re: Orari messe") → passa a Gemini
     if ((!mainContent || !mainContent.trim()) && isReply) {
-      const subjectClean = safeSubject.replace(/^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]\s*/i, '').trim();
-      if (subjectClean.length > 3 && subjectClean.length < 50 && !this._isGreetingOnly(subjectForChecks) && !this._isUltraSimpleAcknowledgment(subjectForChecks)) {
+      if (subjectForChecks.length > 3 && subjectForChecks.length < 50 && !this._isGreetingOnly(subjectForChecks) && !this._isUltraSimpleAcknowledgment(subjectForChecks)) {
         console.log('      ✓ Body vuoto ma subject ragionevole -> Passa a Gemini');
         return {
           shouldReply: true,

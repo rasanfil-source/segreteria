@@ -1,5 +1,7 @@
 # Verifica delle 13 incongruenze — 8 settembre 2026
 
+> **Rapporto storico.** Risultati e conteggi si riferiscono alla data del documento. Per il funzionamento corrente vedere [architettura](ARCHITECTURE_IT.md), [configurazione](CONFIGURATION_IT.md) e [modalità lingua](LANGUAGE_MODES_IT.md). La pulizia del 29 settembre 2026 ha rimosso script scratch, log e risultati intermedi citati; non sono prerequisiti della suite attuale. Sono conservati la base di conoscenza Excel aggiornata e la baseline del confronto opzionale. I comandi storici che usano file rimossi non vanno eseguiti.
+
 Verifica sul codice locale e correzioni accompagnate da regressioni Node. Nessun invio email, chiamata Gemini o deploy Google Apps Script.
 
 | Punto | Esito | Intervento / motivazione |

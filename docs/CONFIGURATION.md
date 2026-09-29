@@ -1,88 +1,57 @@
-# Advanced Configuration
+# Configuration
 
-[![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](CONFIGURATION_IT.md)
+Checked against local source on 29 September 2026. [Italiano](CONFIGURATION_IT.md)
 
-This document details the configuration parameters available in `gas_config.js`.
-Use `gas_config.example.js` as template in repository and create your local `gas_config.js` file for runtime settings.
-
-## Core Configuration (`CONFIG`)
-
-### API Settings
-- **GEMINI_API_KEY**: Your Google Gemini API Key (stored in Script Properties).
-- **MODEL_NAME**: Default quality-generation model (currently `gemini-3.5-flash`).
-- **GEMINI_CONTEXT_CACHE**: Disabled by default for Free Tier. Enable it only if AI Studio shows `cachedContents` available for the project; if the endpoint is unavailable, the service falls back to direct `generateContent`.
-- **GEMINI_FREE_TIER_NOTES**: Historical local planning values, not provider guarantees. Current `GEMINI_MODELS` configures Gemini 3.7 Flash for generation and Gemini 3.5 Flash-Lite for auxiliary tasks. Verify model access and project limits in AI Studio. See [operational audit and migration](RELIABILITY_AUDIT_2026-09-22.md).
-
-### Gmail & Processing
-- **LABEL_NAME**: `IA` (Processed emails)
-- **ERROR_LABEL_NAME**: `Errore` (Failed processing)
-- **VALIDATION_ERROR_LABEL**: `Verifica` (Needs human review)
-- **SKIP_LABEL_NAME**: `·` (Italian emails skipped when `foreign_only` mode is active)
-- **MAX_EMAILS_PER_RUN**: `2` (Limits execution batch size to prevent timeouts). Set it to `0` to temporarily suspend processing without running Gmail discovery.
-- **MESSAGE_DISCOVERY_MODE**: `metadata` (Default message-level discovery via Gmail list/get metadata; `query` remains the legacy fallback).
-
-### Knowledge Base (Google Sheets)
-- **SPREADSHEET_ID**: ID of your Google Sheet (stored in Script Properties).
-- **Sheet Names**:
-    - `KB_SHEET_NAME`: Instructions/General Info
-    - `AI_CORE_LITE_SHEET`: Technical/Simple info
-    - `AI_CORE_SHEET`: Deep pastoral info
-    - `DOCTRINE_SHEET`: Doctrinal references
-    - `MEMORY_SHEET_NAME`: Conversation history
-
-### Features
-- **DRY_RUN**: `false` (Set to `true` to test without sending emails).
-- **USE_RATE_LIMITER**: `true` (Enables smart rate limiting).
-- **VALIDATION_ENABLED**: `true` (Enables quality checks on responses).
-
-### Gemini Models Configuration
-The system uses a strategy to select models:
-1. **flash-3.5**: Primary path for final quality responses.
-2. **flash-3.5-backup**: Same quality model on the backup key.
-3. **flash-lite / flash-3.5-lite**: Quick checks, category, AI language, semantic checks, and newsletter discard summaries.
-4. **flash-3.5-lite-backup**: Lite fallback on the backup key.
+`gas_config.js` is tracked and supplies runtime settings. `gas_config.example.js` is an excluded deployment template; do not overwrite an existing configuration just to change one setting.
 
 ## Script Properties
-These values must be set in **Project Settings > Script Properties**:
-- `GEMINI_API_KEY`
-- `SPREADSHEET_ID`
-- `METRICS_SHEET_ID` (Optional, for daily stats)
-- `ADMIN_EMAIL` (Optional, critical error notifications)
-- `VALIDATION_REVIEW_EMAIL` (Optional, human-review validation alerts)
 
-## Attachment OCR (`ATTACHMENT_CONTEXT`)
+Required: `GEMINI_API_KEY`, `SPREADSHEET_ID`. Environment settings include `BOT_EMAIL`, `KNOWN_ALIASES`, optional `GEMINI_API_KEY_BACKUP`, `PERSONAL_IGNORE_SENDERS`, `ADMIN_EMAIL`, `VALIDATION_REVIEW_EMAIL` and `METRICS_SHEET_ID`. Personal exclusions accept the formats implemented by the parser; an absent property means no personal list. See the [migration record](RELIABILITY_AUDIT_2026-09-22.md).
 
-> **Prerequisite**: Enable the **Drive Advanced Service** in the script editor and the **Drive API** in the linked GCP project.
+## Control sheet
 
-This feature extracts text from PDF and image attachments using Google Drive's built-in OCR, then includes that text in the prompt for analysis.
+| Cells | Purpose |
+|---|---|
+| `B2` | Master switch; a value containing `Spento` disables processing. |
+| `F2` | `Tutte le lingue` = all languages; `Solo straniere` = non-Italian only. |
+| `B5:E7` | Vacation periods; start in B, end in D in the current layout. |
+| `A10:D16` | Weekly suspension: day A, start B, end D; legacy B/C/D layout also supported. |
+| `E13:F` | Sender/domain and keyword exclusions, merged with static filters. |
+| `A19` | Review notification recipient. |
 
-### Parameters
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `enabled` | `true` | Enable/disable attachment OCR processing |
-| `maxFiles` | `3` | Maximum number of attachments to process per email |
-| `maxBytesPerFile` | `3MB` | Maximum file size per attachment |
-| `maxMessageBytesForAttachmentDownload` | `25MB` | Maximum estimated message size before downloading attachments |
-| `maxCharsPerFile` | `3000` | Maximum characters extracted per file |
-| `maxTotalChars` | `9000` | Maximum total characters from all attachments |
-| `ocrLanguage` | `'it'` | OCR language code (can be dynamically overridden by detected email language) |
-| `ocrConfidenceWarningThreshold` | `0.8` | Minimum OCR confidence before appending a readability warning note |
-| `pdfMaxPages` | `2` | Estimated page limit for PDFs |
-| `pdfCharsPerPage` | `1800` | Estimated characters per PDF page |
-| `ocrTriggerKeywords` | `iban`, `bonifico`, `ricevuta`, `documento`, `allego`, `in allegato`, `coordinate`, `modulo` | Keywords that trigger OCR when the body is relevant |
-| `ibanFocusEnabled` | `true` | Narrows OCR context around an IBAN when detected |
-| `maxCharsWhenKbTruncated` | `1500` | More conservative attachment text limit when the KB is already truncated |
+Office attendance ranges **suspend** automation. Vacation and holidays handled by the code keep it active unless the master switch is off. A missing control sheet uses static `SUSPENSION_HOURS`. A present sheet with no ranges permits round-the-clock operation when `STRICT_SUSPENSION_CONFIG=false`; strict mode rejects missing valid ranges. Nonempty malformed time rows cause configuration errors.
 
-### Supported File Types
-- **PDF documents** (`.pdf`)
-- **Images** (`.jpg`, `.png`, `.gif`, `.bmp`, etc.)
+All-languages mode admits Italian and other languages. Foreign-only mode defers identified Italian with `·`, preserving unread state. Switching back makes still-unread, otherwise eligible messages candidates again. Blank/unrecognised F2 defaults to all languages. See [detection and switching](LANGUAGE_MODES.md).
 
-### How It Works
-1. The system uploads the attachment to Google Drive with OCR enabled
-2. Drive automatically converts the file to a Google Doc with extracted text
-3. The text is retrieved and the temporary file is deleted
-4. Extracted text is included in the prompt as context
+`setupConfigurationSheets()` uses the active spreadsheet and can clear `Controllo!A1:Z300`; preserve data before initial layout setup. `applyValidationOnly()` applies constraints without rebuilding the whole layout. Changing F2 does not require rerunning setup.
 
-## Validation Thresholds
-- **VALIDATION_MIN_SCORE**: `0.6` (Minimum quality score to send automatically). Lower this if too many emails are marked as "Verifica".
+## Current defaults
 
+| Setting | Value |
+|---|---:|
+| `MAX_EMAILS_PER_RUN` | 2; 0 suspends before processor discovery |
+| `MAX_EXECUTION_TIME_MS` / `MIN_REMAINING_TIME_MS` | 280000 / 90000 |
+| `MAX_HISTORY_MESSAGES` / `CACHE_LOCK_TTL` | 8 / 310 seconds |
+| `SUSPENSION_STALE_UNREAD_HOURS` | 12 |
+| `MESSAGE_DISCOVERY_MODE` | `metadata` |
+| `BATCH_CHECKPOINT_TTL_MS` / `BATCH_CHECKPOINT_MAX_RETRIES` | 600000 / 3 |
+| Validation minimum / warning threshold | 0.6 / 0.9 |
+| `CRISIS_HUMAN_REVIEW` | true |
+| `INTELLIGENT_RETRY.maxRetries` | 1 |
+| `MAX_SAFE_TOKENS` / `MAX_SAFE_PROMPT_CHARS` | 100000 / 100000 |
+| `MAX_OUTPUT_TOKENS` | 6000 |
+| Maximum memory topics / summary bullets | 50 / 5 |
+| `SENSITIVE_FLAGS_TTL_DAYS` | 180 |
+| `DRY_RUN` / `USE_RATE_LIMITER` | false / true |
+
+Blocking checks can reject a response regardless of score. Diagnose review causes before changing thresholds. Dry run prevents the response send but may access services, call Gemini, write technical state and log content.
+
+Generation strategy: `flash-3.7` → `flash-3.7-backup` → `flash-lite` → `flash-lite-backup`. Quality aliases use `gemini-3.7-flash`; Lite aliases use `gemini-3.5-flash-lite`. Auxiliary task strategies use Lite. These are local settings, not a claim about provider availability, prices or independent backup quotas. Token estimation is local. `GEMINI_CONTEXT_CACHE` is not implemented by the current code.
+
+## Attachments
+
+Enabled defaults: 3 files, 3 MiB each, 25 MiB message precheck, 3000 extracted characters per file and 9000 total. PDF, image and Office extraction/conversion paths depend on file type, intent, time and service availability. The 2-page PDF setting is estimated using 1800 characters per page, not an exact physical page cut.
+
+Relevant older attachments may be recovered from the thread. Historical attachment presence does not prove a new submission. Missing or incomplete OCR is not verified document content.
+
+See [architecture](ARCHITECTURE.md), [deployment](DEPLOYMENT.md) and [tests](validator_testing.md).

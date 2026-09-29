@@ -1,5 +1,7 @@
 # Progetto di affinamento del prompt e della memoria conversazionale
 
+> **Rapporto storico.** Risultati e conteggi si riferiscono alla data del documento. Per il funzionamento corrente vedere [architettura](ARCHITECTURE_IT.md), [configurazione](CONFIGURATION_IT.md) e [modalità lingua](LANGUAGE_MODES_IT.md). La pulizia del 29 settembre 2026 ha rimosso script scratch, log e risultati intermedi citati; non sono prerequisiti della suite attuale. Sono conservati la base di conoscenza Excel aggiornata e la baseline del confronto opzionale. I comandi storici che usano file rimossi non vanno eseguiti.
+
 Data: 5 settembre 2026. Stato: implementato e verificato; risultati in [rapporto di collaudo](COLLAUDO_PROMPT_MEMORIA_2026-09-05.md).
 
 Riferimento: [audit con tre problemi riproducibili](AUDIT_PROMPT_MEMORY_2026-09-05.md). Base di lavoro: commit `65640f1`. Le correzioni precedenti alla ricerca Gmail e agli invii ambigui sono già distribuite e non fanno parte di questa modifica.

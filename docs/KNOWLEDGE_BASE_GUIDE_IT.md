@@ -1,5 +1,7 @@
 # 📚 Guida Knowledge Base - Come Popolarla Efficacemente
 
+> Gli orari, contatti e procedure seguenti sono esempi redazionali, non dati operativi verificati. La selezione dei moduli è descritta nell' [architettura corrente](ARCHITECTURE_IT.md); la lingua delle risposte segue il rilevamento e la [modalità configurata](LANGUAGE_MODES_IT.md). Le istruzioni della KB non garantiscono la correttezza di ogni generazione.
+
 [![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](KNOWLEDGE_BASE_GUIDE.md)
 
 > **Come organizzare le informazioni della tua parrocchia per ottenere le migliori risposte AI**
@@ -49,7 +51,7 @@ La Knowledge Base (KB) è il "cervello" del sistema: contiene tutte le informazi
 
 **⚠️ IMPORTANTE:** 
 - Specifica SEMPRE "Inverno" ed "Estate" per orari stagionali
-- Sistema userà automaticamente quello giusto in base alla data
+- Indicare intervalli e date di validità espliciti; il prompt usa il contesto temporale, ma la scelta generata va verificata con casi di confine.
 
 #### 2. Contatti
 
@@ -326,7 +328,7 @@ Esempio:
 
 ### Checklist Qualità
 
-Usa questa checklist per verificare la tua KB:
+Questo esempio stampa domande per una revisione manuale; non chiama il generatore e non costituisce un test automatico della KB:
 
 ```javascript
 function testKnowledgeBase() {
@@ -348,19 +350,9 @@ function testKnowledgeBase() {
 }
 ```
 
-### Metriche Successo
+### Verifica degli esiti
 
-**Buona KB se:**
-- ✅ >80% email "IA" (non "Verifica")
-- ✅ <20% email con domande successive
-- ✅ Score validazione medio >0.75
-
-**Migliorare se:**
-- ⚠️ >30% email "Verifica"
-- ⚠️ Molte domande "non ho questa informazione"
-- ⚠️ Utenti chiedono sempre le stesse cose
-
----
+Valutare esempi concreti e motivi di revisione. IA include messaggi filtrati senza risposta; Verifica può accompagnare un invio e · dipende dalla modalità lingua. Il rapporto tra conteggi di label non misura automaticamente qualità della KB o tasso di risposte. Uno score alto non supera controlli bloccanti.
 
 ## 🔄 Workflow Aggiornamento
 
@@ -381,32 +373,6 @@ function testKnowledgeBase() {
 
 ---
 
-## 📝 Template Pronti all'Uso
+## Risorse disponibili
 
-### Template Piccola Parrocchia
-
-[Scarica foglio Google Sheets esempio]
-- 50 entry Istruzioni
-- 10 entry AI_CORE_LITE
-- 5 entry AI_CORE
-- 10 entry Dottrina
-
-### Template Parrocchia Media
-
-[Scarica foglio Google Sheets esempio]
-- 150 entry Istruzioni
-- 20 entry AI_CORE_LITE
-- 15 entry AI_CORE
-- 30 entry Dottrina
-
-### Template Grande Parrocchia
-
-[Scarica foglio Google Sheets esempio]
-- 300+ entry Istruzioni
-- 30 entry AI_CORE_LITE
-- 25 entry AI_CORE
-- 50 entry Dottrina
-
----
-
-**Buon popolamento! 📚**
+Il repository conserva una copia Excel locale in `outputs/link-email-2026-09-13/Base di Conoscenza AI.xlsx`. È un artefatto di lavoro: il runtime legge il Google Sheet selezionato da SPREADSHEET_ID, non quel file locale. I precedenti segnaposto di download non erano collegamenti a template distribuiti.

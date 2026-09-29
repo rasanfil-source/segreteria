@@ -1,5 +1,7 @@
 # Cleanup e conservazione della memoria: rilievi 3–4
 
+> **Rapporto storico.** Risultati e conteggi si riferiscono alla data del documento. Per il funzionamento corrente vedere [architettura](ARCHITECTURE_IT.md), [configurazione](CONFIGURATION_IT.md) e [modalità lingua](LANGUAGE_MODES_IT.md). La pulizia del 29 settembre 2026 ha rimosso script scratch, log e risultati intermedi citati; non sono prerequisiti della suite attuale. Sono conservati la base di conoscenza Excel aggiornata e la baseline del confronto opzionale. I comandi storici che usano file rimossi non vanno eseguiti.
+
 ## Decisione e conseguenze
 
 Una data mancante non dimostra che la conversazione sia vecchia. La cancellazione immediata potrebbe perdere vincoli di mobilità, continuità pastorale e argomenti già trattati. Sostituire `lastUpdated` con oggi altererebbe invece recenza, saluto e rilevamento della memoria esistente.

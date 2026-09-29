@@ -1,5 +1,7 @@
 # 🔐 Sicurezza e Conformità GDPR
 
+> Nota tecnica al 29 settembre 2026: dry-run può ancora chiamare servizi e produrre log; Tutte le lingue / Solo straniere controlla l'ammissibilità, non è una garanzia che un dato non venga elaborato. Vedi [modalità lingua](LANGUAGE_MODES_IT.md) e [configurazione](CONFIGURATION_IT.md). Questa nota descrive il codice, senza aggiornare o certificare le valutazioni legali e i termini esterni citati sotto.
+
 [![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](SECURITY.md)
 
 > **Guida alle best practices di sicurezza e alla protezione dei dati personali per la Segreteria Email Parrocchiale**

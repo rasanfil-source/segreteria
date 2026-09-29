@@ -1,5 +1,7 @@
 # Rilievi 5–7: decisioni, conseguenze e verifiche
 
+> **Rapporto storico.** Risultati e conteggi si riferiscono alla data del documento. Per il funzionamento corrente vedere [architettura](ARCHITECTURE_IT.md), [configurazione](CONFIGURATION_IT.md) e [modalità lingua](LANGUAGE_MODES_IT.md). La pulizia del 29 settembre 2026 ha rimosso script scratch, log e risultati intermedi citati; non sono prerequisiti della suite attuale. Sono conservati la base di conoscenza Excel aggiornata e la baseline del confronto opzionale. I comandi storici che usano file rimossi non vanno eseguiti.
+
 ## 5. Rischio temporale: protezione conservata
 
 Decisione esplicitamente approvata dall'utente: mantenere `temporal_risk` anche quando le date sono presenti soltanto nella KB. Una richiesta senza date può richiedere una risposta con scadenze; disattivare il controllo sulla base della sola email indebolirebbe la verifica della risposta. La scarsa selettività rimane un possibile miglioramento, senza un difetto dimostrato che giustifichi questa modifica. Aggiunta una regressione per le quattro combinazioni di presenza/assenza di date in email e KB. Nessuna modifica al comportamento temporale.

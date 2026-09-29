@@ -20,8 +20,17 @@ Thank you for your interest in contributing to SPA! We welcome contributions fro
 *   Variable names should be descriptive (camelCase).
 
 ### Testing
+
+On Windows use PowerShell 7:
+
+```powershell
+pwsh.exe -NoLogo -NoProfile -Command "node scripts/run_ci_test_suite.js"
+```
+
+The suite includes V8 coverage and mocked services. It does not require scratch files or old logs. Language mode changes must also cover deferred · messages and mode transitions.
+
 *   **Unit Tests**: Run `node gas_unit_tests.js` locally (requires node setup) or `runAllTests()` in the GAS editor.
-*   **CI-equivalent Node Suite**: Run `bash scripts/run_ci_test_suite.sh` to execute smoke + unit + modular Node tests (`tests/test_*.js`) with the same orchestration used in GitHub Actions.
+*   **CI-equivalent Node Suite**: Run `node scripts/run_ci_test_suite.js` to execute smoke + unit + modular Node tests (`tests/test_*.js`) with the same orchestration used in GitHub Actions.
 *   **Safety**: Ensure that your changes do not compromise the "Safety Valve" or Rate Limiting logic.
 *   **Pastoral Sensitivity**: Any change affecting response generation must be tested against pastoral scenarios (e.g., bereavement, spiritual distress) to ensure tone remains appropriate.
 

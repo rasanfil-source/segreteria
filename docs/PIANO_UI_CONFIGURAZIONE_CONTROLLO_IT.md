@@ -1,5 +1,7 @@
 # Piano UI di configurazione (Google Sheets) per autoresponder parrocchiale
 
+> **Proposta di layout, non specifica del runtime.** Le coordinate effettivamente lette sono documentate in [CONFIGURATION_IT.md](CONFIGURATION_IT.md); la modalità lingua è in [LANGUAGE_MODES_IT.md](LANGUAGE_MODES_IT.md). Named range e formule proposti qui non sostituiscono le letture per coordinate in gas_main.js. Il setup UI può ricreare e cancellare il contenuto di Controllo.
+
 ## Assunzioni dichiarate
 - Il foglio principale resta `Controllo` e continua ad essere il punto di accesso per la segreteria.
 - Il backend è Google Apps Script (GAS) e, nel codice reale attuale, legge coordinate esplicite del foglio `Controllo`: `B2`, `F2`, `B5:E7`, `A10:D16`, `E13:F` e `A19`.

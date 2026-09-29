@@ -1,5 +1,7 @@
 # 🔐 Security and GDPR Compliance
 
+> Technical note, 29 September 2026: dry-run may still call services and log content. All-languages/foreign-only controls eligibility, not a guarantee that data will not be processed. See [language modes](LANGUAGE_MODES.md) and [configuration](CONFIGURATION.md). This note describes code; it does not update or certify the legal assessment or external terms cited below.
+
 [![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](SECURITY_IT.md)
 
 > **Guide to security best practices and personal data protection for the Parish Email Secretariat**

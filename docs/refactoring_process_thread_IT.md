@@ -1,5 +1,7 @@
 # Refactoring di EmailProcessor.processThread — verifica del 25 settembre 2026
 
+> **Rapporto storico.** Risultati e conteggi si riferiscono alla data del documento. Per il funzionamento corrente vedere [architettura](ARCHITECTURE_IT.md), [configurazione](CONFIGURATION_IT.md) e [modalità lingua](LANGUAGE_MODES_IT.md). La pulizia del 29 settembre 2026 ha rimosso script scratch, log e risultati intermedi citati; non sono prerequisiti della suite attuale. Sono conservati la base di conoscenza Excel aggiornata e la baseline del confronto opzionale. I comandi storici che usano file rimossi non vanno eseguiti.
+
 Implementazione completata localmente, senza invii reali, chiamate ai servizi Google/Gemini, deploy, push o merge. Firma pubblica, valori restituiti, regole, prompt, soglie e numero dei tentativi sono preservati nei confronti eseguiti.
 
 ## Baseline e ripristino

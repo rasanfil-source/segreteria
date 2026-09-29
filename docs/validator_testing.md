@@ -65,3 +65,13 @@ scartando `Ore 10:00` dagli orari da verificare. Il confine di parola evita sia
 il falso positivo su un orario legittimamente presente nelle fonti sia la mancata
 segnalazione di un orario inventato. Restano escluse le vere citazioni `Re`,
 `2Re`, `Gv` e `Gen.`; i casi sono verificati nella matrice di grounding.
+
+## Verifica del 29 settembre 2026
+
+Runner completo terminato con codice 0: 114/114 smoke, suite unitaria senza fallimenti, 52/52 suite modulari. Copertura response validator: 99.11% funzioni e 81.93% blocchi V8; territory validator: 100% e 87.61%. Si tratta di risultati offline sul codice locale, non di un collaudo dei servizi reali o del deploy.
+
+Il runner ricrea outputs/coverage dopo la pulizia; i profili sono artefatti generati e non prerequisiti. Le fixture versionate restano in tests/fixtures. Il confronto opzionale `node tests/test_thread_characterization.js --compare-workspace-baseline` richiede la copia locale conservata in outputs/process-thread-baseline; la suite ordinaria non la richiede.
+
+Le modalità lingua sono coperte da configurazione avanzata, processor, Gmail, caratterizzazione e unitari: italiano/estero/unknown, oggetto italiano con corpo estero, etichetta ·, mantenimento non letto e cambio modalità. Vedi [contratto operativo](LANGUAGE_MODES_IT.md).
+
+La suite `test_audit_helper_contracts.js` copre le correzioni del 29 settembre: null nella lista allegati, normalizzazione del corpo per i vincoli di presenza, prefissi concatenati nell'oggetto e formattazione della notifica. I test dei difetti fallivano prima delle patch e passano dopo; servizi esterni simulati.

@@ -5,11 +5,11 @@
 | Voce | Valore |
 |---|---|
 | Tipo di documento | Documento di progetto ricostruito sul sistema realizzato (*as built*) |
-| Stato | Baseline del sistema in esercizio |
-| Data di riferimento | 28 agosto 2026 |
-| Revisione software di riferimento | `65f70ca` |
+| Stato | Descrizione del codice locale; deploy remoto non verificato |
+| Data di riferimento | 29 settembre 2026 |
+| Revisione software di riferimento | Workspace locale; documentazione e correzioni helper/classifier del 29 settembre 2026 |
 | Piattaforma | Google Apps Script V8, Gmail, Google Sheets, Google Drive, Gemini API |
-| Ambienti di esercizio | Parrocchia; donRaimondo |
+| Destinazioni previste dal deploy | Parrocchia; donRaimondo |
 | Lingua del documento | Italiano |
 
 > Questo documento descrive il progetto che avrebbe dovuto precedere e guidare la realizzazione del sistema oggi presente. È stato ricostruito dal comportamento effettivo, dal codice, dai test e dalle procedure operative. Le informazioni gestionali contenute nei Fogli Google — orari, contatti, procedure, territorio, dottrina e istruzioni pastorali — restano dati configurabili e non sono replicate qui.
@@ -395,20 +395,20 @@ flowchart TD
 | Stato interno | Significato | Esito Gmail |
 |---|---|---|
 | `replied` | Risposta inviata con successo | `IA`; eventualmente `Verifica` per warning |
-| `validation_failed` | Risposta non sufficientemente sicura | `Verifica`, nessun invio |
+| `validation_failed` | Blocco di validazione o invio incerto secondo reason | `Verifica`; controllare la posta inviata prima di ritentare |
 | `error` non retryable | Errore permanente o configurazione/API non recuperabile | `Errore` |
 | `error` retryable | Rete, quota temporanea, `5xx` o servizio indisponibile | Nessuna label terminale; checkpoint |
 | `filtered` | Messaggio riconosciuto come non meritevole di risposta | Marcatura secondo la policy applicata |
 | `skipped` | Già gestito, lock non disponibile, nessun unread utile o altra condizione neutra | Nessun nuovo invio |
 | `dilata` | Elaborazione rinviata per burst, deadline o budget | Checkpoint con `notBefore` |
-| `dry_run` | Simulazione completa senza effetti esterni | Nessun invio/label operativa |
+| `dry_run` | Arresto prima della transazione di risposta | Nessun invio della risposta; possibili chiamate ai servizi, log e stato tecnico |
 
 ### 7.2 Semantica delle etichette
 
 | Etichetta | Significato operativo |
 |---|---|
-| `IA` | Il messaggio è stato trattato e la risposta è stata inviata. |
-| `Verifica` | Serve controllo umano. Normalmente la risposta non è stata inviata perché bloccata; può anche accompagnare un invio già effettuato se restano warning non bloccanti sotto la soglia configurata. |
+| `IA` | Messaggio trattato: risposta confermata oppure filtro che chiude senza risposta. |
+| `Verifica` | Serve controllo umano. Normalmente la risposta non è stata inviata perché bloccata; può anche accompagnare un invio già effettuato se restano warning non bloccanti, oppure un invio dal risultato incerto. |
 | `Errore` | Il processo non può completarsi automaticamente per una causa tecnica definitiva o di configurazione. |
 | `·` | Messaggio saltato in modalità “Solo straniere”. |
 
@@ -448,10 +448,11 @@ flowchart LR
 |---|---|
 | `gas_main.js` | Entrypoint, trigger, lock globale, caricamento risorse, sospensioni, checkpoint, metriche. |
 | `gas_config.js` | Parametri, modelli, soglie, proprietà sicure e validazione configurazione. |
-| `gas_email_processor.js` | Orchestrazione completa del singolo thread e del batch; policy di dominio e stato. |
+| `gas_email_processor.js` | Batch e coordinamento processThread; helper, regole e transazioni. |
+| `gas_thread_*.js` (11 file) | Selezione, stato messaggi, policy, contesto, allegati, documenti, generazione, validazione, consegna, completamento e lifecycle. Dipendenze esplicite, script globali GAS. |
 | `gas_gmail_service.js` | Discovery, metadata, label, parsing messaggi, allegati, invio MIME/threaded e contatori Gmail. |
 | `gas_classifier.js` | Filtri locali, estrazione contenuto principale, segnali iniziali. |
-| `gas_gemini_service.js` | Client Gemini, quick-check, task AI, parsing JSON e generazione. |
+| `gas_gemini_service.js` | GeminiService, GeminiContentClient ed EmailQuickCheckPolicy; trasporto, quick-check, parsing e generazione. |
 | `gas_request_classifier.js` | Classificazione multidimensionale della richiesta. |
 | `gas_prompt_context.js` | Profilo, registro, concern e sintesi del contesto. |
 | `gas_prompt_engine.js` | Composizione modulare del prompt e budgeting. |
@@ -465,6 +466,8 @@ flowchart LR
 | `gas_setup_ui.js` | Creazione e validazione dell'interfaccia di configurazione su Sheets. |
 | `gas_unit_tests.js` | Suite unitaria compatibile con GAS/Node. |
 
+Per la mappa degli undici componenti e dei loro contratti vedere [ARCHITECTURE_IT.md](ARCHITECTURE_IT.md). Il rapporto di refactoring del 25 settembre resta una fotografia storica, non una garanzia di identità con la baseline dopo correzioni successive.
+
 ### 8.2 Dipendenze esterne
 
 | Servizio | Uso | Modalità di fallimento attesa |
@@ -477,7 +480,7 @@ flowchart LR
 | CacheService | Risorse, lock granulari e contatori veloci | Fallback persistente quando previsto |
 | PropertiesService | Segreti, checkpoint, rate limiter, idempotenza | Fail safe sulle transazioni critiche |
 | LockService | Serializzazione batch e scritture | Skip/rinvio, mai esecuzione concorrente non protetta |
-| ScriptApp | Trigger periodici e di ripresa | Preservazione dei trigger esistenti se la creazione fallisce |
+| ScriptApp | Trigger periodici e di ripresa | La ripresa checkpoint preserva trigger precedenti in caso di creazione fallita; il setup periodico elimina prima quelli dello stesso handler |
 
 ---
 
@@ -516,7 +519,8 @@ flowchart LR
 Proprietà minime o operative:
 
 - `GEMINI_API_KEY`;
-- eventuale chiave Gemini di riserva prevista dalla configurazione;
+- `PERSONAL_IGNORE_SENDERS` per le esclusioni personali;
+- `GEMINI_API_KEY_BACKUP` opzionale;
 - `SPREADSHEET_ID`;
 - `BOT_EMAIL`;
 - `KNOWN_ALIASES`;
@@ -526,11 +530,19 @@ Proprietà minime o operative:
 
 Proprietà gestite internamente includono checkpoint del batch, timestamp di modifica della KB, contatori e stato delle transazioni di invio. Non devono essere modificate manualmente senza una procedura di recovery.
 
+### 9.3.1 Modalità lingua e Controllo
+
+F2 seleziona **Tutte le lingue** (all) oppure **Solo straniere** (foreign_only). Nel secondo caso l'italiano riconosciuto è rinviato con `·`, senza risposta e mantenendo lo stato non letto. Il filtro è applicato localmente e dopo il quick-check se questo viene raggiunto; lingua unknown non equivale a italiano. Il precheck sul solo oggetto richiede corpo semplice vuoto.
+
+Tornando a tutte le lingue, `·` non esclude più il messaggio, che può essere ripreso se ancora non letto e senza altre esclusioni. La promozione a IA rimuove la label di rinvio dove possibile. Il cambio non resetta Verifica, Errore o marker di invio. Valori vuoti/non riconosciuti di F2 ripiegano su all. Vedi [modalità lingua](LANGUAGE_MODES_IT.md).
+
+B2 è l'interruttore, B5:E7 contiene le assenze, A10:D16 le fasce di sospensione, E13:F i filtri e A19 il destinatario review. Le fasce sospendono durante la presenza della segreteria; ferie e festività gestite mantengono attivo l'automatismo salvo Spento.
+
 ### 9.4 Cache
 
 La cache delle risorse ha TTL nominale di sei ore ed è serializzata integralmente. Se il payload supera il limite per singola entry, viene suddiviso in più parti. La lettura deve rifiutare payload multipart incompleti senza cancellare dati validi scritti da un'altra esecuzione.
 
-L'invalidazione immediata è provocata da modifiche utente ai fogli di risorsa o ai range configurativi rilevanti. Le scritture della memoria non devono invalidare la KB.
+L'handler onEdit invalida le risorse per le modifiche utente pertinenti quando riceve l'evento; il loader controlla anche lo stato di modifica. Per modifiche esterne o cache stale usare clearKnowledgeCache(). Le scritture della memoria non devono invalidare la KB.
 
 ### 9.5 Configurazione operativa di riferimento
 
@@ -695,6 +707,8 @@ Il numero di retry è limitato a uno nella baseline. Se Gemini è indisponibile 
 ### 12.2 Transazione di invio
 
 Prima dell'invio viene registrato uno stato idempotente associato al messaggio. Gli esiti ambigui — per esempio timeout dopo una possibile spedizione — devono privilegiare la prevenzione del doppio invio. Lo stato post-invio deve essere promosso prima delle attività best-effort come l'aggiornamento della memoria.
+
+Il percorso RAW usa un Message-ID deterministico. Se timeout/rete lasciano dubbio, il codice tenta una riconciliazione; senza conferma mantiene `send_uncertain_<ID>` e Verifica, senza reinvio automatico. Il marker non scade automaticamente. `delivery.confirmed` impedisce rollback e doppio invio dopo consegna confermata. [Recupero operativo](TROUBLESHOOTING_IT.md).
 
 ### 12.3 Checkpoint
 
@@ -884,10 +898,10 @@ Una modifica è completata quando:
 3. la suite completa termina con codice zero;
 4. `git diff --check` non segnala errori;
 5. la documentazione interessata è coerente;
-6. il commit è pubblicato su GitHub;
-7. entrambi i GAS ricevono la stessa revisione;
-8. i file remoti critici sono confrontati con quelli locali;
-9. non rimangono file temporanei o modifiche non committate.
+6. quando è richiesto un rilascio, il commit viene pubblicato e i due GAS vengono verificati rispetto alla revisione prevista;
+7. gli artefatti temporanei vengono ripuliti senza eliminare risorse necessarie.
+
+Una modifica documentale o una revisione locale non implica automaticamente commit, push o deploy.
 
 ---
 
@@ -913,11 +927,11 @@ Gli identificativi degli script sono conservati nella configurazione locale di d
 3. controllare il diff;
 4. creare un commit atomico;
 5. eseguire il push su `origin/main`;
-6. eseguire `scripts/deploy_gas.ps1`;
+6. eseguire `pwsh.exe -NoLogo -NoProfile -Command "& ./scripts/deploy_gas.ps1"`;
 7. verificare l'esito di entrambi i `clasp push`;
 8. clonare i remoti in una directory temporanea isolata;
 9. confrontare i file pubblicati con il commit locale;
-10. ripristinare il `.clasp.json` originario;
+10. verificare che lo script abbia ripristinato il `.clasp.json` originario;
 11. effettuare uno smoke test controllato in produzione.
 
 ### 17.4 Rollback

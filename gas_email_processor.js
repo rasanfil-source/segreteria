@@ -2237,7 +2237,10 @@ var EmailProcessor = class EmailProcessor {
 
     let status = 'none';
     let source = 'none';
-    const inspectionSkippedForSize = attachmentSkipped.some(s => s.reason === 'message_too_large_for_attachment_download');
+    // null, come undefined, indica una lista assente; altri tipi restano errori di contratto.
+    const skippedAttachments = attachmentSkipped == null ? [] : attachmentSkipped;
+    if (!Array.isArray(skippedAttachments)) throw new TypeError('attachmentSkipped deve essere un array');
+    const inspectionSkippedForSize = skippedAttachments.some(s => s.reason === 'message_too_large_for_attachment_download');
     if (expectsDocument && bodyContainsUsableDocumentContent) {
       status = 'received_body';
       source = 'body';
@@ -3879,8 +3882,7 @@ var EmailProcessor = class EmailProcessor {
         ? `https://mail.google.com/mail/u/0/#inbox/${targetInfo.threadId}`
         : '';
       const body = [
-        'Una risposta automatica richiede verifica umana.',
-        '',
+        'Una risposta automatica richiede verifica umana.\n',
         `Motivo: ${reason}`,
         `Punteggio validazione: ${score}`,
         `Oggetto: ${subjectText}`,
@@ -5996,7 +5998,9 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     for (const rule of rules) {
       if (rule.pattern.test(compact)) {
         if (collectAll) {
-          const clauses = String(body || '').split('\n');
+          // Normalizza solo il corpo: l'oggetto non deve creare evidenze personali nella clausola.
+          const clauses = String(body || '').toLowerCase().normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, ' ').split('\n');
           const personal = clauses.some(clause => {
             if (!rule.pattern.test(clause)) return false;
             if (['health', 'mobility', 'legal_restriction'].includes(rule.type)) {

@@ -1,5 +1,7 @@
 # 📚 Knowledge Base Guide - How to Populate Effectively
 
+> Schedules, contacts and procedures below are illustrative, not verified operational data. See the [current architecture](ARCHITECTURE.md) for module routing and [language modes](LANGUAGE_MODES.md) for language behaviour. Knowledge instructions do not guarantee every generated answer.
+
 [![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](KNOWLEDGE_BASE_GUIDE_IT.md)
 
 > **How to organize your parish information to get the best AI responses**
@@ -326,7 +328,7 @@ Example:
 
 ### Quality Checklist
 
-Use this checklist to verify your KB:
+This example prints questions for manual review; it does not call generation or automatically test the knowledge base:
 
 ```javascript
 function testKnowledgeBase() {
@@ -348,24 +350,14 @@ function testKnowledgeBase() {
 }
 ```
 
-### Success Metrics
+### Outcome verification
 
-**Good KB if:**
-- ✅ >80% "IA" emails (not "Check")
-- ✅ <20% emails with follow-up questions
-- ✅ Average validation score >0.75
-
-**Improve if:**
-- ⚠️ >30% "Check" emails
-- ⚠️ Many "I don't have this information" answers
-- ⚠️ Users always ask asking same things
-
----
+Inspect concrete examples and review reasons. IA includes filtered messages without replies, Verifica can accompany delivery, and · depends on language mode. Label counts do not directly measure knowledge quality or reply rate. High scores do not override blocking checks.
 
 ## 🔄 Maintenance Workflow
 
 ### Weekly
-1. Check "Check" emails
+1. Check "Verifica" emails
 2. Identify missing info
 3. Add to KB
 
@@ -381,32 +373,6 @@ function testKnowledgeBase() {
 
 ---
 
-## 📝 Ready-to-Use Templates
+## Available resources
 
-### Small Parish Template
-
-[Download example Google Sheet]
-- 50 Instructions entries
-- 10 AI_CORE_LITE entries
-- 5 AI_CORE entries
-- 10 Doctrine entries
-
-### Medium Parish Template
-
-[Download example Google Sheet]
-- 150 Instructions entries
-- 20 AI_CORE_LITE entries
-- 15 AI_CORE entries
-- 30 Doctrine entries
-
-### Large Parish Template
-
-[Download example Google Sheet]
-- 300+ Instructions entries
-- 30 AI_CORE_LITE entries
-- 25 AI_CORE entries
-- 50 Doctrine entries
-
----
-
-**Happy population! 📚**
+The local workbook is retained at `outputs/link-email-2026-09-13/Base di Conoscenza AI.xlsx`. It is an artifact: runtime reads the Google spreadsheet selected by SPREADSHEET_ID, not this local file. Earlier download placeholders were not links to distributed templates.
