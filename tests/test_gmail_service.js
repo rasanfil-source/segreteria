@@ -1925,7 +1925,7 @@ console.log('--- Test sendHtmlReply: doppio fallback fallito rilancia errore ---
 
     assert(threw, 'se API e fallback nativi falliscono, sendHtmlReply deve rilanciare');
     assert(replyCalls === 2, 'deve tentare fallback HTML e poi plain text');
-    assert(labels.includes('Errore'), 'deve applicare la label Errore prima di rilanciare');
+    assert(labels.length === 0, 'la marcatura del burst compete al chiamante dopo la classificazione, non al trasporto');
   } finally {
     service.addLabelToThread = originalAddLabelToThread;
   }

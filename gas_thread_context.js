@@ -107,11 +107,12 @@ var ThreadContext = {
       ? (territoryResult.addresses || []).map((entry) => {
         const v = entry.verification || {};
         const sanitizedStreet = (entry.street || '').replace(/[=─]/g, '-');
-        const civicLabel = entry.civic ? `n. ${entry.civic}` : 'senza numero civico';
+        const civicLabel = entry.fullCivic ? `n. ${entry.fullCivic}` : (entry.civic != null ? `n. ${entry.civic}` : 'senza numero civico');
         const resultLabel = v.needsCivic
           ? '⚠️ CIVICO NECESSARIO'
-          : (v.inParish ? '✅ RIENTRA' : '❌ NON RIENTRA');
-        const actionLabel = v.needsCivic ? 'Azione: richiedere il numero civico.' : null;
+          : (v.inParish === true ? '✅ RIENTRA' : (v.inParish === false ? '❌ NON RIENTRA' : '⚠️ VERIFICA MANUALE NECESSARIA'));
+        const actionLabel = v.needsCivic ? 'Azione: richiedere il numero civico.'
+          : (v.inParish == null ? 'Azione: richiedere verifica manuale; non affermare appartenenza o esclusione.' : null);
         return [
           `Indirizzo: ${sanitizedStreet} ${civicLabel}`,
           `Risultato: ${resultLabel}`,
@@ -145,7 +146,7 @@ ${addressLines.join('\n\n')}
   /** runtime: ingressi locali espliciti; restituisce i dati della fase. */
   runtime(deps, {
     messageDetails, processingTimestamp, routedAiCoreLite, routedAiCore, enrichedKnowledgeBase,
-    routedDoctrine, detectedLanguage, physicalPresenceConstraint, territoryContext, activeConcerns,
+    routedDoctrine, detectedLanguage, physicalPresenceConstraint, territoryContext, territoryResult, activeConcerns,
     concernSynthesis, continuityCase, responseMode, operationalConstraints, continuityPolicy,
     responseRegister, promptProfile, categoryHintSource, classification, requestTypeName, requestPurpose,
     conversationHistory
@@ -160,6 +161,8 @@ ${addressLines.join('\n\n')}
         messageDetails.subject, messageDetails.body, detectedLanguage, baseRuntimeContext.temporal),
       physicalPresenceConstraint: physicalPresenceConstraint || null,
       territoryContext: territoryContext || null,
+      ...(territoryContext && territoryResult && territoryResult.addressFound
+        ? { territoryResult } : {}),
       validationContext: deps._buildResponseValidationContext_({
         activeConcerns: activeConcerns,
         concernSynthesis: concernSynthesis,

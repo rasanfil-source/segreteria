@@ -3462,6 +3462,11 @@ var GmailService = class GmailService {
 
             } catch (apiError) {
                 apiSendError = apiError;
+                // Il budget/lock locale governa tutti i percorsi, incluso GmailApp.
+                if (/GMAIL_DAILY_CALL_LIMIT_REACHED|GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE/.test(String(apiError && apiError.message || apiError))) {
+                    apiError.sendNotAttempted = true;
+                    throw apiError;
+                }
                 if (apiSendAttempted && isAmbiguousSendError(apiError)) {
                     throw ambiguousSendError('esito invio Gmail API ambiguo: fallback nativo bloccato', apiError);
                 }
@@ -3534,20 +3539,8 @@ var GmailService = class GmailService {
                 }
 
                 console.error(`❌ CRITICO: Invio risposta alternativo fallito: ${fallbackError.message}`);
-                const errorLabel = (typeof CONFIG !== 'undefined' && CONFIG.ERROR_LABEL_NAME) ? CONFIG.ERROR_LABEL_NAME : 'Errore';
-                if (mailEntity) {
-                    try {
-                        const targetThread = (typeof mailEntity.getThread === 'function')
-                            ? mailEntity.getThread()
-                            : mailEntity;
-
-                        if (targetThread && typeof targetThread.getMessages === 'function') {
-                            this.addLabelToThread(targetThread, errorLabel);
-                        }
-                    } catch (labelErr) {
-                        console.warn(`⚠️ Impossibile applicare label di errore: ${labelErr.message}`);
-                    }
-                }
+                // ThreadDelivery classifica l'errore e marca soltanto il burst
+                // interessato. Una quota temporanea non deve diventare terminale.
                 const rootCauses = [];
                 if (apiSendError && apiSendError.message) {
                     rootCauses.push(`Gmail API: ${apiSendError.message}`);

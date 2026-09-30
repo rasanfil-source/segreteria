@@ -704,7 +704,7 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
       return;
     }
 
-    _loadResourcesInternal(precomputedSheetModifiedAt);
+    _loadResourcesInternal(precomputedSheetModifiedAt, forceReload);
   } finally {
     if (lockAcquired) {
       try {
@@ -716,7 +716,7 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
   }
 }
 
-function _loadResourcesInternal(knownSheetModifiedAt) {
+function _loadResourcesInternal(knownSheetModifiedAt, forceReload = false) {
   const spreadsheetId = (typeof CONFIG !== 'undefined' && CONFIG.SPREADSHEET_ID) ? CONFIG.SPREADSHEET_ID : null;
   if (!spreadsheetId) {
     throw new Error('Impossibile aprire il foglio: CONFIG.SPREADSHEET_ID non configurato.');
@@ -732,7 +732,7 @@ function _loadResourcesInternal(knownSheetModifiedAt) {
   // mai qui, altrimenti si degrada sistematicamente il caso normale.
 
   // 1. Prova a leggere dalla vera Cache di Apps Script
-  if (cache) {
+  if (cache && !forceReload) {
     const cachedData = _readResourceCachePayload(cache);
     if (cachedData) {
       try {

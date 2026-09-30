@@ -1815,11 +1815,8 @@ var EmailProcessor = class EmailProcessor {
       // guardia anti-loop deve ripartire per non scartare code sane ma lunghe.
       const nextDepth = isSameCheckpoint ? currentDepth + 1 : 1;
 
-      if (nextDepth > 5) {
-        console.error('Limite massimo di continuazioni batch (5) raggiunto sullo stesso checkpoint. Interruzione per prevenire loop di trigger.');
-        this._clearBatchCheckpoint_('limite continuazioni raggiunto');
-        return;
-      }
+      // Unica guardia: _readBatchCheckpoint_ applica retryCount >= limite
+      // prima della ripresa. depth resta diagnostico; non impone un secondo tetto.
 
       const configuredCheckpointTtlMs = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.BATCH_CHECKPOINT_TTL_MS)))
         ? Math.max(60000, Number(CONFIG.BATCH_CHECKPOINT_TTL_MS))

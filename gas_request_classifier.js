@@ -605,7 +605,7 @@ var RequestTypeClassifier = class RequestTypeClassifier {
       externalHint.description
     ].map(value => String(value || '').toLowerCase()).join(' ');
 
-    return /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|cancellazione\s+(?:dal|dai|dei)\s+registr|registr[oi]\s+del\s+battesim[oa]|uscire\s+dalla\s+chiesa|rinunciare\s+al\s+battesim[oa]/i.test(searchableText);
+    return /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|cancellazione\s+(?:dal|dai|dei)\s+registr|uscire\s+dalla\s+chiesa|rinunciare\s+al\s+battesim[oa]/i.test(searchableText);
   }
 
   /**

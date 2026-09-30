@@ -51,8 +51,11 @@ var ThreadDelivery = {
     } catch (e) {
       if (delivery.confirmed) throw e; // Post-send persistence failure must never roll back delivery.
       const errorMessage = e && e.message ? e.message : String(e);
-      const classifiedSendError = deps._classifyError(e);
-      const ambiguousSendOutcome = classifiedSendError.type === 'NETWORK' || classifiedSendError.type === 'TIMEOUT';
+      const classifiedSendError = e && e.sendNotAttempted === true && /GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE/.test(errorMessage)
+        ? { type: 'NETWORK', retryable: true }
+        : deps._classifyError(e);
+      const ambiguousSendOutcome = !(e && e.sendNotAttempted === true) &&
+        (classifiedSendError.type === 'NETWORK' || classifiedSendError.type === 'TIMEOUT');
       if (!ambiguousSendOutcome) {
         deps._rollbackSendTransaction(messageState.candidate.getId(), sendTxn);
       } else {

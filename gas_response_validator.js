@@ -1966,13 +1966,36 @@ var ResponseValidator = class ResponseValidator {
       temporalContext.territory_context ||
       (temporalContext.territory && temporalContext.territory.context)
     );
+    const structuredAddresses = temporalContext && temporalContext.territoryResult && temporalContext.territoryResult.addresses;
+    if (Array.isArray(structuredAddresses) && structuredAddresses.length > 0) {
+      return this._checkTerritoryAddresses_(response, structuredAddresses);
+    }
+    // Compatibilità con contesti serializzati precedenti, senza collassare
+    // più indirizzi in un unico esito globale.
+    const legacyAddresses = [];
+    const blockPattern = /Indirizzo:\s*([^\n]+)\nRisultato:\s*([^\n]+)/gi;
+    let block;
+    while ((block = blockPattern.exec(String(context || ''))) !== null) {
+      const label = block[1].trim();
+      const civic = label.match(/\s+n\.\s*(\S+)$/i);
+      const outcome = block[2];
+      legacyAddresses.push({
+        street: label.replace(/\s+(?:n\.\s*\S+|senza numero civico)$/i, ''),
+        fullCivic: civic ? civic[1] : '',
+        verification: { needsCivic: /CIVICO NECESSARIO/i.test(outcome),
+          inParish: /NON RIENTRA/i.test(outcome) ? false : /\bRIENTRA\b/i.test(outcome) ? true : null }
+      });
+    }
+    if (legacyAddresses.length) return this._checkTerritoryAddresses_(response, legacyAddresses);
     if (!context) {
       return { errors: [], warnings: [], score: 1.0, active: false, expected: null, violations: [] };
     }
 
     const sourceContext = this._stripDiacritics_(String(context || '').toLowerCase());
     let expected = null;
-    if (/\bnon\s+rientra\b/.test(sourceContext)) {
+    if (/\bverifica\s+manuale\s+necessaria\b/.test(sourceContext)) {
+      expected = 'manual_review';
+    } else if (/\bnon\s+rientra\b/.test(sourceContext)) {
       expected = 'outside';
     } else if (/\bcivico\s+necessario\b/.test(sourceContext)) {
       expected = 'needs_civic';
@@ -1986,7 +2009,7 @@ var ResponseValidator = class ResponseValidator {
 
     const text = this._stripDiacritics_(String(response || '').toLowerCase());
     const outsidePatterns = [
-      /\bnon\s+rientra\b/,
+      /\bnon\s+rientra(?:no)?\b/,
       /\bfuori\s+(?:dal\s+)?territorio\b/,
       /\bnon\s+fa\s+parte\s+(?:del|della)\s+(?:territorio|parrocchia|competenza)/,
       /\bnon\s+e\s+(?:nel|nella|in)\s+(?:nostro|nostra)\s+(?:territorio|parrocchia|competenza)/
@@ -1997,8 +2020,8 @@ var ResponseValidator = class ResponseValidator {
       (value, pattern) => value.replace(new RegExp(pattern.source, 'g'), '.'), text
     );
     const saysInside = [
-      /\bsi[,:\s]+[^.\n!?]{0,120}\brientra\b/,
-      /\brientra\s+(?:nel|nella|in)\s+(?:territorio|parrocchia|competenza)/,
+      /\bsi[,:\s]+[^.\n!?]{0,120}\brientra(?:no)?\b/,
+      /\brientra(?:no)?\s+(?:nel|nella|in)\s+(?:territorio|parrocchia|competenza)/,
       /\bfa\s+parte\s+(?:del|della)\s+(?:territorio|parrocchia|competenza)/,
       /\be\s+(?:nel|nella|in)\s+(?:nostro|nostra)\s+(?:territorio|parrocchia|competenza)/
     ].some(pattern => pattern.test(affirmativeText));
@@ -2013,6 +2036,8 @@ var ResponseValidator = class ResponseValidator {
       violations.push('la risposta afferma che l indirizzo non rientra, ma il contesto certificato dice RIENTRA');
     } else if (expected === 'needs_civic' && (saysInside || saysOutside) && !asksCivic) {
       violations.push('la risposta dà un esito territoriale senza chiedere il civico richiesto');
+    } else if (expected === 'manual_review' && (saysInside || saysOutside)) {
+      violations.push('la risposta dà un esito territoriale definitivo dove serve verifica manuale');
     }
 
     if (violations.length === 0) {
@@ -2027,6 +2052,55 @@ var ResponseValidator = class ResponseValidator {
       expected,
       violations
     };
+  }
+
+  _checkTerritoryAddresses_(response, addresses) {
+    const normalize = value => this._stripDiacritics_(String(value || '').toLowerCase()).replace(/\s+/g, ' ').trim();
+    const entries = addresses.map(entry => {
+      const v = entry.verification || {};
+      return { street: normalize(entry.street), civic: normalize(entry.fullCivic || (entry.civic ?? '')),
+        expected: v.needsCivic ? 'CIVICO NECESSARIO' : v.inParish === true ? 'RIENTRA'
+          : v.inParish === false ? 'NON RIENTRA' : 'VERIFICA MANUALE NECESSARIA' };
+    });
+    if (entries.length === 1) {
+      return this._checkTerritoryConsistency(response, { territoryContext: entries[0].expected });
+    }
+    const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const checks = [];
+    // Le frasi separate sono indipendenti, anche quando il predicato precede
+    // l'indirizzo ("Non rientra nel territorio via Flaminia 20").
+    const clauses = String(response || '').replace(/\bn\./gi, 'n').split(/[.!?;\n]+/).map(normalize).filter(Boolean);
+    clauses.forEach(text => {
+      const mentions = [];
+      entries.forEach((entry, index) => {
+        if (!entry.street) return;
+        const sameStreet = entries.filter(other => other.street === entry.street).length > 1;
+        const civicPattern = entry.civic ? '(?:\\s+(?:n(?:umero)?\\.?\\s*)?' + escape(entry.civic) + '(?![a-z0-9]))' : '';
+        const pattern = new RegExp('(?:^|\\b)' + escape(entry.street) + '\\b' +
+          (sameStreet ? civicPattern : civicPattern ? civicPattern + '?' : ''), 'g');
+        let match;
+        while ((match = pattern.exec(text)) !== null) mentions.push({ index, start: match.index });
+      });
+      mentions.sort((a, b) => a.start - b.start);
+      const check = (fragment, entry) => checks.push(this._checkTerritoryConsistency(fragment, { territoryContext: entry.expected }));
+      if (!mentions.length) {
+        // Frasi senza attribuzione esplicita devono essere compatibili con tutti.
+        entries.forEach(entry => check(text, entry));
+      } else if (mentions.length === 1) {
+        check(text, entries[mentions[0].index]);
+      } else if (!/\brientra(?:no)?\b|\bfa\s+parte\b|\bfuori\b/.test(text.slice(0, mentions[mentions.length - 1].start))) {
+        // "Via A e via B rientrano": il predicato vale per entrambe.
+        mentions.forEach(mention => check(text, entries[mention.index]));
+      } else {
+        mentions.forEach((mention, i) => check(
+          text.slice(i === 0 ? 0 : mention.start, i + 1 < mentions.length ? mentions[i + 1].start : text.length),
+          entries[mention.index]));
+      }
+    });
+    const violations = checks.flatMap(check => check.violations || []);
+    return { active: true, expected: 'per_address', score: violations.length ? 0 : 1,
+      errors: violations.length ? ['Coerenza territorio: la risposta contraddice l esito della verifica territoriale automatica.'] : [],
+      warnings: [], violations };
   }
 
   _extractResponseValidationContext_(temporalContext = null) {
