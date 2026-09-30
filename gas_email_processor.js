@@ -3108,9 +3108,13 @@ var EmailProcessor = class EmailProcessor {
     };
     // Remove morning-only expressions before matching the ambiguous word "tomorrow".
     const relativeText = lang === 'de'
-      ? normalizedText.replace(/\b(guten|am|jeden|heute|gestern|fr[üu]hen)\s+morgen\b/giu, '$1 ')
+      ? normalizedText
+          .replace(/(?<![\p{L}\p{N}_])(?:heute|diesen)\s+(?:fr[üu]hen\s+)?morgen(?![\p{L}\p{N}_])/giu, 'heute')
+          .replace(/(?<![\p{L}\p{N}_])(?:guten|am|jeden|gestern|fr[üu]hen|(?:den\s+)?ganzen)(?:\s+(?:fr[üu]hen|ganzen))?\s+morgen(?![\p{L}\p{N}_])/giu, ' ')
       : lang === 'es'
-        ? normalizedText.replace(/\b(?:por|de|en)\s+la\s+ma[nñ]ana\b/giu, ' ')
+        ? normalizedText
+            .replace(/(?<![\p{L}\p{N}_])esta\s+ma[nñ]ana(?![\p{L}\p{N}_])/giu, 'hoy')
+            .replace(/(?<![\p{L}\p{N}_])(?:(?:por|de|en|toda|durante)\s+la|cada)\s+ma[nñ]ana(?![\p{L}\p{N}_])/giu, ' ')
         : normalizedText;
     const offsets = [2, 1, 0];
     const sources = ['relative:dopodomani', 'relative:domani', 'relative:oggi'];
@@ -4892,15 +4896,20 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   }
 
   _detectIndirectSbattezzoRequest_(subject, body) {
-    const source = `${subject || ''} ${body || ''}`.toLowerCase().replace(/\s+/g, ' ').trim();
+    const source = `${subject || ''}\n${body || ''}`.normalize('NFC').toLowerCase().replace(/[^\S\r\n]+/g, ' ').trim();
     if (!source) {
       return { detected: false, reason: 'empty_text', confidence: 0 };
     }
 
-    const physicalBuildingContext = /\b(?:messa|cerimonia|funeral[ei]|matrimoni[oa]|porta|uscita|navata|edificio|dopo\s+la\s+messa)\b/i.test(source);
+    const hasNonPhysicalChurchExit = source.split(/[.!?;\n]+/).some(clause => {
+      if (!/\buscire\s+dalla\s+chiesa\b/i.test(clause)) return false;
+      const physicalExit = /\b(?:porta|uscita|navata|edificio|rampa|scale|carrozzina|accessibil\w*|disabil\w*)\b/i.test(clause) ||
+        /\b(?:dopo|durante|prima|al termine di|alla fine di)\s+(?:la|della|una|un|il|del)?\s*(?:messa|cerimonia|funerale|matrimonio)\b/i.test(clause);
+      return !physicalExit;
+    });
     const rules = [
       { reason: 'explicit_sbattezzo', confidence: 0.98, pattern: /\b(?:sbattezzo|sbattezzamento|apostasia|apostatare)\b/i },
-      { reason: 'church_membership_exit', confidence: physicalBuildingContext ? 0.45 : 0.86, pattern: /\buscire\s+dalla\s+chiesa(?:\s+cattolica)?\b/i },
+      { reason: 'church_membership_exit', confidence: hasNonPhysicalChurchExit ? 0.86 : 0.45, pattern: /\buscire\s+dalla\s+chiesa(?:\s+cattolica)?\b/i },
       { reason: 'no_longer_catholic', confidence: 0.92, pattern: /\bnon\s+(?:voglio|desidero)\s+(?:piu|più)\s+essere\s+(?:cattolic[oa]|cristian[oa])\b/i },
       { reason: 'no_longer_identifies', confidence: 0.9, pattern: /\bnon\s+(?:mi\s+)?(?:ritengo|sento)\s+(?:piu|più)\s+(?:cattolic[oa]|cristian[oa])\b/i },
       { reason: 'church_unregister', confidence: 0.92, pattern: /\b(?:cancellarmi|disiscrivermi)\s+dalla\s+chiesa\b/i },
@@ -6104,18 +6113,23 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   _detectTemporalMentions(text, language) {
     // Protezione contro input nulli o non validi
     if (!text || typeof text !== 'string') return false;
+    text = text.normalize('NFC');
+    // Reuse date validation rather than treating arbitrary numeric pairs as dates.
+    if (this._extractExplicitDateFromText_(text, new Date().getFullYear())) return true;
+    const lang = this._normalizeLanguageCode_(language, 'it');
+    if (lang === 'en' && /(?<![\p{L}\p{N}_])(?:may\s+(?:\d{1,2}(?:st|nd|rd|th)?|\d{4})(?!\d)|(?:\d{1,2}(?:st|nd|rd|th)?|in|of|on|by|until|since|from|during|early|late|mid|next|last|this)\s+may)(?![\p{L}\p{N}_])/iu.test(text)) return true;
     const monthPatterns = {
       // Nota: \b è ASCII-only; i lookaround Unicode evitano falsi negativi
       // sulle parole con accento finale (lunedì, martedì, ecc.).
       'it': /(?<![a-zA-ZÀ-ÿ])(oggi|domani|dopodomani|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?![a-zA-ZÀ-ÿ])/i,
-      'en': /(?<![a-zA-Z])(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|may|june|july|august|september|october|november|december)(?![a-zA-Z])/i,
+      'en': /(?<![a-zA-Z])(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|june|july|august|september|october|november|december)(?![a-zA-Z])/i,
       'es': /(?<![a-zA-ZÀ-ÿ])(hoy|ma[nñ]ana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?![a-zA-ZÀ-ÿ])/i,
       'pt': /(?<![a-zA-ZÀ-ÿ])(hoje|amanh[aã]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo|janeiro|fevereiro|mar\u00E7o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?![a-zA-ZÀ-ÿ])/i,
       'de': /(?<![a-zA-ZÄÖÜäöüß])(heute|morgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|januar|februar|m[äa]rz|april|mai|juni|juli|august|september|oktober|november|dezember)(?![a-zA-ZÄÖÜäöüß])/i
     };
 
     // Fallback su italiano se lingua non supportata
-    monthPatterns.fr = /\b(?:aujourd'hui|demain|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|janvier|f[eé]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[eé]cembre)\b/i;
+    monthPatterns.fr = /(?<![\p{L}\p{N}_])(?:aujourd['’]hui|apr[eè]s[- ]demain|demain|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|janvier|f[eé]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[eé]cembre)(?![\p{L}\p{N}_])/iu;
     const pattern = monthPatterns[this._normalizeLanguageCode_(language, 'it')] || monthPatterns['it'];
     return pattern.test(text);
   }
