@@ -671,11 +671,11 @@ var Classifier = class Classifier {
   }
 
   _extractPriorCommunicationContact_(text) {
-    const safeText = String(text || '');
+    const safeText = String(text || '').normalize('NFC');
     const contactPatterns = [
-      /\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\s+((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)\s+[A-Za-zÀ-ÿ'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)\b/i,
-      /\b(?:mi\s+sono\s+sentit[oa]|ci\s+siamo\s+sentit[ie]|vi\s+siete\s+sentit[ie])\s+con\s+((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)\s+[A-Za-zÀ-ÿ'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)\b/i,
-      /\b(?:referente|riferimento|contatto)\s*[:\-]\s*((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)?\s*[A-Za-zÀ-ÿ'’ -]{2,45})\b/i
+      /\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\s+((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)\s+[\p{L}'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)(?=$|[^\p{L}\p{N}_])/iu,
+      /\b(?:mi\s+sono\s+sentit[oa]|ci\s+siamo\s+sentit[ie]|vi\s+siete\s+sentit[ie])\s+con\s+((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)\s+[\p{L}'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)(?=$|[^\p{L}\p{N}_])/iu,
+      /\b(?:referente|riferimento|contatto)\s*[:\-]\s*((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)?\s*[\p{L}'’ -]{2,45})(?=$|[^\p{L}\p{N}_])/iu
     ];
 
     for (const pattern of contactPatterns) {
@@ -683,7 +683,7 @@ var Classifier = class Classifier {
       if (match && match[1]) {
         return match[1]
           // Stop before narrative complements, while preserving names such as De Luca.
-          .split(/\s+(?:ieri|oggi|domani|stamattina|stasera|lunedì|martedì|mercoledì|giovedì|venerdì|sabato|domenica|questa|questo|scorsa|scorso|per|con|che|e|ed|alle|alla|al|sul|sulla|durante|dopo|prima|in|telefonicamente|abbiamo|avevamo)\b/i)[0]
+          .split(/\s+(?:ieri|oggi|domani|stamattina|stasera|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|questa|questo|scorsa|scorso|per|con|che|e|ed|alle|alla|al|sul|sulla|durante|dopo|prima|in|telefonicamente|abbiamo|avevamo)(?=$|[^\p{L}\p{N}_])/iu)[0]
           .replace(/\s+/g, ' ')
           .replace(/[.,;:!?]+$/g, '')
           .trim()

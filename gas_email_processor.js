@@ -5337,7 +5337,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       /(?:^|[^\p{L}\p{N}_])(?:beginnt|beginnen|findet|finden)\s+statt(?=$|[^\p{L}\p{N}_])/iu
     ];
     const eventNounPattern = /\b(?:incontro|riunione|corso|lezione|messa|messe|celebrazione|appuntamento|catechesi|ritiro|evento|mass|masses|meeting|course|class|event|appointment|reuni[oó]n|curso|rencontre|réunion|cours|treffen|kurs)\b/i;
-    const directEventTimePattern = /(?:^|[^\p{L}\p{N}_])(?:è|e'|sar[àa]|sono|saranno|is|are|will\s+be|ser[áa]|sera|ser[aã]o|est[áa]|ist|sind)(?=$|[^\p{L}\p{N}_])[^.!?\n]{0,80}(?:^|[^\p{L}\p{N}_])(?:alle?|ore|at|a\s+las|às|à|um)\s+(?:[01]?\d|2[0-3])(?:[:.][0-5]\d)?(?=$|[^\p{L}\p{N}_])/iu;
+    const directEventTimePattern = /(?:^|[^\p{L}\p{N}_])(?:è|e'|sar[àa]|sono|saranno|is|are|will\s+be|ser[áa]|sera|ser[aã]o|est[áa]|ist|sind)(?=$|[^\p{L}\p{N}_])[^.!?\n]{0,80}(?:^|[^\p{L}\p{N}_])(?:alle?|ore|at|a\s+las|às|à|um)\s+(?:[01]?\d|2[0-3])(?:[:.][0-5]\d)?(?:\s*(?:am|pm))?(?=$|[^\p{L}\p{N}_])/iu;
 
     const scheduledTimes = [];
     sentences.forEach((sentence) => {
@@ -5490,7 +5490,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     const patterns = {
       questioned: [
         'non ho capito', 'non capisco', 'mi scusi non ho capito', 'non mi è chiaro',
-        'non è chiaro', 'può chiarire', 'potrebbe chiarire', 'potrebbe spiegare',
+        'non è chiaro', 'può chiarire', 'potrebbe chiarire', 'potete chiarire', 'potrebbe spiegare',
         'cosa significa', 'dubbio', 'confuso', 'mi aiuta a capire',
         'i did not understand', 'i don\'t understand', 'not clear',
         'could you clarify', 'could you please clarify', 'could you explain',
@@ -5563,7 +5563,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
         comunione: /(?<![\p{L}\p{N}_])(?:comunione|communion|comunión|comunhão|kommunion)(?![\p{L}\p{N}_])/iu,
         cresima: /\b(?:cresima|confirmation|confirmaci[oó]n|crisma|firmung)\b/iu,
         matrimonio: /\b(?:matrimonio|wedding|marriage|mariage|boda|casamento|hochzeit)\b/iu,
-        contatti: /\b(?:contatti|contacts?|phone\s+number|n[uú]mero\s+de\s+tel[eé]fono|parish\s+email|telefonnummer)\b/iu,
+        contatti: /\b(?:contatti|recapit[oi]|(?:numero\s+di\s+)?telefono|e-?mail\s+della\s+parrocchia|contacts?|phone\s+number|n[uú]mero\s+de\s+tel[eé]fono|parish\s+email|telefonnummer)\b/iu,
         territorio: /\b(?:territorio|territory|parish\s+boundaries|territoire|territ[oó]rio|pfarrgebiet)\b/iu,
         indirizzo: /\b(?:indirizzo|address|direcci[oó]n|adresse|endere[cç]o|anschrift)\b/iu
       };
@@ -5871,7 +5871,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       .split(/[.!?;\n]+/)
       .map(clause => {
         // Duration alone does not prove current presence: require a present-tense assertion.
-        if (!/\b(?:sono|siamo|am|are|is|suis|sommes|est|estoy|estamos|esta|estao|estou|sou|bin|sind|ist|encontra|encuentra|trouve)\b|\be\s+(?:a|in|ricoverat[oa]|allettat[oa])\b/.test(clause)) return clause;
+        if (!/\b(?:sono|siamo|sto|stiamo|trovo|troviamo|trova|trovano|abito|abitiamo|vivo|viviamo|am|are|is|suis|sommes|est|estoy|estamos|esta|estan|estao|estou|sou|bin|sind|ist|encontra|encontram|encuentra|encuentran|trouve|trouvent)\b|\be\s+(?:a|in|ricoverat[oa]|allettat[oa])\b/.test(clause)) return clause;
         return clause
           .replace(/\b(?:da ieri|since yesterday|depuis hier|desde ayer|desde ontem|seit gestern)\b/g, '')
           .replace(/\b(?:fino a domani|until tomorrow|jusqu['’]?a demain|hasta manana|ate amanha|bis morgen)\b/g, '');
