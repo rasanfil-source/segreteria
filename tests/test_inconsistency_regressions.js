@@ -44,7 +44,8 @@ run("processor.memoryService = memory; processor._inferUserReaction('Grazie, ho 
 assert.strictEqual(run('saved.providedInfo[0].userReaction'), 'acknowledged');
 assert.strictEqual(run('saved.messageCount'), 7);
 assert.strictEqual(run('saved.providedInfo[0].count'), 2);
-assert.strictEqual(run("processor._reconcilePhysicalPresenceConstraint_(null, 'Sono agli arresti domiciliari', 'Vorrei informazioni.', {}, new Date()).type"), 'legal_restriction');
+assert.strictEqual(run("processor._reconcilePhysicalPresenceConstraint_(null, 'Sono agli arresti domiciliari', 'Vorrei informazioni.', {}, new Date()).type"), 'none');
+assert.strictEqual(run("processor._reconcilePhysicalPresenceConstraint_(null, 'Informazioni', 'Sono agli arresti domiciliari.', {}, new Date()).type"), 'legal_restriction');
 for (const lang of ['it', 'en', 'es', 'fr', 'pt', 'de', 'pl']) {
   ctx.lang = lang;
   const soft = run("engine._renderResponseGuidelines(lang, 'invernale', 'SALUTO_STANDARD', 'CLOSING', 'soft')");

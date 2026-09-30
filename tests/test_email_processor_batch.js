@@ -5713,7 +5713,7 @@ console.log('--- Test attachment semantic consistency: JSON Gemini e fail-open -
   assert(result.source === 'semantic_zero_shot', 'la sorgente deve tracciare il controllo semantico');
   assert(capturedPrompt.includes('Invio locandina concerto') && capturedPrompt.includes('Programma del pellegrinaggio'), 'il prompt deve includere email e OCR');
   assert(capturedPrompt.includes('locandina del concerto'), 'il prompt semantico deve includere la descrizione attesa dal quick check');
-  assert(capturedOptions && capturedOptions.modelName === 'gemini-3.5-flash-lite' && capturedOptions.skipRateLimit === true, 'il controllo semantico deve usare il modello leggero aggiornato senza rate limit');
+  assert(capturedOptions && capturedOptions.modelName === 'gemini-3.5-flash-lite' && !capturedOptions.skipRateLimit && !capturedOptions.apiKey, 'il controllo semantico usa limiter e selezione chiave del servizio');
 
   const failOpenProcessor = new EmailProcessor({
     gmailService: {},

@@ -21,7 +21,7 @@ function _refreshScriptPropertyCache_(requestedKey, now) {
       ts: now
     };
   });
-  if (!Object.prototype.hasOwnProperty.call(_CACHED_PROPS, requestedKey)) {
+  if (typeof requestedKey === 'string' && requestedKey.trim() && !Object.prototype.hasOwnProperty.call(_CACHED_PROPS, requestedKey)) {
     _CACHED_PROPS[requestedKey] = {
       value: (!hasGetProperties && typeof _SCRIPT_PROPERTIES.getProperty === 'function')
         ? _SCRIPT_PROPERTIES.getProperty(requestedKey)
@@ -32,6 +32,7 @@ function _refreshScriptPropertyCache_(requestedKey, now) {
 }
 
 function _getScriptProperty(key, forceRefresh = false) {
+  if (typeof key !== 'string' || !key.trim()) return null;
   if (!_SCRIPT_PROPERTIES) {
     try {
       if (typeof PropertiesService === 'undefined' || !PropertiesService || typeof PropertiesService.getScriptProperties !== 'function') {

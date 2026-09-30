@@ -198,7 +198,7 @@ var Classifier = class Classifier {
     const contentForQuickChecks = this._isTrivialReplyBody(mainContent) ? subjectForChecks : mainContent;
 
     // FILTRO 1: Acknowledgment ultra-semplice
-    if (this._isUltraSimpleAcknowledgment(contentForQuickChecks)) {
+    if (this._isUltraSimpleAcknowledgment(contentForQuickChecks) && (isReply || !subjectHasRequest)) {
       console.log('      ✗ Acknowledgment ultra-semplice (≤3 parole, nessuna domanda)');
       return {
         shouldReply: false,
@@ -210,7 +210,7 @@ var Classifier = class Classifier {
     }
 
     // FILTRO 2: Solo saluto
-    if (this._isGreetingOnly(contentForQuickChecks)) {
+    if (this._isGreetingOnly(contentForQuickChecks) && (isReply || !subjectHasRequest)) {
       console.log('      ✗ Solo saluto (standalone)');
       return {
         shouldReply: false,
@@ -282,6 +282,7 @@ var Classifier = class Classifier {
     const lines = processedBody.split('\n');
     const cleanLines = [];
     let inQuoteBlock = false;
+    let quoteMode = null; // header, prefixed, or unprefixed history
 
     for (const line of lines) {
       const safeLine = line == null ? '' : String(line);
@@ -306,20 +307,36 @@ var Classifier = class Classifier {
           break;
         }
       }
-      if (isQuote || stripped.startsWith('>')) {
+      const isPrefixedQuote = stripped.startsWith('>') || stripped.startsWith('|');
+      if (isQuote && !isPrefixedQuote) {
         inQuoteBlock = true;
+        quoteMode = 'header';
         continue;
       }
+      if (isPrefixedQuote) {
+        inQuoteBlock = true;
+        if (quoteMode !== 'history') quoteMode = 'prefixed';
+        continue;
+      }
+      // Additional header fields and folded header values are not historical body text.
+      if (inQuoteBlock && quoteMode === 'header' &&
+          (/^(?:Da|From|A|To|Cc|Bcc|Oggetto|Subject|Data|Date|Inviato|Sent):/i.test(stripped) ||
+           /^[ \t]+\S/.test(safeLine))) continue;
+      // Only prefixed quotations allow inline replies. A new header resets the mode.
+      if (inQuoteBlock && quoteMode === 'header') quoteMode = 'history';
+      if (inQuoteBlock && quoteMode === 'history') continue;
       if (inQuoteBlock &&
           /^[\p{L}\p{N}]/u.test(stripped) &&
           !stripped.startsWith('>') &&
           !stripped.startsWith('|')) {
         inQuoteBlock = false;
+        quoteMode = null;
       }
 
       // A clearly operational bullet can reopen an inline reply; punctuation alone cannot.
       if (inQuoteBlock && /^(?:[-*•]|\[)[\s\S]*\b(?:vorrei|posso|chiedo|allego|confermo|please|could|would)\b/i.test(stripped)) {
         inQuoteBlock = false;
+        quoteMode = null;
       }
       if (inQuoteBlock) continue;
       cleanLines.push(safeLine);
