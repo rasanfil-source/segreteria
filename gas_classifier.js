@@ -320,7 +320,7 @@ var Classifier = class Classifier {
       }
       // Additional header fields and folded header values are not historical body text.
       if (inQuoteBlock && quoteMode === 'header' &&
-          (/^(?:Da|From|A|To|Cc|Bcc|Oggetto|Subject|Data|Date|Inviato|Sent):/i.test(stripped) ||
+          (/^(?:Da|From|De|Von|A|To|Para|An|Cc|Bcc|Ccn|Oggetto|Subject|Assunto|Asunto|Objet|Betreff|Data|Date|Fecha|Datum|Inviato|Sent|Enviado|Envoy[eé]|Gesendet):/iu.test(stripped.normalize('NFC')) ||
            /^[ \t]+\S/.test(safeLine))) continue;
       // Only prefixed quotations allow inline replies. A new header resets the mode.
       if (inQuoteBlock && quoteMode === 'header') quoteMode = 'history';
@@ -549,6 +549,9 @@ var Classifier = class Classifier {
   _matchesCategoryKeyword_(textLower, keyword, category) {
     const normalizedKeyword = String(keyword || '').toLowerCase().trim();
     if (!normalizedKeyword) return false;
+    if (category === 'sbattezzo' && normalizedKeyword === 'uscire dalla chiesa') {
+      return this._isSbattezzoFormalRequest_(textLower);
+    }
 
     const escaped = normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const keywordRegex = new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'iu');
@@ -590,7 +593,15 @@ var Classifier = class Classifier {
 
   _isSbattezzoFormalRequest_(text) {
     const source = String(text || '').toLowerCase();
-    return /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|\babbandonare\s+la\s+(?:fede|religione)\b|\brinnegare\s+la\s+fede\b|cancellazione\s+(?:dal|dai|dei)\s+registr|registr[oi]\s+del\s+battesim[oa]|uscire\s+dalla\s+chiesa|cancellarmi\s+dalla\s+chiesa|disiscrivermi\s+dalla\s+chiesa|rinunciare\s+al\s+battesim[oa]|(?:togliermi|rimuovermi|essere\s+rimosso)\s+dai\s+registr|non\s+(?:voglio|desidero)\s+(?:piu|più)\s+essere\s+(?:cattolic[oa]|cristian[oa])|non\s+(?:mi\s+)?(?:ritengo|sento)\s+(?:piu|più)\s+(?:cattolic[oa]|cristian[oa])|non\s+essere\s+(?:piu|più)\s+registrat[oa]\s+come\s+cattolic[oa]/i.test(source);
+    const explicitRequest = /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|\babbandonare\s+la\s+(?:fede|religione)\b|\brinnegare\s+la\s+fede\b|cancellazione\s+(?:dal|dai|dei)\s+registr|registr[oi]\s+del\s+battesim[oa]|cancellarmi\s+dalla\s+chiesa|disiscrivermi\s+dalla\s+chiesa|rinunciare\s+al\s+battesim[oa]|(?:togliermi|rimuovermi|essere\s+rimosso)\s+dai\s+registr|non\s+(?:voglio|desidero)\s+(?:piu|più)\s+essere\s+(?:cattolic[oa]|cristian[oa])|non\s+(?:mi\s+)?(?:ritengo|sento)\s+(?:piu|più)\s+(?:cattolic[oa]|cristian[oa])|non\s+essere\s+(?:piu|più)\s+registrat[oa]\s+come\s+cattolic[oa]/i.test(source);
+    if (explicitRequest) return true;
+    // Evaluate each exit statement locally; unrelated events must not suppress it.
+    return source.split(/[.!?;\n]+/).some(clause => {
+      if (!/\buscire\s+dalla\s+chiesa\b/i.test(clause)) return false;
+      const physicalExit = /\b(?:porta|uscita|navata|edificio|rampa|scale|carrozzina|accessibil\w*|disabil\w*)\b/i.test(clause) ||
+        /\b(?:dopo|durante|prima|al termine di|alla fine di)\s+(?:la|della|una|un|il|del)?\s*(?:messa|cerimonia|funerale|matrimonio)\b/i.test(clause);
+      return !physicalExit;
+    });
   }
 
   /**

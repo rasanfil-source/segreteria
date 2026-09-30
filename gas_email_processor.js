@@ -3095,31 +3095,30 @@ var EmailProcessor = class EmailProcessor {
   }
 
   _resolveRequestedScheduleDate_(text = '', currentDate = new Date(), language = 'it') {
-    const normalizedText = String(text || '').toLowerCase();
+    const normalizedText = String(text || '').normalize('NFC').toLowerCase();
     const current = this._coerceBusinessDateOnly_(currentDate) || new Date();
-
-    if (/(?<![a-zA-ZÀ-ÿ])dopodomani(?![a-zA-ZÀ-ÿ])/i.test(normalizedText)) {
-      return {
-        date: this._addDaysToDateOnly_(current, 2),
-        isExplicit: true,
-        source: 'relative:dopodomani'
-      };
-    }
-
-    if (/(?<![a-zA-ZÀ-ÿ])domani(?![a-zA-ZÀ-ÿ])/i.test(normalizedText)) {
-      return {
-        date: this._addDaysToDateOnly_(current, 1),
-        isExplicit: true,
-        source: 'relative:domani'
-      };
-    }
-
-    if (/(?<![a-zA-ZÀ-ÿ])oggi(?![a-zA-ZÀ-ÿ])/i.test(normalizedText)) {
-      return {
-        date: current,
-        isExplicit: true,
-        source: 'relative:oggi'
-      };
+    const lang = String(language || 'it').toLowerCase().split(/[-_]/)[0];
+    const terms = {
+      it: ['dopodomani', 'domani', 'oggi'],
+      en: ['(?:the\\s+)?day\\s+after\\s+tomorrow', 'tomorrow', 'today'],
+      es: ['pasado\\s+ma[nñ]ana', 'ma[nñ]ana', 'hoy'],
+      fr: ['apr[eè]s[- ]demain', 'demain', "aujourd['’]hui"],
+      pt: ['depois\\s+de\\s+amanh[aã]', 'amanh[aã]', 'hoje'],
+      de: ['[üu]bermorgen', 'morgen', 'heute']
+    };
+    // Remove morning-only expressions before matching the ambiguous word "tomorrow".
+    const relativeText = lang === 'de'
+      ? normalizedText.replace(/\b(guten|am|jeden|heute|gestern|fr[üu]hen)\s+morgen\b/giu, '$1 ')
+      : lang === 'es'
+        ? normalizedText.replace(/\b(?:por|de|en)\s+la\s+ma[nñ]ana\b/giu, ' ')
+        : normalizedText;
+    const offsets = [2, 1, 0];
+    const sources = ['relative:dopodomani', 'relative:domani', 'relative:oggi'];
+    for (const [index, term] of (terms[lang] || terms.it).entries()) {
+      const pattern = new RegExp('(?<![\\p{L}\\p{N}_])(?:' + term + ')(?![\\p{L}\\p{N}_])', 'iu');
+      if (pattern.test(relativeText)) {
+        return { date: this._addDaysToDateOnly_(current, offsets[index]), isExplicit: true, source: sources[index] };
+      }
     }
 
     const explicitDate = this._extractExplicitDateFromText_(normalizedText, current.getFullYear());
@@ -3146,7 +3145,7 @@ var EmailProcessor = class EmailProcessor {
   _extractExplicitDateFromText_(text, defaultYear) {
     const monthMap = this._getItalianMonthMap_();
     const monthNames = Object.keys(monthMap).join('|');
-    const textualPattern = new RegExp(`(?<!\\d)(\\d{1,2})\\s+(${monthNames})(?:\\s+(\\d{4}))?(?!\\d)`, 'gi');
+    const textualPattern = new RegExp(`(?<!\\d)(\\d{1,2})\\s+(${monthNames})(?![\\p{L}\\p{N}_])(?:\\s+(\\d{4}))?(?!\\d)`, 'giu');
     let textualMatch;
     while ((textualMatch = textualPattern.exec(String(text || ''))) !== null) {
       const day = parseInt(textualMatch[1], 10);
@@ -6406,128 +6405,128 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   }
 
   _hasConfirmationTopic_(text, detectedLanguage = 'it') {
-    const source = String(text || '').toLowerCase();
+    const source = String(text || '').normalize('NFC').toLowerCase();
     switch (this._normalizeSponsorGuidanceLanguage_(detectedLanguage)) {
       case 'en':
-        return /\b(confirmation|sacrament of confirmation)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(confirmation|sacrament of confirmation)(?![\p{L}\p{N}_])/iu.test(source);
       case 'es':
-        return /\b(confirmaci[oó]n|confirmad[oa]s?)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(confirmaci[oó]n|confirmad[oa]s?)(?![\p{L}\p{N}_])/iu.test(source);
       case 'fr':
-        return /\b(confirmation|confirm[ée]s?)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(confirmation|confirm[ée]s?)(?![\p{L}\p{N}_])/iu.test(source);
       case 'pt':
-        return /\b(crisma|crismad[oa]s?)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(crisma|crismad[oa]s?)(?![\p{L}\p{N}_])/iu.test(source);
       case 'de':
-        return /\b(firmung|gefirmt\w*)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(firmung|gefirmt[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])/iu.test(source);
       default:
-        return /\bcresim\w*\b/i.test(source);
+        return /\bcresim[\p{L}\p{N}_]*\b/iu.test(source);
     }
   }
 
   _hasSacramentalContext_(text, detectedLanguage = 'it') {
-    const source = String(text || '').toLowerCase();
+    const source = String(text || '').normalize('NFC').toLowerCase();
     if (this._hasConfirmationTopic_(source, detectedLanguage)) return true;
     switch (this._normalizeSponsorGuidanceLanguage_(detectedLanguage)) {
       case 'en':
-        return /\b(baptism|baptismal|christening|catholic|church|sacrament|godparent)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(baptism|baptismal|christening|catholic|church|sacrament|godparent)(?![\p{L}\p{N}_])/iu.test(source);
       case 'es':
-        return /\b(bautism\w*|cat[oó]lic\w*|iglesia|sacrament\w*)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(bautism[\p{L}\p{N}_]*|cat[oó]lic[\p{L}\p{N}_]*|iglesia|sacrament[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])/iu.test(source);
       case 'fr':
-        return /\b(bapt[êe]m\w*|catholique|[ée]glise|sacrement\w*)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(bapt[êe]m[\p{L}\p{N}_]*|catholique|[ée]glise|sacrement[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])/iu.test(source);
       case 'pt':
-        return /\b(batism\w*|cat[oó]lic\w*|igreja|sacrament\w*)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(batism[\p{L}\p{N}_]*|cat[oó]lic[\p{L}\p{N}_]*|igreja|sacrament[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])/iu.test(source);
       case 'de':
-        return /\b(taufe|tauf\w*|katholisch\w*|kirche|sakrament\w*)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(taufe|tauf[\p{L}\p{N}_]*|katholisch[\p{L}\p{N}_]*|kirche|sakrament[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])/iu.test(source);
       default:
-        return /\b(battesim\w*|cattolic\w*|chiesa|sacrament\w*)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(battesim[\p{L}\p{N}_]*|cattolic[\p{L}\p{N}_]*|chiesa|sacrament[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])/iu.test(source);
     }
   }
 
   _hasSacramentalSponsorRole_(text, detectedLanguage = 'it') {
-    const source = String(text || '').toLowerCase();
+    const source = String(text || '').normalize('NFC').toLowerCase();
     switch (this._normalizeSponsorGuidanceLanguage_(detectedLanguage)) {
       case 'en':
-        return /\b(godfather|godmother|godparent|godparents)\b/i.test(source) ||
-          (/\bsponsors?\b/i.test(source) && (
+        return /(?<![\p{L}\p{N}_])(godfather|godmother|godparent|godparents)(?![\p{L}\p{N}_])/iu.test(source) ||
+          (/\bsponsors?\b/iu.test(source) && (
             this._hasSacramentalContext_(source, 'en') ||
             this._hasMissingConfirmationSignal_(source, 'en')
           ));
       case 'es':
-        return /\b(padrin\w*|madrin\w*)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(padrin[\p{L}\p{N}_]*|madrin[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])/iu.test(source);
       case 'fr':
-        return /\b(parrain|marraine)s?\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(parrain|marraine)s?\b/iu.test(source);
       case 'pt':
-        return /\b(padrinh\w*|madrinh\w*)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(padrinh[\p{L}\p{N}_]*|madrinh[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])/iu.test(source);
       case 'de':
-        return /\b(firmpat\w*|taufpat\w*|pate|patin)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(firmpat[\p{L}\p{N}_]*|taufpat[\p{L}\p{N}_]*|pate|patin)(?![\p{L}\p{N}_])/iu.test(source);
       default:
-        return /\b(padrin\w*|madrin\w*)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(padrin[\p{L}\p{N}_]*|madrin[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])/iu.test(source);
     }
   }
 
   _hasSponsorEligibilityTopic_(text, detectedLanguage = 'it') {
-    const source = String(text || '').toLowerCase();
+    const source = String(text || '').normalize('NFC').toLowerCase();
     switch (this._normalizeSponsorGuidanceLanguage_(detectedLanguage)) {
       case 'en':
-        return /\b(requirements?|conditions?|eligib(?:le|ility)|suitab(?:le|ility))\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(requirements?|conditions?|eligib(?:le|ility)|suitab(?:le|ility))(?![\p{L}\p{N}_])/iu.test(source);
       case 'es':
-        return /\b(requisitos?|condiciones?|idoneidad|id[oó]ne[oa]s?)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(requisitos?|condiciones?|idoneidad|id[oó]ne[oa]s?)(?![\p{L}\p{N}_])/iu.test(source);
       case 'fr':
-        return /\b(conditions?|exigences?|aptitude|apte)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(conditions?|exigences?|aptitude|apte)(?![\p{L}\p{N}_])/iu.test(source);
       case 'pt':
-        return /\b(requisitos?|condi[cç][oõ]es|idoneidade|id[oô]ne[oa]s?)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(requisitos?|condi[cç][oõ]es|idoneidade|id[oô]ne[oa]s?)(?![\p{L}\p{N}_])/iu.test(source);
       case 'de':
-        return /\b(voraussetzungen?|bedingungen?|eignung|geeignet)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(voraussetzungen?|bedingungen?|eignung|geeignet)(?![\p{L}\p{N}_])/iu.test(source);
       default:
-        return /\b(requisit[oi]|condizion[ei]|idoneit[aà]|idone[oa]i?)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(requisit[oi]|condizion[ei]|idoneit[aà]|idone[oa]i?)(?![\p{L}\p{N}_])/iu.test(source);
     }
   }
 
   _hasMissingConfirmationSignal_(text, detectedLanguage = 'it') {
-    const source = String(text || '').toLowerCase();
+    const source = String(text || '').normalize('NFC').toLowerCase();
     switch (this._normalizeSponsorGuidanceLanguage_(detectedLanguage)) {
       case 'en':
-        return /\b(not|never)\b[\s\S]{0,30}\bconfirm(?:ed|ation)\b/i.test(source) ||
-          /\b(have not|haven't|need|must|missing|lack)\b[\s\S]{0,80}\bconfirmation\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(not|never)(?![\p{L}\p{N}_])[\s\S]{0,30}\bconfirm(?:ed|ation)(?![\p{L}\p{N}_])/iu.test(source) ||
+          /(?<![\p{L}\p{N}_])(have not|haven't|need|must|missing|lack)(?![\p{L}\p{N}_])[\s\S]{0,80}\bconfirmation\b/iu.test(source);
       case 'es':
-        return /\b(no estoy|no he sido|me falta|necesito|debo)\b[\s\S]{0,80}\b(confirmaci[oó]n|confirmad[oa])\b/i.test(source) ||
-          /\bconfirmaci[oó]n\b[\s\S]{0,40}\b(me falta|falta)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(no estoy|no he sido|me falta|necesito|debo)(?![\p{L}\p{N}_])[\s\S]{0,80}(?<![\p{L}\p{N}_])(confirmaci[oó]n|confirmad[oa])(?![\p{L}\p{N}_])/iu.test(source) ||
+          /\bconfirmaci[oó]n\b[\s\S]{0,40}(?<![\p{L}\p{N}_])(me falta|falta)(?![\p{L}\p{N}_])/iu.test(source);
       case 'fr':
-        return /\b(pas|jamais|me manque|besoin|dois)\b[\s\S]{0,80}\b(confirmation|confirm[ée])\b/i.test(source) ||
-          /\bconfirmation\b[\s\S]{0,40}\b(me manque|manque)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(pas|jamais|me manque|besoin|dois)(?![\p{L}\p{N}_])[\s\S]{0,80}(?<![\p{L}\p{N}_])(confirmation|confirm[ée])(?![\p{L}\p{N}_])/iu.test(source) ||
+          /\bconfirmation\b[\s\S]{0,40}(?<![\p{L}\p{N}_])(me manque|manque)(?![\p{L}\p{N}_])/iu.test(source);
       case 'pt':
-        return /\b(n[aã]o sou|nunca fui|me falta|preciso|devo)\b[\s\S]{0,80}\b(crisma|crismad[oa])\b/i.test(source) ||
-          /\bcrisma\b[\s\S]{0,40}\b(me falta|falta)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(n[aã]o sou|nunca fui|me falta|preciso|devo)(?![\p{L}\p{N}_])[\s\S]{0,80}(?<![\p{L}\p{N}_])(crisma|crismad[oa])(?![\p{L}\p{N}_])/iu.test(source) ||
+          /\bcrisma\b[\s\S]{0,40}(?<![\p{L}\p{N}_])(me falta|falta)(?![\p{L}\p{N}_])/iu.test(source);
       case 'de':
-        return /\b(nicht|nie|fehlt|brauche|muss)\b[\s\S]{0,80}\b(firmung|gefirmt)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(nicht|nie|fehlt|brauche|muss)(?![\p{L}\p{N}_])[\s\S]{0,80}(?<![\p{L}\p{N}_])(firmung|gefirmt)(?![\p{L}\p{N}_])/iu.test(source);
       default:
-        return /\bnon (sono|mi sono|ero|mi ero|ho ricevuto)\b[\s\S]{0,50}\bcresim\w*/i.test(source) ||
-          /\bmi manca\b[\s\S]{0,50}\bcresim\w*/i.test(source) ||
-          /\bcresim\w*[\s\S]{0,50}\b(che\s+)?mi manca\b/i.test(source) ||
-          /\b(devo|dovrei|ho bisogno|ho la necessit[aà]|mi serve)\b[\s\S]{0,120}\b(ricevere|fare|completare)\b[\s\S]{0,140}\bcresim\w*/i.test(source) ||
-          /\b(completare|concludere)\b[\s\S]{0,80}\b(percorso|iniziazione cristiana)\b[\s\S]{0,80}\bcresim\w*/i.test(source);
+        return /\bnon (sono|mi sono|ero|mi ero|ho ricevuto)(?![\p{L}\p{N}_])[\s\S]{0,50}\bcresim[\p{L}\p{N}_]*/iu.test(source) ||
+          /\bmi manca\b[\s\S]{0,50}\bcresim[\p{L}\p{N}_]*/iu.test(source) ||
+          /\bcresim[\p{L}\p{N}_]*[\s\S]{0,50}(?<![\p{L}\p{N}_])(che\s+)?mi manca\b/iu.test(source) ||
+          /(?<![\p{L}\p{N}_])(devo|dovrei|ho bisogno|ho la necessit[aà]|mi serve)(?![\p{L}\p{N}_])[\s\S]{0,120}(?<![\p{L}\p{N}_])(ricevere|fare|completare)(?![\p{L}\p{N}_])[\s\S]{0,140}\bcresim[\p{L}\p{N}_]*/iu.test(source) ||
+          /(?<![\p{L}\p{N}_])(completare|concludere)(?![\p{L}\p{N}_])[\s\S]{0,80}(?<![\p{L}\p{N}_])(percorso|iniziazione cristiana)(?![\p{L}\p{N}_])[\s\S]{0,80}\bcresim[\p{L}\p{N}_]*/iu.test(source);
     }
   }
 
   _hasSponsorRoleIntent_(text, detectedLanguage = 'it') {
-    const source = String(text || '').toLowerCase();
+    const source = String(text || '').normalize('NFC').toLowerCase();
     if (!this._hasSacramentalSponsorRole_(source, detectedLanguage)) return false;
     switch (this._normalizeSponsorGuidanceLanguage_(detectedLanguage)) {
       case 'en':
-        return /\b(asked|chosen|need|want|would like|must)\b[\s\S]{0,90}\b(be|become|serve as|act as)\b[\s\S]{0,50}\b(godfather|godmother|godparent|sponsor)\b/i.test(source) ||
-          /\b(be|become|serve as|act as)\b[\s\S]{0,50}\b(godfather|godmother|godparent|sponsor)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(asked|chosen|need|want|would like|must)(?![\p{L}\p{N}_])[\s\S]{0,90}(?<![\p{L}\p{N}_])(be|become|serve as|act as)(?![\p{L}\p{N}_])[\s\S]{0,50}(?<![\p{L}\p{N}_])(godfather|godmother|godparent|sponsor)(?![\p{L}\p{N}_])/iu.test(source) ||
+          /(?<![\p{L}\p{N}_])(be|become|serve as|act as)(?![\p{L}\p{N}_])[\s\S]{0,50}(?<![\p{L}\p{N}_])(godfather|godmother|godparent|sponsor)(?![\p{L}\p{N}_])/iu.test(source);
       case 'es':
-        return /\b(ser|hacer de|convertirme en|me pidieron|me han pedido)\b[\s\S]{0,70}\b(padrin\w*|madrin\w*)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(ser|hacer de|convertirme en|me pidieron|me han pedido)(?![\p{L}\p{N}_])[\s\S]{0,70}(?<![\p{L}\p{N}_])(padrin[\p{L}\p{N}_]*|madrin[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])/iu.test(source);
       case 'fr':
-        return /\b([êe]tre|devenir|faire|demand[ée])\b[\s\S]{0,70}\b(parrain|marraine)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])([êe]tre|devenir|faire|demand[ée])(?![\p{L}\p{N}_])[\s\S]{0,70}(?<![\p{L}\p{N}_])(parrain|marraine)(?![\p{L}\p{N}_])/iu.test(source);
       case 'pt':
-        return /\b(ser|fazer de|tornar-me|pediram|me pediram)\b[\s\S]{0,70}\b(padrinh\w*|madrinh\w*)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(ser|fazer de|tornar-me|pediram|me pediram)(?![\p{L}\p{N}_])[\s\S]{0,70}(?<![\p{L}\p{N}_])(padrinh[\p{L}\p{N}_]*|madrinh[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])/iu.test(source);
       case 'de':
-        return /\b(pate|patin|firmpat\w*|taufpat\w*)\b[\s\S]{0,70}\b(sein|werden|gebeten)\b/i.test(source) ||
-          /\b(sein|werden|gebeten)\b[\s\S]{0,70}\b(pate|patin|firmpat\w*|taufpat\w*)\b/i.test(source);
+        return /(?<![\p{L}\p{N}_])(pate|patin|firmpat[\p{L}\p{N}_]*|taufpat[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])[\s\S]{0,70}(?<![\p{L}\p{N}_])(sein|werden|gebeten)(?![\p{L}\p{N}_])/iu.test(source) ||
+          /(?<![\p{L}\p{N}_])(sein|werden|gebeten)(?![\p{L}\p{N}_])[\s\S]{0,70}(?<![\p{L}\p{N}_])(pate|patin|firmpat[\p{L}\p{N}_]*|taufpat[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])/iu.test(source);
       default:
-        return /\b(fare|faro|farò|diventare|essere|saro|sarò|fungere|assumere|svolgere|svolgero|svolgerò)(?![a-zàèéìòù])[\s\S]{0,45}\b(da\s+|il\s+|la\s+)?(padrin\w*|madrin\w*)\b/i.test(source) ||
-          /\b(scelt[oa]|chiest[oa]|chiamat[oa]|mi hanno chiesto|mi è stato chiesto)\b[\s\S]{0,90}\b(padrin\w*|madrin\w*)\b/i.test(source) ||
-          /\b(padrin\w*|madrin\w*)\b[\s\S]{0,40}\b(fare|faro|farò|essere|saro|sarò|svolgere|svolgero|svolgerò)(?![a-zàèéìòù])/i.test(source);
+        return /(?<![\p{L}\p{N}_])(fare|faro|farò|diventare|essere|saro|sarò|fungere|assumere|svolgere|svolgero|svolgerò)(?![a-zàèéìòù])[\s\S]{0,45}(?<![\p{L}\p{N}_])(da\s+|il\s+|la\s+)?(padrin[\p{L}\p{N}_]*|madrin[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])/iu.test(source) ||
+          /(?<![\p{L}\p{N}_])(scelt[oa]|chiest[oa]|chiamat[oa]|mi hanno chiesto|mi è stato chiesto)(?![\p{L}\p{N}_])[\s\S]{0,90}(?<![\p{L}\p{N}_])(padrin[\p{L}\p{N}_]*|madrin[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])/iu.test(source) ||
+          /(?<![\p{L}\p{N}_])(padrin[\p{L}\p{N}_]*|madrin[\p{L}\p{N}_]*)(?![\p{L}\p{N}_])[\s\S]{0,40}(?<![\p{L}\p{N}_])(fare|faro|farò|essere|saro|sarò|svolgere|svolgero|svolgerò)(?![a-zàèéìòù])/iu.test(source);
     }
   }
 
