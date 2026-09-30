@@ -3176,16 +3176,17 @@ var EmailProcessor = class EmailProcessor {
     }
 
     const sourceText = String(text || '');
-    const numericPattern = /\b(\d{1,2})([\/.-])(\d{1,2})(?:\2(\d{2,4}))?(?![\/.-]\d)\b/g;
+    const numericPattern = /(?<!\d[\/.-]|\d)\b(\d{1,2})([\/.-])(\d{1,2})(?:\2(\d{2,4}))?(?![\/.-]\d)\b/g;
     let numericMatch;
     while ((numericMatch = numericPattern.exec(sourceText)) !== null) {
       if (numericMatch[2] === '.' && !numericMatch[4]) continue;
+      const prefix = sourceText.slice(Math.max(0, numericMatch.index - 100), numericMatch.index);
+      if (/\b(?:tel(?:efono)?\.?|phone|protocollo|prot\.?)\s*[:#-]?\s*$/i.test(prefix)) continue;
       if (!numericMatch[4]) {
-        const prefix = sourceText.slice(Math.max(0, numericMatch.index - 100), numericMatch.index);
         const suffix = sourceText.slice(numericPattern.lastIndex, numericPattern.lastIndex + 35);
-        const dateCue = /\b(?:il|del|dal|al|on|date|data|appuntamento|appointment|giorno)\s*$/i.test(prefix);
+        const dateCue = /\b(?:il|del|dal|al|on|date|data|appuntamento|appointment|giorno)\s*[:\-]?\s*(?:(?:il|del)\s+)?$/i.test(prefix);
         const units = /^\s*(?:anni|mesi|giorni|ore|minuti|years?|months?|days?|hours?|minutes?)\b/i.test(suffix);
-        const rangeCue = /\b(?:dalle|ore|tra|fra|between|from)\s*$/i.test(prefix);
+        const rangeCue = /\b(?:dalle(?:\s+ore)?|ore|orari[oa]?|(?:tra|fra)(?:\s+le)?|between|from)\s*[:\-]?\s*$/i.test(prefix);
         const addressCue = /\b(?:n\.?|civ(?:ico)?\.?|int(?:erno)?\.?|scala)\s*$/i.test(prefix) ||
           /\b(?:via|viale|piazza|corso|largo|street|road)\s+[\p{L}\p{N}'’ .-]{1,60}\s$/iu.test(prefix);
         if (units || rangeCue || (addressCue && !dateCue)) continue;
@@ -4926,7 +4927,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
 
     const hasNonPhysicalChurchExit = source.split(/[.!?;\n]+/).some(clause => {
       if (!/\buscire\s+dalla\s+chiesa\b/i.test(clause)) return false;
-      const institutionalDecision = /\b(?:ho\s+deciso\s+di|intendo|voglio|desidero)\s+uscire\s+dalla\s+chiesa\s+cattolica\b/i.test(clause);
+      const institutionalDecision = /\b(?:ho\s+deciso\s+di|intendo|voglio|vorrei|desidero|chiedo\s+(?:come|informazioni\s+per)|procedura\s+per)\s+uscire\s+dalla\s+chiesa\s+cattolica\b/i.test(clause);
       if (institutionalDecision && !/\b(?:porta|uscita|navata|edificio|rampa|scale|carrozzina|accessibil\w*|disabil\w*)\b/i.test(clause)) return true;
       const physicalExit = /\b(?:porta|uscita|navata|edificio|rampa|scale|carrozzina|accessibil\w*|disabil\w*)\b/i.test(clause) ||
         /\b(?:dopo|durante|prima|al termine di|alla fine di)\s+(?:la|della|una|un|il|del)?\s*(?:messa|cerimonia|funerale|matrimonio)\b/i.test(clause);
@@ -5290,12 +5291,12 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       /\bmi\s+sembrava\b/i,
       /\bero\s+convint[oa]\b/i,
       /\bho\s+letto\s+(?:che\s+)?[^.!?\n]{0,60}\b(?:alle|ore)\s+\d{1,2}(?:[:.]\d{2})?\b/i,
-      /\b(?:fosse|era|sia|sarà|sarebbe|iniziasse|inizia|cominciasse|comincia)\s+(?:alle\s+)?(?:ore\s+)?(?:[01]?\d|2[0-3])[:.][0-5]\d\b/i,
+      /\b(?:fosse|era|sia|sarà|sarebbe|iniziasse|inizia|cominciasse|comincia)\s+(?:(?:alle\s+(?:ore\s+)?|ore\s+)(?:[01]?\d|2[0-3])(?:[:.][0-5]\d)?|(?:[01]?\d|2[0-3])[:.][0-5]\d)(?![\d:.])\b/i,
       // English
       /\bi\s+thought\b/i,
       /\bi\s+(?:understood|assumed|believed|expected)\b/i,
       /\bi\s+was\s+told\b/i,
-      /\b(?:was|were|would\s+be|starts?\s+at|begins?\s+at)\s+(?:at\s+)?(?:[01]?\d|2[0-3])[:\.][0-5]\d\b/i,
+      /\b(?:was|were|would\s+be|starts?\s+at|begins?\s+at)\s+(?:at\s+)?(?:(?:[1-9]|1[0-2])(?:[:.][0-5]\d)?\s*(?:am|pm)|(?:[01]?\d|2[0-3])[:.][0-5]\d)(?![\d:.])\b/i,
       // Español
       /\bpensaba\b/i,
       /\bcreía\b/i,
@@ -5475,7 +5476,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     if (!userBody || typeof userBody !== 'string') return null;
 
     const bodyText = userBody.trim();
-    const bodyLower = bodyText.toLowerCase();
+    const bodyLower = bodyText.normalize('NFC').toLowerCase();
     const wordMatches = bodyLower.match(/[a-zà-ÿ0-9]+/gi) || [];
     const wordCount = wordMatches.length;
     const hasFollowUpRequestSignal = /[?？]/.test(bodyText) ||
@@ -5557,7 +5558,14 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       // il topic interno con il linguaggio naturale usato dall'utente.
       const naturalTopic = topic.replace(/_info$/, '').replace(/_/g, ' ').trim();
       const aliases = {
-        orari_messe: /\b(?:orari?|orario)\s+(?:(?:delle|della|di|per le|per la)\s+)?mess[ae]\b/i
+        orari_messe: /\b(?:(?:orari?|orario)\s+(?:(?:delle|della|di|per le|per la)\s+)?mess[ae]|mass\s+(?:times?|schedules?)|horarios?\s+de\s+misas?|horaires?\s+des?\s+messes?|hor[aá]rios?\s+d[ae]s?\s+missas?|messzeiten)\b/iu,
+        battesimo: /(?<![\p{L}\p{N}_])(?:battesimo|battesimi|baptism|baptisms|bautismo|bautismos|baptême|baptêmes|batismo|batismos|taufe|taufen)(?![\p{L}\p{N}_])/iu,
+        comunione: /(?<![\p{L}\p{N}_])(?:comunione|communion|comunión|comunhão|kommunion)(?![\p{L}\p{N}_])/iu,
+        cresima: /\b(?:cresima|confirmation|confirmaci[oó]n|crisma|firmung)\b/iu,
+        matrimonio: /\b(?:matrimonio|wedding|marriage|mariage|boda|casamento|hochzeit)\b/iu,
+        contatti: /\b(?:contatti|contacts?|phone\s+number|n[uú]mero\s+de\s+tel[eé]fono|parish\s+email|telefonnummer)\b/iu,
+        territorio: /\b(?:territorio|territory|parish\s+boundaries|territoire|territ[oó]rio|pfarrgebiet)\b/iu,
+        indirizzo: /\b(?:indirizzo|address|direcci[oó]n|adresse|endere[cç]o|anschrift)\b/iu
       };
       const alias = aliases[topic.replace(/_info$/, '')];
       if (alias && alias.test(bodyLower)) return true;
@@ -5856,10 +5864,18 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       .normalize('NFC')
       .replace(/(?<![\p{L}\p{N}_])s[ìí](?=$|[^\p{L}\p{N}_])/giu, 'certamente')
       .replace(/(?<![\p{L}\p{N}_])si\s+(trova|trovano|puo|può|riesce|è|sono|ha|hanno|sente|sentono|tratta|sposta|muove|sposa|sposano|celebra|celebrano|tiene|tengono|svolge|svolgono|fa|fanno|deve|devono|chiama|chiamano|cresima|battezza)(?=$|[^\p{L}\p{N}_])/giu, '$1')
+      .replace(/(?<![\p{L}\p{N}_])se\s+(encuentra|encuentran|trouve|trouvent|encontra|encontram|mueve|mueven|déplace|deplace|desloca)(?=$|[^\p{L}\p{N}_])/giu, '$1')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
       .replace(/[^.!?;\n]*\?/g, '')
       .replace(/\b(?:ma|but|mais|pero|mas|aber)\b/g, '\n')
       .split(/[.!?;\n]+/)
+      .map(clause => {
+        // Duration alone does not prove current presence: require a present-tense assertion.
+        if (!/\b(?:sono|siamo|am|are|is|suis|sommes|est|estoy|estamos|esta|estao|estou|sou|bin|sind|ist|encontra|encuentra|trouve)\b|\be\s+(?:a|in|ricoverat[oa]|allettat[oa])\b/.test(clause)) return clause;
+        return clause
+          .replace(/\b(?:da ieri|since yesterday|depuis hier|desde ayer|desde ontem|seit gestern)\b/g, '')
+          .replace(/\b(?:fino a domani|until tomorrow|jusqu['’]?a demain|hasta manana|ate amanha|bis morgen)\b/g, '');
+      })
       .filter(clause => !/\b(se|if|si|wenn|caso|qualora|ipoteticamente|suppose|imagine|ieri|yesterday|hier|gestern|ayer|ontem|domani|tomorrow|demain|morgen|manana|amanha|mese prossimo|next month|prossima settimana|next week|ero|eravamo|was|were|etais|estaba|estava|war|dice|ha detto|scrive|said|says|disait|dijo|diz|sagt|non e vero|not true|pas vrai|no es cierto|nao e verdade|nicht wahr)\b/.test(clause))
       .join('\n');
   }

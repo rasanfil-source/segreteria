@@ -598,7 +598,7 @@ var Classifier = class Classifier {
     // Evaluate each exit statement locally; unrelated events must not suppress it.
     return source.split(/[.!?;\n]+/).some(clause => {
       if (!/\buscire\s+dalla\s+chiesa\b/i.test(clause)) return false;
-      const institutionalDecision = /\b(?:ho\s+deciso\s+di|intendo|voglio|desidero)\s+uscire\s+dalla\s+chiesa\s+cattolica\b/i.test(clause);
+      const institutionalDecision = /\b(?:ho\s+deciso\s+di|intendo|voglio|vorrei|desidero|chiedo\s+(?:come|informazioni\s+per)|procedura\s+per)\s+uscire\s+dalla\s+chiesa\s+cattolica\b/i.test(clause);
       if (institutionalDecision && !/\b(?:porta|uscita|navata|edificio|rampa|scale|carrozzina|accessibil\w*|disabil\w*)\b/i.test(clause)) return true;
       const physicalExit = /\b(?:porta|uscita|navata|edificio|rampa|scale|carrozzina|accessibil\w*|disabil\w*)\b/i.test(clause) ||
         /\b(?:dopo|durante|prima|al termine di|alla fine di)\s+(?:la|della|una|un|il|del)?\s*(?:messa|cerimonia|funerale|matrimonio)\b/i.test(clause);
@@ -627,7 +627,7 @@ var Classifier = class Classifier {
       /\bcontatto\s+telefonico\b/i,
       /\bcolloquio\s+telefonico\b/i,
       /\btelefonata\s+(?:intercorsa|avuta|di|del|della|con)\b/i,
-      /\b(?:ci|vi|mi)\s+siamo\s+sentit[ie]\b/i,
+      /\b(?:ci\s+siamo\s+sentit[ie]|vi\s+siete\s+sentit[ie]|mi\s+sono\s+sentit[oa])\b/i,
       /\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\b/i,
       /\bcome\s+(?:gia\s+|già\s+)?(?:concordato|anticipato|accennato)\b/i,
       /\bcome\s+da\s+(?:accordi|telefonata|colloquio|incontro)\b/i,
@@ -673,15 +673,17 @@ var Classifier = class Classifier {
   _extractPriorCommunicationContact_(text) {
     const safeText = String(text || '');
     const contactPatterns = [
-      /\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\s+((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)\s+[A-Za-zÀ-ÿ' -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)\b/i,
-      /\b(?:mi|ci)\s+sono\s+sentit[oaie]\s+con\s+((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)\s+[A-Za-zÀ-ÿ' -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)\b/i,
-      /\b(?:referente|riferimento|contatto)\s*[:\-]\s*((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)?\s*[A-Za-zÀ-ÿ' -]{2,45})\b/i
+      /\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\s+((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)\s+[A-Za-zÀ-ÿ'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)\b/i,
+      /\b(?:mi\s+sono\s+sentit[oa]|ci\s+siamo\s+sentit[ie]|vi\s+siete\s+sentit[ie])\s+con\s+((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)\s+[A-Za-zÀ-ÿ'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)\b/i,
+      /\b(?:referente|riferimento|contatto)\s*[:\-]\s*((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)?\s*[A-Za-zÀ-ÿ'’ -]{2,45})\b/i
     ];
 
     for (const pattern of contactPatterns) {
       const match = safeText.match(pattern);
       if (match && match[1]) {
         return match[1]
+          // Stop before narrative complements, while preserving names such as De Luca.
+          .split(/\s+(?:ieri|oggi|domani|stamattina|stasera|lunedì|martedì|mercoledì|giovedì|venerdì|sabato|domenica|questa|questo|scorsa|scorso|per|con|che|e|ed|alle|alla|al|sul|sulla|durante|dopo|prima|in|telefonicamente|abbiamo|avevamo)\b/i)[0]
           .replace(/\s+/g, ' ')
           .replace(/[.,;:!?]+$/g, '')
           .trim()
