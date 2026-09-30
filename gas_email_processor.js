@@ -2736,7 +2736,9 @@ var EmailProcessor = class EmailProcessor {
       }
 
       if (!props || typeof props.setProperty !== 'function') {
-        if (lockAcquired) scriptLock.releaseLock();
+        if (lockAcquired) {
+          try { scriptLock.releaseLock(); } catch (_) { }
+        }
         return { ok: false, reason: 'send_state_unavailable' };
       }
       // Confirmed evidence wins over a durable uncertainty guard left by a partial commit.
@@ -2759,7 +2761,9 @@ var EmailProcessor = class EmailProcessor {
         return { ok: false, reason: 'already_sent' };
       }
       if (props.getProperty(`send_uncertain_${messageId}`)) {
-        if (lockAcquired) scriptLock.releaseLock();
+        if (lockAcquired) {
+          try { scriptLock.releaseLock(); } catch (_) { }
+        }
         return { ok: false, reason: 'gmail_send_uncertain' };
       }
       const sendingMarker = cache.get(sendingKey);
@@ -3094,6 +3098,21 @@ var EmailProcessor = class EmailProcessor {
     };
   }
 
+  _normalizeRelativeDateText_(text, language) {
+    const normalizedText = String(text || '').normalize('NFC').toLowerCase();
+    const lang = this._normalizeLanguageCode_(language, 'it');
+    // Remove morning-only expressions before matching the ambiguous word "tomorrow".
+    return lang === 'de'
+      ? normalizedText
+          .replace(/(?<![\p{L}\p{N}_])(?:heute|diesen)\s+(?:fr[üu]hen\s+)?morgen(?![\p{L}\p{N}_])/giu, 'heute')
+          .replace(/(?<![\p{L}\p{N}_])(?:guten|am|jeden|gestern|fr[üu]hen|(?:den\s+)?ganzen)(?:\s+(?:fr[üu]hen|ganzen))?\s+morgen(?![\p{L}\p{N}_])/giu, ' ')
+      : lang === 'es'
+        ? normalizedText
+            .replace(/(?<![\p{L}\p{N}_])esta\s+ma[nñ]ana(?![\p{L}\p{N}_])/giu, 'hoy')
+            .replace(/(?<![\p{L}\p{N}_])(?:(?:por|de|en|toda|durante)\s+la|cada)\s+ma[nñ]ana(?![\p{L}\p{N}_])/giu, ' ')
+        : normalizedText;
+  }
+
   _resolveRequestedScheduleDate_(text = '', currentDate = new Date(), language = 'it') {
     const normalizedText = String(text || '').normalize('NFC').toLowerCase();
     const current = this._coerceBusinessDateOnly_(currentDate) || new Date();
@@ -3106,16 +3125,7 @@ var EmailProcessor = class EmailProcessor {
       pt: ['depois\\s+de\\s+amanh[aã]', 'amanh[aã]', 'hoje'],
       de: ['[üu]bermorgen', 'morgen', 'heute']
     };
-    // Remove morning-only expressions before matching the ambiguous word "tomorrow".
-    const relativeText = lang === 'de'
-      ? normalizedText
-          .replace(/(?<![\p{L}\p{N}_])(?:heute|diesen)\s+(?:fr[üu]hen\s+)?morgen(?![\p{L}\p{N}_])/giu, 'heute')
-          .replace(/(?<![\p{L}\p{N}_])(?:guten|am|jeden|gestern|fr[üu]hen|(?:den\s+)?ganzen)(?:\s+(?:fr[üu]hen|ganzen))?\s+morgen(?![\p{L}\p{N}_])/giu, ' ')
-      : lang === 'es'
-        ? normalizedText
-            .replace(/(?<![\p{L}\p{N}_])esta\s+ma[nñ]ana(?![\p{L}\p{N}_])/giu, 'hoy')
-            .replace(/(?<![\p{L}\p{N}_])(?:(?:por|de|en|toda|durante)\s+la|cada)\s+ma[nñ]ana(?![\p{L}\p{N}_])/giu, ' ')
-        : normalizedText;
+    const relativeText = this._normalizeRelativeDateText_(normalizedText, lang);
     const offsets = [2, 1, 0];
     const sources = ['relative:dopodomani', 'relative:domani', 'relative:oggi'];
     for (const [index, term] of (terms[lang] || terms.it).entries()) {
@@ -3165,10 +3175,23 @@ var EmailProcessor = class EmailProcessor {
       }
     }
 
+    const sourceText = String(text || '');
     const numericPattern = /\b(\d{1,2})([\/.-])(\d{1,2})(?:\2(\d{2,4}))?(?![\/.-]\d)\b/g;
     let numericMatch;
-    while ((numericMatch = numericPattern.exec(String(text || ''))) !== null) {
+    while ((numericMatch = numericPattern.exec(sourceText)) !== null) {
       if (numericMatch[2] === '.' && !numericMatch[4]) continue;
+      if (!numericMatch[4]) {
+        const prefix = sourceText.slice(Math.max(0, numericMatch.index - 100), numericMatch.index);
+        const suffix = sourceText.slice(numericPattern.lastIndex, numericPattern.lastIndex + 35);
+        const dateCue = /\b(?:il|del|dal|al|on|date|data|appuntamento|appointment|giorno)\s*$/i.test(prefix);
+        const units = /^\s*(?:anni|mesi|giorni|ore|minuti|years?|months?|days?|hours?|minutes?)\b/i.test(suffix);
+        const rangeCue = /\b(?:dalle|ore|tra|fra|between|from)\s*$/i.test(prefix);
+        const addressCue = /\b(?:n\.?|civ(?:ico)?\.?|int(?:erno)?\.?|scala)\s*$/i.test(prefix) ||
+          /\b(?:via|viale|piazza|corso|largo|street|road)\s+[\p{L}\p{N}'’ .-]{1,60}\s$/iu.test(prefix);
+        if (units || rangeCue || (addressCue && !dateCue)) continue;
+        if (numericMatch[2] === '-' && !dateCue) continue;
+        if (numericMatch[1] === '24' && numericMatch[3] === '7' && !dateCue) continue;
+      }
       const day = parseInt(numericMatch[1], 10);
       const month = parseInt(numericMatch[3], 10);
       let year = numericMatch[4] ? parseInt(numericMatch[4], 10) : defaultYear;
@@ -4903,6 +4926,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
 
     const hasNonPhysicalChurchExit = source.split(/[.!?;\n]+/).some(clause => {
       if (!/\buscire\s+dalla\s+chiesa\b/i.test(clause)) return false;
+      const institutionalDecision = /\b(?:ho\s+deciso\s+di|intendo|voglio|desidero)\s+uscire\s+dalla\s+chiesa\s+cattolica\b/i.test(clause);
+      if (institutionalDecision && !/\b(?:porta|uscita|navata|edificio|rampa|scale|carrozzina|accessibil\w*|disabil\w*)\b/i.test(clause)) return true;
       const physicalExit = /\b(?:porta|uscita|navata|edificio|rampa|scale|carrozzina|accessibil\w*|disabil\w*)\b/i.test(clause) ||
         /\b(?:dopo|durante|prima|al termine di|alla fine di)\s+(?:la|della|una|un|il|del)?\s*(?:messa|cerimonia|funerale|matrimonio)\b/i.test(clause);
       return !physicalExit;
@@ -5830,7 +5855,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       .replace(/"[^"\n]*"|“[^”\n]*”|«[^»\n]*»|(?<![\p{L}\p{N}])'[^'\n]{3,}'(?![\p{L}\p{N}])/gu, '')
       .normalize('NFC')
       .replace(/(?<![\p{L}\p{N}_])s[ìí](?=$|[^\p{L}\p{N}_])/giu, 'certamente')
-      .replace(/(?<![\p{L}\p{N}_])si\s+(trova|trovano|puo|può|riesce|è|sono|ha|hanno|sente|sentono|tratta|sposta|muove)(?=$|[^\p{L}\p{N}_])/giu, '$1')
+      .replace(/(?<![\p{L}\p{N}_])si\s+(trova|trovano|puo|può|riesce|è|sono|ha|hanno|sente|sentono|tratta|sposta|muove|sposa|sposano|celebra|celebrano|tiene|tengono|svolge|svolgono|fa|fanno|deve|devono|chiama|chiamano|cresima|battezza)(?=$|[^\p{L}\p{N}_])/giu, '$1')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
       .replace(/[^.!?;\n]*\?/g, '')
       .replace(/\b(?:ma|but|mais|pero|mas|aber)\b/g, '\n')
@@ -6113,7 +6138,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   _detectTemporalMentions(text, language) {
     // Protezione contro input nulli o non validi
     if (!text || typeof text !== 'string') return false;
-    text = text.normalize('NFC');
+    text = this._normalizeRelativeDateText_(text, language);
     // Reuse date validation rather than treating arbitrary numeric pairs as dates.
     if (this._extractExplicitDateFromText_(text, new Date().getFullYear())) return true;
     const lang = this._normalizeLanguageCode_(language, 'it');
@@ -6125,7 +6150,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       'en': /(?<![a-zA-Z])(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|june|july|august|september|october|november|december)(?![a-zA-Z])/i,
       'es': /(?<![a-zA-ZÀ-ÿ])(hoy|ma[nñ]ana|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?![a-zA-ZÀ-ÿ])/i,
       'pt': /(?<![a-zA-ZÀ-ÿ])(hoje|amanh[aã]|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo|janeiro|fevereiro|mar\u00E7o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?![a-zA-ZÀ-ÿ])/i,
-      'de': /(?<![a-zA-ZÄÖÜäöüß])(heute|morgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|januar|februar|m[äa]rz|april|mai|juni|juli|august|september|oktober|november|dezember)(?![a-zA-ZÄÖÜäöüß])/i
+      'de': /(?<![a-zA-ZÄÖÜäöüß])(heute|morgen|[üu]bermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|januar|februar|m[äa]rz|april|mai|juni|juli|august|september|oktober|november|dezember)(?![a-zA-ZÄÖÜäöüß])/i
     };
 
     // Fallback su italiano se lingua non supportata

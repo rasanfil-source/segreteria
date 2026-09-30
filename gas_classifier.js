@@ -598,6 +598,8 @@ var Classifier = class Classifier {
     // Evaluate each exit statement locally; unrelated events must not suppress it.
     return source.split(/[.!?;\n]+/).some(clause => {
       if (!/\buscire\s+dalla\s+chiesa\b/i.test(clause)) return false;
+      const institutionalDecision = /\b(?:ho\s+deciso\s+di|intendo|voglio|desidero)\s+uscire\s+dalla\s+chiesa\s+cattolica\b/i.test(clause);
+      if (institutionalDecision && !/\b(?:porta|uscita|navata|edificio|rampa|scale|carrozzina|accessibil\w*|disabil\w*)\b/i.test(clause)) return true;
       const physicalExit = /\b(?:porta|uscita|navata|edificio|rampa|scale|carrozzina|accessibil\w*|disabil\w*)\b/i.test(clause) ||
         /\b(?:dopo|durante|prima|al termine di|alla fine di)\s+(?:la|della|una|un|il|del)?\s*(?:messa|cerimonia|funerale|matrimonio)\b/i.test(clause);
       return !physicalExit;
