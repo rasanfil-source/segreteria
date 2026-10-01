@@ -5873,6 +5873,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       .replace(/"[^"\n]*"|“[^”\n]*”|«[^»\n]*»|(?<![\p{L}\p{N}])'[^'\n]{3,}'(?![\p{L}\p{N}])/gu, '')
       .normalize('NFC')
       .replace(/(?<![\p{L}\p{N}_])s[ìí](?=$|[^\p{L}\p{N}_])/giu, 'certamente')
+      // Combined Italian clitics are not hypothetical conjunctions, regardless of the verb.
+      .replace(/(?<![\p{L}\p{N}_])(ci|mi|ti|vi)\s+si(?=$|[^\p{L}\p{N}_])/giu, '$1')
       .replace(/(?<![\p{L}\p{N}_])si\s+(trova|trovano|puo|può|riesce|è|sono|ha|hanno|sente|sentono|tratta|sposta|muove|sposa|sposano|celebra|celebrano|tiene|tengono|svolge|svolgono|fa|fanno|deve|devono|chiama|chiamano|cresima|battezza)(?=$|[^\p{L}\p{N}_])/giu, '$1')
       .replace(/(?<![\p{L}\p{N}_])se\s+(encuentra|encuentran|trouve|trouvent|encontra|encontram|mueve|mueven|déplace|deplace|desloca)(?=$|[^\p{L}\p{N}_])/giu, '$1')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()

@@ -41,10 +41,12 @@ for (const [body, reply, language] of [
 ]) {
   assert.ok(p._addTimeDiscrepancyNoteIfNeeded(reply, { body }, language).length > reply.length, language);
 }
-for (const text of ['non ci si riesce a muovere', 'con le stampelle non ci si sposta facilmente', 'mi si è bloccata la schiena']) {
+for (const text of ['non ci si riesce a muovere', 'con le stampelle non ci si sposta facilmente', 'mi si è bloccata la schiena',
+  'con la sedia a rotelle non ci si arriva', 'mi si blocca la gamba', 'ti si blocca la gamba', 'vi si gonfiano le gambe']) {
   assert.ok(p._presenceAssertionText_(text).trim(), text);
 }
-for (const text of ['Se non ci si riesce a muovere', 'Si je ne peux pas venir', 'Si no puedo venir', 'If I cannot walk']) {
+for (const text of ['Se non ci si riesce a muovere', 'Se mi si blocca la gamba', 'Se non ci si arriva',
+  'Si je ne peux pas venir', 'Si no puedo venir', 'If I cannot walk']) {
   assert.equal(p._presenceAssertionText_(text), '', text);
 }
 console.log('Residual closing/time/presence regressions passed');
