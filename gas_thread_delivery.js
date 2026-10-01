@@ -69,8 +69,13 @@ var ThreadDelivery = {
           result.reason = 'send_reconciled';
           return { terminal: true };
         }
-        messageState.responseContextMessages.forEach(message => {
-          deps.props.setProperty(`send_uncertain_${message.getId()}`, String(Date.now()));
+        const uncertainMessages = (messageState.responseContextMessages && messageState.responseContextMessages.length > 0)
+          ? messageState.responseContextMessages
+          : (messageState.candidate ? [messageState.candidate] : []);
+        uncertainMessages.forEach(message => {
+          if (message && typeof message.getId === 'function' && deps.props && typeof deps.props.setProperty === 'function') {
+            deps.props.setProperty(`send_uncertain_${message.getId()}`, String(Date.now()));
+          }
         });
         messageState.markFailureForCurrentBurst('validation', { reason: 'gmail_send_uncertain', subject: messageDetails.subject }, false);
         result.reason = 'gmail_send_uncertain';

@@ -52,3 +52,39 @@ for(const code of ['TRUNCATED_OUTPUT','NETWORK']) {
  assert.equal(marks.length,code==='TRUNCATED_OUTPUT'?1:0);
  assert.equal(result.retryable,code!=='TRUNCATED_OUTPUT');
 }
+
+for(const file of ['gas_thread_lifecycle.js','gas_thread_delivery.js']) vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx,{filename:file});
+// Test ThreadLifecycle.handleError con string error
+const lifecycleResult = ctx.ThreadLifecycle.handleError({_classifyError:ctx.classifyError}, {
+  threadLogger: { error(){}, warn(){} },
+  error: '403 Forbidden',
+  delivery: { confirmed: false },
+  messageState: { markFailureForCurrentBurst(){} },
+  result: {},
+  startTime: Date.now()
+});
+assert.equal(lifecycleResult.errorClass, 'SYSTEM_ERROR');
+
+// Test ThreadDelivery.send con responseContextMessages vuoto/non definito
+let txnRollbackCalled = false;
+ctx.ThreadDelivery.send({
+  config: { dryRun: false },
+  _beginSendTransaction: () => ({ ok: true }),
+  _rollbackSendTransaction: () => { txnRollbackCalled = true; },
+  _classifyError: () => ({ type: 'FATAL', retryable: false }),
+  gmailService: { sendHtmlReply() { throw new Error('invalid recipient'); } }
+}, {
+  response: 'test',
+  result: {},
+  startTime: Date.now(),
+  threadLogger: { info(){}, warn(){}, error(){} },
+  messageState: { candidate: { getId: () => 'cand-1' }, responseContextMessages: null, markFailureForCurrentBurst(){} },
+  skipLock: false,
+  messageDetails: { subject: 'test' },
+  delivery: {},
+  duplicateReplyFingerprintContext: {},
+  threadId: 't1',
+  usedLookbackAttachments: false
+});
+assert.equal(txnRollbackCalled, true);
+

@@ -1988,9 +1988,17 @@ function main() {
       console.log('⏸️ Checkpoint batch oltre il limite di riprese: il thread verrà rivalutato dal prossimo trigger periodico.');
       return;
     }
-    if (checkpointData && Number.isFinite(Date.parse(checkpointData.notBefore || '')) && Date.now() < Date.parse(checkpointData.notBefore)) {
-      console.log(`⏸️ Checkpoint batch non ancora eseguibile (notBefore=${checkpointData.notBefore}).`);
-      return;
+    if (checkpointData && Number.isFinite(Date.parse(checkpointData.notBefore || ''))) {
+      const notBeforeMs = Date.parse(checkpointData.notBefore);
+      const remainingMs = notBeforeMs - Date.now();
+      if (remainingMs > 0) {
+        if (remainingMs <= 5000 && typeof Utilities !== 'undefined' && typeof Utilities.sleep === 'function') {
+          Utilities.sleep(remainingMs);
+        } else {
+          console.log(`⏸️ Checkpoint batch non ancora eseguibile (notBefore=${checkpointData.notBefore}).`);
+          return;
+        }
+      }
     }
     const runOptions = (checkpointData && Array.isArray(checkpointData.pendingThreadIds) && checkpointData.pendingThreadIds.length > 0)
       ? { threadIds: checkpointData.pendingThreadIds }
@@ -2056,6 +2064,14 @@ function resumeEmailBatchFromCheckpoint() {
   if (!raw) {
     console.log('ℹ️ Nessun checkpoint batch presente: resume skip.');
     return;
+  }
+  if (checkpoint && Number.isFinite(Date.parse(checkpoint.notBefore || ''))) {
+    const notBeforeMs = Date.parse(checkpoint.notBefore);
+    const remainingMs = notBeforeMs - Date.now();
+    if (remainingMs > 5000) {
+      console.log('⏸️ Checkpoint batch non ancora eseguibile (notBefore=' + checkpoint.notBefore + '): skip trigger anticipato.');
+      return;
+    }
   }
   console.log('⏭️ Ripresa batch da checkpoint richiesta.');
   if (!_acquireCheckpointResumeLock_(checkpoint.runId || 'legacy')) {

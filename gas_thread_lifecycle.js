@@ -21,7 +21,8 @@ var ThreadLifecycle = {
     }
 
     const unhandledErrorClass = deps._classifyError(error);
-    const isSystemic = unhandledErrorClass.type === 'SYSTEM_ERROR' || unhandledErrorClass.type === 'CONFIG_ERROR' || unhandledErrorClass.type === 'INVALID_API_KEY' || /\b(401|403|404)\b/.test(error.message || '');
+    const rawErrorMessage = (error && error.message) ? error.message : String(error || '');
+    const isSystemic = unhandledErrorClass.type === 'SYSTEM_ERROR' || unhandledErrorClass.type === 'CONFIG_ERROR' || unhandledErrorClass.type === 'INVALID_API_KEY' || /\b(401|403|404)\b/.test(rawErrorMessage);
     if (!unhandledErrorClass.retryable && !isSystemic) {
       try {
         messageState.markFailureForCurrentBurst('error');
