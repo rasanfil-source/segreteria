@@ -50,6 +50,14 @@ var ThreadGeneration = {
           continue;
         }
 
+        if (deps._isNearDeadline(deps.config.maxExecutionTimeMs)) {
+          console.warn('⏳ Tempo residuo insufficiente per il prossimo tentativo: rimando il thread.');
+          result.status = 'dilata';
+          result.reason = 'near_deadline_before_generation';
+          result.retryDelayMs = 60000;
+          return { terminal: true };
+        }
+
         try {
           console.log(`🔄 Tentativo Generazione: ${plan.name}...`);
 
@@ -65,6 +73,16 @@ var ThreadGeneration = {
               console.warn(`⚠️ Gemini ha restituito successo senza testo (${plan.name})`);
             }
             response = response.text;
+          }
+
+          if (typeof response !== 'string' || !response.trim()) {
+            const invalidResponseError = new Error(
+              typeof response === 'string'
+                ? 'Testo vuoto da GeminiService'
+                : 'Risposta priva di testo valido da GeminiService'
+            );
+            invalidResponseError.code = 'GENERATION_INVALID_RESPONSE';
+            throw invalidResponseError;
           }
 
           if (
@@ -89,6 +107,8 @@ var ThreadGeneration = {
           }
 
         } catch (err) {
+          // An invalid or failed attempt must never survive as a successful response.
+          response = null;
           generationError = err;
           if (!initialError) initialError = err;
           const errorClass = deps._classifyError(err);

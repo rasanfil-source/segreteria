@@ -6,23 +6,20 @@
 function COLLAUDO_PERSONAL_IGNORE_SENDERS_UNA_TANTUM() {
   var KEY = 'PERSONAL_IGNORE_SENDERS';
   var props = PropertiesService.getScriptProperties();
-  var raw = String(props.getProperty(KEY) || '').trim();
-  if (!raw) throw new Error('PERSONAL_IGNORE_SENDERS assente o vuota');
-
-  var list = raw.charAt(0) === '[' ? JSON.parse(raw) : raw.split(/[\n,;]+/);
-  if (!Array.isArray(list) || !list.length) throw new Error('Lista personale vuota/non valida');
-  list = list.map(function (v) { return String(v || '').trim().toLowerCase(); }).filter(Boolean);
-
-  var blocked = list[0];
+  if (typeof EmailProcessor !== 'function') throw new Error('EmailProcessor non disponibile');
+  // Use the real prototype without constructing Google/AI service dependencies.
+  var processor = Object.create(EmailProcessor.prototype);
+  processor.props = props;
+  var list = processor._getPersonalIgnoreSenders_();
+  if (!list.length) throw new Error(KEY + ' assente o vuota');
   var allowed = 'collaudo.consentito.' + Date.now() + '@example.com';
 
-  // Usa lo stesso criterio di gas_email_processor._shouldIgnoreEmail (match esatto email)
+  // Exercise the production filter; malformed properties must fail identically.
   function wouldIgnore_(senderEmail) {
-    var email = String(senderEmail || '').trim().toLowerCase();
-    return list.indexOf(email) !== -1;
+    return processor._shouldIgnoreEmail({ senderEmail: senderEmail, subject: 'Collaudo', body: 'Test' }) === true;
   }
 
-  var blockedOk = wouldIgnore_(blocked) === true;
+  var blockedOk = list.every(function (email) { return wouldIgnore_(email); });
   var allowedOk = wouldIgnore_(allowed) === false;
 
   Logger.log('Collaudo PERSONAL_IGNORE_SENDERS');

@@ -90,19 +90,21 @@ global.CacheService = {
 };
 
 // Mock PropertiesService e SpreadsheetApp (per MemoryService)
+const smokeProperties = new Map([
+    ['SPREADSHEET_ID', 'abc-123'], ['GEMINI_API_KEY', 'abcdefghijklmnopqrstuvwxyz123456']
+]);
 global.PropertiesService = {
     getScriptProperties: () => ({
-        getProperty: (k) => {
-            if (k === 'SPREADSHEET_ID') return 'abc-123';
-            if (k === 'GEMINI_API_KEY') return 'abcdefghijklmnopqrstuvwxyz123456';
-            return null;
-        }
+        getProperty: (k) => smokeProperties.get(k) ?? null,
+        setProperty: (k, value) => { smokeProperties.set(k, String(value)); },
+        deleteProperty: (k) => { smokeProperties.delete(k); },
+        getProperties: () => Object.fromEntries(smokeProperties)
     })
 };
 
 function makeSheetMock(matrix) {
     const rows = Array.isArray(matrix) && matrix.length > 0 ? matrix : [[null]];
-    const maxColumns = Math.max(9, ...rows.map((row) => Array.isArray(row) ? row.length : 0));
+    let maxColumns = Math.max(9, ...rows.map((row) => Array.isArray(row) ? row.length : 0));
     const cell = {
         setFontWeight: () => { },
         setValue: () => { }
@@ -115,6 +117,11 @@ function makeSheetMock(matrix) {
                 Array.from({ length: numCols }, (_, colOffset) => ((rows[row + rowOffset - 1] || [])[column + colOffset - 1] ?? ''))
             ),
             getValue: () => ((rows[row - 1] || [])[column - 1] ?? ''),
+            setValues: values => values.forEach((valueRow, rowOffset) => {
+                const targetRow = row + rowOffset - 1;
+                if (!rows[targetRow]) rows[targetRow] = [];
+                valueRow.forEach((value, colOffset) => { rows[targetRow][column + colOffset - 1] = value; });
+            }),
             getCell: () => cell,
             setFontWeight: () => { },
             setValue: () => { }
@@ -122,6 +129,7 @@ function makeSheetMock(matrix) {
         getLastRow: () => rows.length,
         getMaxColumns: () => maxColumns,
         insertColumnAfter: () => { },
+        insertColumnsAfter: (after, count) => { maxColumns += count; },
         createTextFinder: () => ({
             matchEntireCell: () => ({
                 matchCase: () => ({

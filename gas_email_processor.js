@@ -1907,7 +1907,7 @@ var EmailProcessor = class EmailProcessor {
     } catch (_) {
       throw new Error('PERSONAL_IGNORE_SENDERS non valido: correggere la Script Property prima di elaborare');
     }
-    return [...new Set(entries)];
+    return [...new Set(entries.map(entry => this._normalizeEmailAddress_(entry)))];
   }
 
   _shouldIgnoreEmail(messageDetails) {
@@ -5645,6 +5645,9 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
 
     if (error.code === 'UNEXPECTED_NO_REPLY') {
       return mkResult('INVALID_RESPONSE', true, String(error.message || 'NO_REPLY inatteso'));
+    }
+    if (error.code === 'GENERATION_INVALID_RESPONSE') {
+      return mkResult('INVALID_RESPONSE', true, String(error.message || 'Risposta di generazione non valida'));
     }
 
     // Delega al classificatore centralizzato se disponibile

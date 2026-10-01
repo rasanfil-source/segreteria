@@ -17,6 +17,7 @@
 gas_config_s.js
 gas_config.example.js
 gas_config_esemple.js
+COLLAUDO_PERSONAL_IGNORE_UNA_TANTUM.js
 *_s.js
 *.js.template
 

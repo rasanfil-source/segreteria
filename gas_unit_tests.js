@@ -2023,7 +2023,8 @@ function runAllTests() {
             try {
                 global.Utilities = undefined;
                 global.Intl = { DateTimeFormat: function () { throw new Error('Intl unavailable'); } };
-                const processor = new EmailProcessor({});
+                // Only exercise the date helper, not unrelated service constructors.
+                const processor = Object.create(EmailProcessor.prototype);
                 return processor._getBusinessDateString(new Date(2026, 5, 2, 0, 30, 0)) === '2026-06-02';
             } finally {
                 global.Utilities = originalUtilities;

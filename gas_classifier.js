@@ -142,6 +142,24 @@ var Classifier = class Classifier {
     const mainContent = this._extractMainContent(safeBody);
     console.log(`      Contenuto principale: ${mainContent.length} caratteri`);
 
+    const subjectForChecks = safeSubject.replace(/^(?:(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]\s*)+/i, '').trim();
+    if (this._isOutOfOfficeAutoReply(safeSubject, safeBody)) {
+      return { shouldReply: false, reason: 'out_of_office_auto_reply', category: null, subIntents: {}, confidence: 0.98 };
+    }
+    const greetingBody = this._extractMainContent(safeBody, { preserveGreetings: true });
+    const greetingLines = greetingBody.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    const hasFreshSubjectQuestion = /[?？]/.test(safeSubject) &&
+      !/^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]/i.test(safeSubject.trim());
+    const hasCurrentRequest = this._isSbattezzoFormalRequest_(mainContent) || this._isDocumentSubmission(mainContent);
+    // An inherited subject must not reopen an explicit closing message.
+    // A genuinely empty reply still follows the subject-based analysis below.
+    if (isReply && !hasFreshSubjectQuestion && !hasCurrentRequest && this._isUltraSimpleAcknowledgment(greetingBody)) {
+      return { shouldReply: false, reason: 'ultra_simple_acknowledgment', category: null, subIntents: {}, confidence: 1.0 };
+    }
+    if (isReply && !hasFreshSubjectQuestion && !hasCurrentRequest && greetingLines.length && greetingLines.every(line => this._isGreetingOnly(line))) {
+      return { shouldReply: false, reason: 'greeting_only', category: null, subIntents: {}, confidence: 0.95 };
+    }
+
     const fullText = `${safeSubject} ${mainContent}`;
     const contextualSubIntents = this._detectSubIntents(fullText);
 
@@ -167,16 +185,10 @@ var Classifier = class Classifier {
       };
     }
 
-    const subjectForChecks = safeSubject.replace(/^(?:(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]\s*)+/i, '').trim();
-    if (this._isOutOfOfficeAutoReply(safeSubject, safeBody)) {
-      return { shouldReply: false, reason: 'out_of_office_auto_reply', category: null, subIntents: {}, confidence: 0.98 };
-    }
-    const greetingBody = this._extractMainContent(safeBody, { preserveGreetings: true });
     // Un oggetto operativo resta una richiesta anche con corpo composto da saluti.
     const subjectHasRequest = Boolean(subjectForChecks) &&
       !/^(?:messaggio|saluti|nessun oggetto|\(no subject\))$/i.test(subjectForChecks) &&
       !this._isGreetingOnly(subjectForChecks) && !this._isUltraSimpleAcknowledgment(subjectForChecks);
-    const greetingLines = greetingBody.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
     if (!mainContent && greetingLines.length && greetingLines.every(line => this._isGreetingOnly(line)) && !subjectHasRequest) {
       return { shouldReply: false, reason: 'greeting_only', category: null, subIntents: {}, confidence: 0.95 };
     }
@@ -187,7 +199,7 @@ var Classifier = class Classifier {
         return {
           shouldReply: true,
           reason: 'needs_ai_analysis',
-          category: null,
+          category: this._categorizeContent(subjectForChecks),
           subIntents: contextualSubIntents,
           confidence: 0.8
         };
