@@ -38,8 +38,8 @@ const truncated = engine._truncateKbSemantically(longKb, limit);
 
 assert(truncated.length <= limit, `La KB troncata supera il limite: ${truncated.length} > ${limit}`);
 assert(
-  truncated.length >= Math.floor(limit * 0.85),
-  `La KB troncata usa troppo poco budget (${truncated.length}/${limit})`
+  !truncated.includes('PARAGRAFO 1:'),
+  'Una riga che supera il budget disponibile deve essere omessa interamente'
 );
 assert(
   truncated.includes('[SEZIONI OMESSE') || truncated.includes('...[omesso]') || truncated.endsWith('…'),

@@ -1519,14 +1519,17 @@ var GmailService = class GmailService {
         let effectiveSender;
         let hasReplyTo = false;
 
-        // Reply-To viene onorato solo se appartiene allo stesso dominio del From:
-        // un mittente arbitrario non deve poter dirottare la risposta generata
-        // verso un terzo (backscatter) ne' aggirare blacklist/no-reply sul From.
+        // Cross-domain Reply-To requires an explicitly trusted form sender.
+        // All other senders retain the same-domain policy.
         const fromAddress = this._extractEmailAddress(sender) || '';
         const replyToAddress = replyTo ? (this._extractEmailAddress(replyTo) || '') : '';
         const domainOf = (address) => String(address || '').split('@')[1] ? String(address).split('@')[1].toLowerCase() : '';
         const sameDomainReplyTo = Boolean(replyToAddress) && domainOf(replyToAddress) === domainOf(fromAddress);
-        if (replyTo && replyTo.includes('@') && replyTo !== sender && sameDomainReplyTo) {
+        const trustedFormSenders = typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.TRUSTED_FORM_SENDERS)
+            ? CONFIG.TRUSTED_FORM_SENDERS : [];
+        const trustedForm = trustedFormSenders.some(address => String(address).trim().toLowerCase() === fromAddress.toLowerCase());
+        const singleReplyTo = !/[\r\n,;]/.test(replyTo) && /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(replyToAddress);
+        if (singleReplyTo && replyTo !== sender && (sameDomainReplyTo || trustedForm)) {
             effectiveSender = replyTo;
             hasReplyTo = true;
             console.log(`   📧 Uso Reply-To: ${replyTo} (From originale: ${sender})`);

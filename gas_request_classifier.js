@@ -22,10 +22,10 @@ var RequestTypeClassifier = class RequestTypeClassifier {
     // ========================================================================
     this.TECHNICAL_INDICATORS = [
       // Possibilità/obbligo (peso 2)
-      { pattern: /\bsi può\b/i, weight: 2 },
-      { pattern: /\bnon si può\b/i, weight: 2 },
-      { pattern: /\bè possibile\b/i, weight: 2 },
-      { pattern: /\bè obbligatorio\b/i, weight: 2 },
+      { pattern: /(?<![\p{L}\p{N}_])si pu[oò](?![\p{L}\p{N}_])/iu, weight: 2 },
+      { pattern: /(?<![\p{L}\p{N}_])non si pu[oò](?![\p{L}\p{N}_])/iu, weight: 2 },
+      { pattern: /(?<![\p{L}\p{N}_])è possibile(?![\p{L}\p{N}_])/iu, weight: 2 },
+      { pattern: /(?<![\p{L}\p{N}_])è obbligatorio(?![\p{L}\p{N}_])/iu, weight: 2 },
       { pattern: /\bbisogna\b/i, weight: 2 },
       { pattern: /\bdeve\b/i, weight: 1 },
       { pattern: /\bdevono\b/i, weight: 1 },
@@ -73,10 +73,10 @@ var RequestTypeClassifier = class RequestTypeClassifier {
 
       // Emozioni (peso 2)
       { pattern: /\bsoffr\w+\b/i, weight: 2 },
-      { pattern: /\bdifficolt[àa]\b/i, weight: 2 },
+      { pattern: /(?<![\p{L}\p{N}_])difficolt[àa](?![\p{L}\p{N}_])/iu, weight: 2 },
       { pattern: /\bferit[oa]\b/i, weight: 2 },
       { pattern: /\besclus[oa]\b/i, weight: 2 },
-      { pattern: /\bsol[oa]\b/i, weight: 2 },
+      { pattern: /\b(?:mi sento|sono rimast[oa]|mi ritrovo)\s+sol[oa]\b/i, weight: 2 },
       { pattern: /\bpaura\b/i, weight: 2 },
       { pattern: /\bansia\b/i, weight: 2 },
       { pattern: /\btristezza\b/i, weight: 2 },
@@ -374,6 +374,7 @@ var RequestTypeClassifier = class RequestTypeClassifier {
    * Calcola punteggio ponderato per set di indicatori
    */
   _calculateScore(text, indicators) {
+    text = String(text || '').normalize('NFC');
     let total = 0;
     const matched = [];
     let matchCount = 0;

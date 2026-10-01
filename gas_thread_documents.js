@@ -251,8 +251,11 @@ var ThreadDocuments = {
     const quickCheckCategory = quickCheck && quickCheck.classification && quickCheck.classification.category
       ? String(quickCheck.classification.category).toLowerCase()
       : '';
-    // Priorità al classificatore LLM del quick check rispetto all'euristica locale iniziale.
-    let categoryHintSource = String(quickCheckCategory || classification.category || requestTypeName || '').toLowerCase() || null;
+    // Request dimension (technical/pastoral/...) and operational category are distinct axes.
+    const localCategory = String(classification.category || '').toLowerCase();
+    const specificCategories = ['sacrament', 'complaint', 'quotation', 'appointment', 'information', 'collaboration', 'document_request', 'document_submission'];
+    let categoryHintSource = (quickCheckCategory === 'formal' || specificCategories.includes(quickCheckCategory)) ? quickCheckCategory
+      : (specificCategories.includes(localCategory) ? localCategory : (quickCheckCategory || localCategory || requestTypeName || null));
 
     if (attachmentIntentContext && (
       attachmentIntentContext.intent === 'document_submission' ||
@@ -313,11 +316,11 @@ var ThreadDocuments = {
       deps.config.documentConsistencyCheckEnabled &&
       documentConsistency &&
       (
-        documentConsistency.mode === 'unknown_expected' ||
+        documentConsistency.mode === 'unknown_expected' || documentConsistency.mode === 'unknown_received' ||
         (hasExplicitQuickDocumentExpectation && documentConsistency.mode !== 'mismatch')
       ) &&
       physicalAttachmentsDetected &&
-      (textFromAttachments || (Array.isArray(attachmentItems) && attachmentItems.length > 0))
+      (textFromAttachments || (Array.isArray(attachmentItems) && attachmentItems.length > 0) || (attachmentBlobs && attachmentBlobs.length))
     );
     const semanticConsistency = needsSemanticConsistencyCheck
       ? deps._evaluateAttachmentSemanticConsistency_({

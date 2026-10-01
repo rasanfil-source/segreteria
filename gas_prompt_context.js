@@ -111,7 +111,7 @@ var PromptContext = class PromptContext {
         const addSignal = (signal) => {
             if (signal && sourceSignals.indexOf(signal) === -1) sourceSignals.push(signal);
         };
-        const bereavementMemoryPattern = /\b(lutto|decesso|malattia|funerale|esequie|defunt[oaie]|vedov[oaie])\b/;
+        const bereavementMemoryPattern = /\b(lutto|decesso|funerale|esequie|defunt[oaie]|vedov[oaie])\b/;
         const canonicalMemoryPattern = /\b(sbattezzo|apostasia|divorzio|divorziat[oaie]|separazione|separat[oaie])\b/;
         const pastoralProcessMemoryPattern = /\b(accompagnamento|percorso\s+pastorale|cammino\s+pastorale|direzione\s+spirituale|colloquio\s+pastorale)\b/;
         const resolved = flags._evidence || {};
@@ -262,7 +262,10 @@ var PromptContext = class PromptContext {
         const flags = pattern.flags && pattern.flags.indexOf('g') === -1 ? pattern.flags : String(pattern.flags || '').replace(/g/g, '');
         const regex = new RegExp(pattern.source, flags);
         const negationWindow = /(?:\bnon\b|\bnessun[oa]?\b|\bsenza\b|\bnon\s+riguarda\b|\bnon\s+si\s+tratta\s+di\b)[^.;:\n]{0,60}$/i;
-        const segments = String(memoryText).split(/[.;:\n]+/);
+        // Dated bullets are generated from assistant replies, not user disclosures.
+        const segments = String(memoryText).split('\n')
+            .filter(line => !/^\s*(?:•\s*\[\d{4}-\d{2}-\d{2}\]|\.\.\.)/.test(line))
+            .join('\n').split(/[.;:\n]+/);
         return segments.some((segment) => {
             const match = regex.exec(segment);
             if (!match) return false;
@@ -288,10 +291,8 @@ var PromptContext = class PromptContext {
         const safeMemory = memory && typeof memory === 'object' ? memory : {};
         return [
             safeMemory.category,
-            safeMemory.memorySummary,
-            this._stringifyMemoryContinuityValue_(safeMemory.topics),
-            this._stringifyMemoryContinuityValue_(safeMemory.providedInfo)
-        ].filter(Boolean).join(' ').toLowerCase();
+            safeMemory.memorySummary
+        ].filter(Boolean).join('\n').toLowerCase();
     }
 
     _computeConcerns() {

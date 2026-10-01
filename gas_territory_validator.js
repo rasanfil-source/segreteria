@@ -237,58 +237,27 @@ var TerritoryValidator = class TerritoryValidator {
             }
         }
 
-        // 2. Match Fuzzy con controllo consecutività
-        const inputTokens = normalizedInput.split(' ').filter(t => t.length > 0);
-
-        // Evita match troppo corti (es. solo "via")
-        if (inputTokens.length < 2) {
-            console.log(`⚠️ Input troppo corto per fuzzy match: '${normalizedInput}'`);
-            return null;
-        }
-
+        // Abbreviations may omit name tokens, never substitute or add distinctive words.
+        const inputTokens = inputStripped.split(" ");
+        const inputNames = inputTokens.slice(1);
+        const candidates = [];
         for (const [dbKey, dbRules] of this.rules.entries()) {
-            const dbTokens = dbKey.split(' ');
-
-            // Evita conflitti tra tipologie diverse, tollerando scambi comuni.
+            const dbTokens = stripArticles(dbKey).split(" ");
+            const dbNames = dbTokens.slice(1);
             if (!this._areEquivalentStreetTypes(inputTokens[0], dbTokens[0])) continue;
-
-            // Filtra tokens corti inessenziali dall'input (es. "di", "la", "del") per il conto degli extra
-            const significantInputTokens = inputTokens.filter(t => t.length > 2 || dbTokens.includes(t));
-            const matchCount = significantInputTokens.filter(token => dbTokens.includes(token)).length;
-            const extraTokens = significantInputTokens.length - matchCount;
-
-            // Tolleriamo al massimo 1 parola extra significativa (es. "via roma alta" -> "via roma")
-            if (extraTokens > 1) continue;
-
-            // Richiedi almeno UNA coppia consecutiva (tra i token input) present nel DB
-            let hasConsecutivePair = false;
-
-            for (let i = 0; i < inputTokens.length - 1; i++) {
-                const token1 = inputTokens[i];
-                const token2 = inputTokens[i + 1];
-
-                const idx1 = dbTokens.indexOf(token1);
-                const idx2 = dbTokens.indexOf(token2);
-
-                // Controlla se i due token sono consecutivi anche nel DB
-                if (idx1 !== -1 && idx2 !== -1 && idx2 === idx1 + 1) {
-                    hasConsecutivePair = true;
-                    break;
-                }
-            }
-
-            // Match solo se esiste almeno una coppia consecutiva
-            // e con buona copertura dei token (riduce falsi positivi su strade simili)
-            const overlapRatio = matchCount / Math.max(inputTokens.length, dbTokens.length);
-            const missingTokenCount = dbTokens.length - matchCount;
-            const acceptableAbbreviatedMatch = matchCount >= 2 && missingTokenCount <= 1;
-
-            if (hasConsecutivePair && (overlapRatio >= 0.7 || acceptableAbbreviatedMatch)) {
-                console.log(`\uD83D\uDD0D Match fuzzy trovato: '${inputStreet}' -> '${dbKey}'`);
-                return { key: dbKey, rules: dbRules };
+            if (!inputNames.length || inputNames[inputNames.length - 1] !== dbNames[dbNames.length - 1]) continue;
+            let position = 0;
+            const orderedSubset = inputNames.every(token => {
+                const index = dbNames.indexOf(token, position);
+                if (index < 0) return false;
+                position = index + 1;
+                return true;
+            });
+            if (orderedSubset && (inputNames.length === dbNames.length || inputNames.length >= 2)) {
+                candidates.push({ key: dbKey, rules: dbRules });
             }
         }
-
+        if (candidates.length === 1) return candidates[0];
         console.log(`❌ Nessun match trovato per: '${inputStreet}'`);
         return null;
     }

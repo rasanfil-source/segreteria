@@ -85,7 +85,7 @@ for (let mask = 0; mask < 256; mask++) row(`mobility exception mask=${mask}`, ()
   const exception = flags.every(Boolean);
   assert.equal(calls, 1);
   assert.equal(result.isValid, exception);
-  assert.equal(result.score, exception ? baseScore : 0.4);
+  assert.equal(result.score, exception ? baseScore : 0);
   assert.equal(result.warnings.length, Number(exception));
   if (!exception) assert.equal(result.reasonCode, !thinkingValid ? 'semantic_thinking_leak' : !grounded ? 'semantic_unsupported_claim' : irrelevant ? 'semantic_irrelevant_detail' : 'semantic_validation_failed');
 });

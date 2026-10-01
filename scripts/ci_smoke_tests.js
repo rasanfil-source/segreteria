@@ -124,6 +124,7 @@ function makeSheetMock(matrix) {
             }),
             getCell: () => cell,
             setFontWeight: () => { },
+            setNumberFormat: () => { },
             setValue: () => { }
         }),
         getLastRow: () => rows.length,

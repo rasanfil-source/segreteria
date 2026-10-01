@@ -295,7 +295,7 @@ var PromptEngine = class PromptEngine {
     return tags.reduce((acc, tagName) => {
       const escapedTagName = String(tagName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       if (!escapedTagName) return acc;
-      const tagPattern = new RegExp(`<\\s*\\/?\\s*${escapedTagName}\\b[^>]*>`, 'gi');
+      const tagPattern = new RegExp(`<\\s*\\/?\\s*${escapedTagName}(?=\\s|/?>)[^>]*>`, 'gi');
       return acc.replace(tagPattern, '');
     }, safeText);
   }
@@ -4242,7 +4242,7 @@ ${safeAiCoreLiteText}
       return kbContent;
     }
 
-    const paragraphs = kbContent.split(/\r?\n\s*\r?\n|(?=═{3,})|(?=─{3,})/);
+    const paragraphs = kbContent.split(/\r?\n|(?=═{3,})|(?=─{3,})/);
 
     const markerLength = truncationMarker.length;
     const reservedForMarker = Math.min(markerLength, Math.max(12, Math.floor(budgetChars * 0.2)));
@@ -4259,8 +4259,7 @@ ${safeAiCoreLiteText}
         if (result.length > 0) {
           break;
         }
-        result.push(trimmedPara.substring(0, contentLimit));
-        currentLength = result[0].length;
+        // An overlong factual row cannot be presented as an intact fact.
         break;
       }
 

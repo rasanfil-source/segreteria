@@ -370,8 +370,8 @@ const providedInfoSensitiveMemory = createPromptContext({
   }
 });
 assert(
-  providedInfoSensitiveMemory.concerns.longitudinal_sensitivity === true,
-  'PromptContext deve leggere anche providedInfo strutturato per la continuity sensibile'
+  providedInfoSensitiveMemory.concerns.longitudinal_sensitivity === false,
+  'I contenuti forniti dal bot non devono diventare storia personale dell utente'
 );
 
 

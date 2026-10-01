@@ -2181,14 +2181,14 @@ var GeminiService = class GeminiService {
 
     const spanishKeywords = [
       'he ido', 'había', 'hay', 'ido', 'sido',
-      'hacer', 'haber', 'pseudo-podere', 'estar', 'estoy', 'están',
+      'hacer', 'haber', 'estar', 'estoy', 'están',
       'por qué', 'porque', 'cuándo', 'cómo', 'dónde', 'qué tal',
       'por favor', 'muchas gracias', 'buenos días', 'buenas tardes',
       'misa', 'misas', 'iglesia', 'parroquia',
       'hola', 'gracias', 'necesito', 'quiero',
       'querido', 'estimado', 'saludos',
       'unos', 'unas',
-      'del', 'con el', 'en el', 'es',
+      'con el', 'en el',
       'ustedes', 'nosotros', 'tambien', 'también'
     ];
 
@@ -2335,11 +2335,8 @@ Testo:
     const languageModelName = this.getModelNameForTask('language', 'gemini-3.5-flash-lite');
 
     try {
-      const response = this._withRetry(
-        () => this._generateWithModel(prompt, languageModelName),
-        'Language detection AI',
-        1 // Solo 1 retry per non bloccare la pipeline
-      );
+      const generated = this.generateResponse(prompt, { modelName: languageModelName });
+      const response = generated && typeof generated === 'object' ? generated.text : generated;
       
       const cleaned = (response || '').replace(/`/g, '').trim().toLowerCase().substring(0, 2);
       return /^[a-z]{2}$/.test(cleaned) ? cleaned : null;
@@ -2780,7 +2777,7 @@ Testo:
             return this._quickCheckWithModel(emailContent, emailSubject, modelName, detection, intentContext, selectedApiKey);
           },
           {
-            estimatedTokens: 500
+            estimatedTokens: this._estimateTokens(EmailQuickCheckPolicy.buildPrompt(emailContent, emailSubject, intentContext).prompt)
           }
         );
 

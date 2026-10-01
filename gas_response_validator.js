@@ -341,7 +341,6 @@ var ResponseValidator = class ResponseValidator {
       );
 
       const semanticValid = semHalluc.isValid && semThinking.isValid;
-      const semanticConfidence = Math.min(semHalluc.confidence, semThinking.confidence);
       const physicalConstraint = temporalContext && (
         temporalContext.physicalPresenceConstraint ||
         temporalContext.physical_presence_constraint
@@ -383,7 +382,8 @@ var ResponseValidator = class ResponseValidator {
       } else if (!semanticValid) {
         console.warn('❌ Il validatore semantico ha rilevato problemi non catturati da regex');
         validationResult.isValid = false;
-        validationResult.score = Math.min(validationResult.score, semanticConfidence);
+        // Confidence measures certainty of the verdict, not response quality.
+        validationResult.score = 0;
         let semanticReason = 'Validazione semantica fallita senza motivo esplicito';
         if (!semHalluc.isValid) {
           semanticReason = semHalluc.reason || semanticReason;
@@ -1270,7 +1270,11 @@ var ResponseValidator = class ResponseValidator {
     const inventedDates = responseDateClaims.filter(item => {
       const fullKey = formatDateKey(item.date);
       const monthDayKey = formatMonthDayKey(item.date);
+      // Omitting the year does not invent a date already explicitly grounded in the sources.
+      const groundedYearlessDate = item.hasExplicitYear === false &&
+        Array.from(allowedFullDates).some(key => key.slice(5) === monthDayKey);
       return fullKey &&
+        !groundedYearlessDate &&
         !allowedFullDates.has(fullKey) &&
         !allowedRecurringDates.has(monthDayKey);
     });
@@ -1545,6 +1549,11 @@ var ResponseValidator = class ResponseValidator {
    * Controllo 8: Saluto temporalmente incongruente
    * Rileva se il saluto nella risposta è appropriato per l'orario corrente
    */
+  _greetingTimeSlot_(hour, language) {
+    const noon = ["en", "pt"].includes(language) ? 12 : 13;
+    const evening = ["en", "de"].includes(language) ? 18 : 19;
+    return hour >= 5 && hour < noon ? "morning" : hour >= noon && hour < evening ? "afternoon" : "evening";
+  }
   _checkTimeBasedGreeting(response, language, temporalContext = null) {
     const warnings = [];
     let score = 1.0;
@@ -1593,17 +1602,11 @@ var ResponseValidator = class ResponseValidator {
         skipped: true
       };
     }
-    let expectedTimeSlot;
-    if (currentHour >= 5 && currentHour < 13) {
-      expectedTimeSlot = 'morning';
-    } else if (currentHour >= 13 && currentHour < 19) {
-      expectedTimeSlot = 'afternoon';
-    } else {
-      expectedTimeSlot = 'evening';
-    }
+    const expectedTimeSlot = this._greetingTimeSlot_(currentHour, language);
 
     // Estrai saluto dai primi 100 caratteri della risposta
     const responseStart = response.substring(0, 100).toLowerCase();
+    if (language === "de" && /^\s*guten tag\b/i.test(responseStart)) return { score: 1, warnings, detectedGreeting: "guten tag", expectedTimeSlot, currentHour };
 
     // Cerca pattern di saluto
     const patterns = this.greetingPatterns[language];
@@ -1715,6 +1718,13 @@ var ResponseValidator = class ResponseValidator {
       const compareOrdinal = this._dateOnlyOrdinal_(compareDate);
       if (!Number.isFinite(compareOrdinal) || compareOrdinal === todayOrdinal) return;
       const windowText = this._extractTemporalWindow_(response, item.index, item.length);
+      // A future January date mentioned in December naturally refers to next year.
+      // Explicit years and an explicit current-year qualifier never receive this allowance.
+      if (item.type === 'date_without_year' && compareOrdinal < todayOrdinal &&
+          this._hasFutureTemporalQualification_(windowText, detectedLanguage) &&
+          !/\b(?:quest['’]?anno|anno corrente|this year|cette ann[eé]e|este a[nñ]o|este ano|dieses jahr)\b/i.test(windowText)) {
+        return;
+      }
       const isFutureReference = compareOrdinal > todayOrdinal;
       const isPastReference = compareOrdinal < todayOrdinal;
       if (isFutureReference && this._hasPastTemporalQualification_(windowText, detectedLanguage)) {
@@ -3485,17 +3495,11 @@ var ResponseValidator = class ResponseValidator {
    */
   _ottimizzaSalutoTemporale(text, language, temporalContext = null) {
     if (!this.greetingPatterns[language]) return text;
+    if (language === "de" && /^\s*guten tag\b/i.test(text)) return text;
 
     // Determina fascia oraria corrente (fuso orario italiano)
     const currentHour = this._resolveTemporalCurrentHour_(temporalContext);
-    let correctTimeSlot;
-    if (currentHour >= 5 && currentHour < 13) {
-      correctTimeSlot = 'morning';
-    } else if (currentHour >= 13 && currentHour < 19) {
-      correctTimeSlot = 'afternoon';
-    } else {
-      correctTimeSlot = 'evening';
-    }
+    const correctTimeSlot = this._greetingTimeSlot_(currentHour, language);
 
     // Ottieni saluto corretto per l'orario
     const correctGreeting = this.greetingPatterns[language][correctTimeSlot][0];

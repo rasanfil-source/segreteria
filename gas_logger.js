@@ -155,7 +155,8 @@ Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
         ? CacheService.getScriptCache()
         : null;
       const errorClass = logEntry && logEntry.data && logEntry.data.errorClass ? String(logEntry.data.errorClass) : 'General';
-      const signature = `${logEntry.context}|${errorClass}|${logEntry.message}`;
+      // One alert per context/class/hour, regardless of changing thread IDs or error details.
+      const signature = `${logEntry.context}|${errorClass}`;
       const hash = (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.computeDigest === 'function')
         ? Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, signature)).substring(0, 16)
         : signature.substring(0, 64);

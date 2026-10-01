@@ -157,6 +157,7 @@ if (typeof process !== 'undefined' && typeof require !== 'undefined') {
             ]],
             setValues: () => { },
             setFontWeight: () => { },
+            setNumberFormat: () => { },
             setValue: () => { },
             getRow: () => 2,
             getColumn: () => 1,

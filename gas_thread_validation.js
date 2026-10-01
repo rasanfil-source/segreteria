@@ -8,7 +8,7 @@ var ThreadValidation = {
     response, messageDetails, detectedLanguage, shouldUseReceiptOnly, enrichedKnowledgeBase,
     routedAiCoreLite, routedAiCore, routedDoctrine, messageBodyForSemanticAnalysis,
     effectiveSalutationMode, validationRuntimeContext, fullPrompt, strategyUsedPlan, attemptStrategy,
-    fallbackModelName, markFailureForCurrentBurst, result, effectiveSalutationModeKey
+    fallbackModelName, markFailureForCurrentBurst, result, effectiveSalutationModeKey, attachmentBlobs = []
   }) {
     let finalResponse = deps._prepareOutboundResponse(response, messageDetails, detectedLanguage);
     let validation = null;
@@ -75,7 +75,7 @@ var ThreadValidation = {
           : correctionPrompt;
 
         const regenerateData = ThreadValidation.regenerate(deps, {
-          retryInfrastructureFailure, retryPermanentApiFailure, retryPlans, retryPayload
+          retryInfrastructureFailure, retryPermanentApiFailure, retryPlans, retryPayload, attachmentBlobs
         });
         let { retryResponse } = regenerateData;
         ({ retryInfrastructureFailure, retryPermanentApiFailure } = regenerateData);
@@ -240,7 +240,7 @@ var ThreadValidation = {
     return { retryPlans };
   },
   /** regenerate: returns retryResponse, retryInfrastructureFailure, retryPermanentApiFailure; preserves the caller's service-effect order. */
-  regenerate(deps, { retryInfrastructureFailure, retryPermanentApiFailure, retryPlans, retryPayload }) {
+  regenerate(deps, { retryInfrastructureFailure, retryPermanentApiFailure, retryPlans, retryPayload, attachmentBlobs = [] }) {
     let retryResponse = null;
     retryInfrastructureFailure = null;
     retryPermanentApiFailure = null;
@@ -255,7 +255,8 @@ var ThreadValidation = {
         const retryResult = deps.geminiService.generateResponse(retryPayload, {
           apiKey: currentRetryPlan.key,
           modelName: currentRetryPlan.model,
-          skipRateLimit: currentRetryPlan.skipRateLimit
+          skipRateLimit: currentRetryPlan.skipRateLimit,
+          attachments: attachmentBlobs
         });
 
         if (retryResult && typeof retryResult === 'object') {

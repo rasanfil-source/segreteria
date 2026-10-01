@@ -189,7 +189,7 @@ function setupControlloSheet(ss) {
   sheet.getRange('E12').setValue('domini').setFontWeight('bold').setBackground('#F97316').setHorizontalAlignment('center');
   sheet.getRange('F12').setValue('parole').setFontWeight('bold').setBackground('#F97316').setHorizontalAlignment('center');
 
-  sheet.getRange('B4').setValue(
+  if (!sheet.getRange('B4').getValue()) sheet.getRange('B4').setValue(
     (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function')
       ? Session.getScriptTimeZone()
       : 'Europe/Rome'
@@ -320,7 +320,8 @@ function getOrCreateSheet(ss, name, tabColor) {
 function resetSheetLayout(sheet) {
   const range = sheet.getRange(UI_CONFIG.SHEET_RESET_RANGE);
   range.breakApart();
-  range.clear();
+  // Rebuild presentation only: settings, lists, dates and notification addresses survive.
+  range.clearFormat();
 }
 
 function safeMerge(range) {

@@ -91,10 +91,38 @@ var ThreadPolicy = {
 
     return {  };
   },
-  /** languageAndNewsletter: ingressi locali espliciti; restituisce i dati della fase. */
-  languageAndNewsletter(deps, {
+  /** Newsletter headers are checked before sender filters and any AI call. */
+  newsletter(deps, {
     messageDetails, languageMode, unlabeledUnread, skippedMessageIds, result, messageState,
     labeledMessageIds, buildRuleContext
+  }) {
+    // Le newsletter sono filtrate in modo definitivo: usiamo IA per non riprenderle
+    // nei run successivi. Il punto medio ('·') non si usa qui perché non è un
+    // rinvio temporaneo dovuto alla modalità "Solo straniere".
+    let newsletterMessagesToMark = (unlabeledUnread && unlabeledUnread.length > 0) ? unlabeledUnread : [messageState.candidate];
+    // Evita di "demotare" messaggi già IA quando il fallback usa candidate.
+    newsletterMessagesToMark = (newsletterMessagesToMark || []).filter((message) => {
+      if (!message || typeof message.getId !== 'function') return false;
+      const messageId = message.getId();
+      return !(labeledMessageIds instanceof Set && labeledMessageIds.has(messageId));
+    });
+    const newsletterDecision = deps._evaluatePreAiRules_(buildRuleContext({
+      phase: 'post_extract_pre_ai',
+      isNewsletter: messageDetails.isNewsletter,
+      gmailTargets: { newsletterMessagesToMark: newsletterMessagesToMark }
+    }));
+    if (deps._applyPreAiRuleDecision_(newsletterDecision, buildRuleContext({
+      phase: 'post_extract_pre_ai',
+      isNewsletter: messageDetails.isNewsletter,
+      gmailTargets: { newsletterMessagesToMark: newsletterMessagesToMark }
+    }), result)) {
+      return { terminal: true };
+    }
+
+    return { terminal: false };
+  },
+  languageAndNewsletter(deps, {
+    messageDetails, languageMode, unlabeledUnread, skippedMessageIds, result
   }) {
     const bodyForLanguageDetection = (deps.classifier && typeof deps.classifier._extractMainContent === 'function')
       ? deps.classifier._extractMainContent(messageDetails.body || '')
@@ -124,29 +152,6 @@ var ThreadPolicy = {
       deps._markMessagesAsSkipped(unlabeledUnread, deps.config.skipLabelName, skippedMessageIds);
       result.status = 'skipped';
       result.reason = 'italian_skipped_foreign_only';
-      return { terminal: true };
-    }
-
-    // Le newsletter sono filtrate in modo definitivo: usiamo IA per non riprenderle
-    // nei run successivi. Il punto medio ('·') non si usa qui perché non è un
-    // rinvio temporaneo dovuto alla modalità "Solo straniere".
-    let newsletterMessagesToMark = (unlabeledUnread && unlabeledUnread.length > 0) ? unlabeledUnread : [messageState.candidate];
-    // Evita di "demotare" messaggi già IA quando il fallback usa candidate.
-    newsletterMessagesToMark = (newsletterMessagesToMark || []).filter((message) => {
-      if (!message || typeof message.getId !== 'function') return false;
-      const messageId = message.getId();
-      return !(labeledMessageIds instanceof Set && labeledMessageIds.has(messageId));
-    });
-    const newsletterDecision = deps._evaluatePreAiRules_(buildRuleContext({
-      phase: 'post_extract_pre_ai',
-      isNewsletter: messageDetails.isNewsletter,
-      gmailTargets: { newsletterMessagesToMark: newsletterMessagesToMark }
-    }));
-    if (deps._applyPreAiRuleDecision_(newsletterDecision, buildRuleContext({
-      phase: 'post_extract_pre_ai',
-      isNewsletter: messageDetails.isNewsletter,
-      gmailTargets: { newsletterMessagesToMark: newsletterMessagesToMark }
-    }), result)) {
       return { terminal: true };
     }
 

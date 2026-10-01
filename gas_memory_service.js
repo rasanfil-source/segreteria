@@ -88,6 +88,8 @@ var MemoryService = class MemoryService {
         this._normalizeHeaders();
       }
 
+      // Numeric-looking Gmail IDs must retain their exact string representation.
+      this._sheet.getRange('A:A').setNumberFormat('@');
       this._initialized = true;
       console.log(`✓ MemoryService inizializzato (Foglio: ${this.sheetName})`);
 
@@ -1990,7 +1992,9 @@ var MemoryService = class MemoryService {
       canonical_complexity: /\b(sbattezzo|apostasia|divorzio|divorziat[oaie]|separazione|separat[oaie])\b/i,
       ongoing_pastoral_process: /\b(accompagnamento|percorso\s+pastorale|cammino\s+pastorale|direzione\s+spirituale|colloquio\s+pastorale)\b/i
     };
-    const legacyText = [values[2], rawMemorySummary, values[4]].join(' ');
+    const legacySummary = parsedMemorySummary.recognized ? parsedMemorySummary.legacySummaryText : rawMemorySummary;
+    const legacyText = [values[2], String(legacySummary || '').split('\n')
+      .filter(line => !/^\s*(?:•\s*\[\d{4}-\d{2}-\d{2}\]|\.\.\.)/.test(line)).join('\n')].join('\n');
     ['bereaved', 'canonical_complexity', 'ongoing_pastoral_process'].forEach(key => {
       const evidence = contextualFlags._evidence[key];
       const anchor = evidence === false ? null : (evidence || lastUpdated);
@@ -2506,7 +2510,10 @@ function createMemoryService() {
 
 function cleanupOldMemory() {
   const memoryService = new MemoryService();
-  const deleted = memoryService.cleanOldEntries(30);
+  // Retention of an entire conversation is independent from the maximum age of evidence.
+  const days = typeof CONFIG !== 'undefined' && Number.isInteger(CONFIG.MEMORY_RETENTION_DAYS) && CONFIG.MEMORY_RETENTION_DAYS > 0
+    ? CONFIG.MEMORY_RETENTION_DAYS : 30;
+  const deleted = memoryService.cleanOldEntries(days);
   console.log(`Pulizia memoria completata: ${deleted} voci rimosse`);
 }
 

@@ -139,6 +139,8 @@ var CONFIG = {
     get email() { return _getScriptProperty('VALIDATION_REVIEW_EMAIL') || ''; }
   },
   SENSITIVE_FLAGS_TTL_DAYS: 180, // Evidenza per flag; non rinnova con richieste estranee.
+  MEMORY_RETENTION_DAYS: 30, // Intera conversazione: un limite minore elimina anche i flag prima del loro TTL.
+  TRUSTED_FORM_SENDERS: [], // Indirizzi From esatti dei form autorizzati a usare Reply-To su un altro dominio.
   SEMANTIC_VALIDATION: {
     enabled: true,
     activationThreshold: 0.9,
@@ -418,7 +420,7 @@ var CONFIG = {
     'unclickperlascuolaelosport.it', 'sendinblue.com',
   ],
   IGNORE_KEYWORDS: [
-    'unsubscribe', 'opt-out', 'newsletter',
+    'unsubscribe', 'opt-out',
     'disiscriviti', 'disiscrizione', 'annulla iscrizione',
     'annulla l\'iscrizione', 'annulla l’iscrizione', 'gestisci la tua iscrizione',
     'gestisci le tue preferenze', 'aggiorna le tue preferenze',
@@ -426,9 +428,8 @@ var CONFIG = {
     'messaggio inviato con', 'non rispondere a questo messaggio',
     'avviso di sicurezza',
     'scopri i prodotti', 'scopri le novità', 'offerta esclusiva',
-    'promozione', 'promozioni', 'sconto', 'webinar',
     'ti aspetta al', 'riservato a te', 'iscriviti ora',
-    'invito all\'evento', 'nuovo arrivo', 'collezione',
+    'nuovo arrivo',
     'ultima occasione'
   ]
 };

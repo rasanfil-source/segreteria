@@ -856,12 +856,11 @@ var EmailProcessor = class EmailProcessor {
         skippedMessageIds, result, startTime
       });
       if (message.terminal) return result;
-      const language = ThreadPolicy.languageAndNewsletter(policyServices, {
+      const newsletter = ThreadPolicy.newsletter(policyServices, {
         ...unread, ...policy, ...message, languageMode, skippedMessageIds, result,
         messageState, labeledMessageIds
       });
-      if (language.terminal) return result;
-
+      if (newsletter.terminal) return result;
       const throttle = ThreadPolicy.throttle(policyServices, {
         ...message, lockCtx, threadLogger, result
       });
@@ -874,6 +873,12 @@ var EmailProcessor = class EmailProcessor {
         ...unread, ...policy, ...message, messages, messageState, result
       });
       if (senderPolicy.terminal) return result;
+      const language = ThreadPolicy.languageAndNewsletter(policyServices, {
+        ...unread, ...policy, ...message, languageMode, skippedMessageIds, result,
+        messageState, labeledMessageIds
+      });
+      if (language.terminal) return result;
+
       const classified = ThreadPolicy.classify(policyServices, {
         ...policy, ...message, result
       });
@@ -971,7 +976,7 @@ var EmailProcessor = class EmailProcessor {
       const validationServices = this._threadValidationServices_();
       const validated = ThreadValidation.validate(validationServices, {
         ...message, ...analysis, ...knowledge, ...profile, ...routing,
-        ...consistency, ...generated, ...prepared, fullPrompt,
+        ...consistency, ...generated, ...prepared, fullPrompt, attachmentBlobs: attachments.attachmentBlobs,
         markFailureForCurrentBurst: messageState.markFailureForCurrentBurst, result
       });
       if (validated.terminal) return result;
@@ -6285,10 +6290,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   }
   _evaluateDocumentConsistency_(subject, body, attachmentItems, ocrText) {
     const expected = this._detectDocumentTypeFromText_(`${subject || ''} ${body || ''}`);
-    const attachmentNames = Array.isArray(attachmentItems)
-      ? attachmentItems.map((it) => (it && it.name) ? it.name : '').filter(Boolean).join(' ')
-      : '';
-    const received = this._detectDocumentTypeFromText_(`${attachmentNames} ${ocrText || ''}`);
+    const received = this._detectDocumentTypeFromText_(this._documentEvidenceText_(ocrText));
 
     if (!expected || expected === 'unknown') {
       return { mode: 'unknown_expected', expected: 'unknown', received: received || 'unknown' };
@@ -6333,7 +6335,14 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
    *   emersa dal quick check Gemini.
    * @returns {{consistent: boolean, reason: string, source: string}|null}
    */
-  _evaluateAttachmentSemanticConsistency_({ subject, body, attachmentItems, ocrText, expectedAttachmentDescription } = {}) {
+  _documentEvidenceText_(text) {
+    return String(text || '')
+      .replace(/^\s*--- (?:File visivo inviato|Contenuto file):[^\n]*$/gim, '')
+      .replace(/^\s*Ruolo allegato:[^\n]*$/gim, '')
+      .replace(/^\s*\[Avviso di sistema[^\n]*$/gim, '').trim();
+  }
+
+  _evaluateAttachmentSemanticConsistency_({ subject, body, attachmentItems, ocrText, attachmentBlobs = [], expectedAttachmentDescription } = {}) {
     const trimmedSubject = String(subject || '').trim();
     const trimmedBody = String(body || '').trim();
     const expectedDescription = String(expectedAttachmentDescription || '').trim();
@@ -6344,12 +6353,10 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     // Il testo OCR può essere un avviso di sistema (impostato più sopra in
     // processThread quando il pre-check ha saltato l'estrazione OCR): non è
     // materiale reale su cui basare un giudizio di coerenza.
-    const isPlaceholderOcr = /^\[Avviso di sistema/i.test(rawOcrText) ||
-      /^--- File visivo inviato:/i.test(rawOcrText);
-    const effectiveOcrText = isPlaceholderOcr ? '' : rawOcrText;
+    const effectiveOcrText = this._documentEvidenceText_(rawOcrText);
 
     if (!trimmedSubject && !trimmedBody) return null;
-    if (!effectiveOcrText) return null;
+    if (!effectiveOcrText && !attachmentBlobs.length) return null;
 
     if (!this.geminiService || typeof this.geminiService.generateResponse !== 'function') {
       return null;
@@ -6374,6 +6381,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
 
     try {
       const rawResult = this.geminiService.generateResponse(prompt, {
+        attachments: attachmentBlobs,
         // Modello leggero per un controllo ausiliario a bassa latenza/costo:
         // stesso fallback usato altrove in questo file per chiamate non critiche.
         modelName: 'gemini-3.5-flash-lite'
