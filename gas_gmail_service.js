@@ -246,6 +246,7 @@ var GmailService = class GmailService {
      * per evitare errori "label not found" in ambienti nuovi.
      */
     getOrCreateLabel(labelName) {
+        this._ensureLabelCache_();
         const cacheKey = this._getLabelCacheKey_(labelName);
         const cachedEntry = this._labelCache.get(labelName);
         const now = Date.now();
@@ -322,7 +323,15 @@ var GmailService = class GmailService {
         return newLabel;
     }
 
+    _ensureLabelCache_() {
+        if (!this._labelCache || !['get', 'set', 'delete', 'clear'].every(method =>
+            typeof this._labelCache[method] === 'function')) {
+            this._labelCache = new Map();
+        }
+    }
+
     clearLabelCache() {
+        this._ensureLabelCache_();
         this._labelCache.clear();
         console.log('🗑️ Cache label svuotata');
     }
@@ -499,6 +508,10 @@ var GmailService = class GmailService {
       }
       console.log(`✓ Aggiunta label '${labelName}' a ${validIds.length} messaggi (batch)`);
     } catch (e) {
+      const errorMessage = String((e && e.message) || e || '');
+      if (/GMAIL_DAILY_CALL_LIMIT_REACHED|GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE/.test(errorMessage)) {
+        throw e;
+      }
       console.warn(`⚠️ batchAddLabelToMessages fallito (${labelName}): ${e.message}`);
       validIds.forEach(id => this.addLabelToMessage(id, labelName));
     }
@@ -1274,9 +1287,7 @@ var GmailService = class GmailService {
     _getOptionalLabelIdByName(labelName) {
         const raw = String(labelName || '').trim();
         if (!raw) return null;
-        if (!this._labelCache || typeof this._labelCache.get !== 'function') {
-            this._labelCache = new Map();
-        }
+        this._ensureLabelCache_();
 
         const cacheKey = this._getLabelCacheKey_(raw);
         const now = Date.now();
