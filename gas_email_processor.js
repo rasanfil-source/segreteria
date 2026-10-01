@@ -5264,10 +5264,11 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     // Boundary Unicode: evita match dentro parole; distingue "ore 10" dalla durata "10 ore".
     // Strip full numeric dates and explicit chapter:verse references before time parsing.
     const source = text.replace(/\b\d{1,2}([./-])\d{1,2}\1\d{2,4}\b/g, ' ')
+      .replace(/\b(?:il|del|dal|al|am|den)\s+(?:0?[1-9]|[12]\d|3[01])\.(?:0?[1-9]|1[0-2])(?![\p{L}\p{N}_]|[.:/-]\d)/giu, ' ')
       .replace(/\b(?:luca|matteo|marco|giovanni|luke|matthew|mark|john)\s+\d+:\d+(?:-\d+)?/gi, ' ');
-    const matches = source.match(/(?<![\p{L}\p{N}_]|\d[.:/-])\d{1,2}[:.]\d{2}(?:\s*(?:am|pm))?(?![\p{L}\p{N}_]|[.:/-]\d)|(?<![\p{L}\p{N}_]|\d[.:/-])\d{1,2}\s*(?:am|pm)(?![\p{L}\p{N}_])|(?<=\b(?:ore|alle|dalle)\s+)\d{1,2}(?![\p{L}\p{N}_]|[.:]\d)/giu) || [];
+    const matches = source.match(/(?<![\p{L}\p{N}_]|\d[.:/-])\d{1,2}(?:[:.]\d{2}|\s*h\s*\d{2})(?:\s*(?:am|pm))?(?![\p{L}\p{N}_]|[.:/-]\d)|(?<![\p{L}\p{N}_]|\d[.:/-])\d{1,2}\s*(?:am|pm|h|uhr)(?![\p{L}\p{N}_])|(?<=(?:^|[^\p{L}\p{N}_])(?:ore|alle|dalle|a\s+las|às|à|um|at)\s+)\d{1,2}(?![\p{L}\p{N}_]|[.:/-]\d)/giu) || [];
     const normalized = matches.map((time) => {
-      const parsed = time.match(/^(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?$/i);
+      const parsed = time.trim().match(/^(\d{1,2})(?:(?:[:.]|\s*h\s*)(\d{2}))?\s*(?:h|uhr)?\s*(am|pm)?$/i);
       if (!parsed) return null;
       let hour = Number(parsed[1]);
       const minute = Number(parsed[2] || 0);
@@ -5329,7 +5330,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   _extractEventScheduleTimesForDiscrepancy_(response) {
     if (!response || typeof response !== 'string') return [];
 
-    const sentences = response.match(/[^.!?\n]+(?:[.!?]+|$)/g) || [response];
+    // A dot between digits belongs to a time/date, not a sentence boundary.
+    const sentences = response.split(/[!?\n]+|(?<!\d)\.|\.(?!\d)/);
     const eventSchedulePatterns = [
       /(?:^|[^\p{L}\p{N}_])(?:inizia|iniziano|inizier[àa]|inizieranno|comincia|cominciano|comincer[àa]|cominceranno|parte|partono|partir[àa]|partiranno)(?=$|[^\p{L}\p{N}_])/iu,
       /(?:^|[^\p{L}\p{N}_])(?:si\s+)?(?:tiene|terr[àa]|terranno|svolge|svolger[àa]|svolgeranno)(?=$|[^\p{L}\p{N}_])/iu,
@@ -5341,8 +5343,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       /(?:^|[^\p{L}\p{N}_])(?:começa|começam|ter[áa]|ter[aã]o\s+lugar)(?=$|[^\p{L}\p{N}_])/iu,
       /(?:^|[^\p{L}\p{N}_])(?:beginnt|beginnen|findet|finden)\s+statt(?=$|[^\p{L}\p{N}_])/iu
     ];
-    const eventNounPattern = /\b(?:incontro|riunione|corso|lezione|messa|messe|celebrazione|appuntamento|catechesi|ritiro|evento|mass|masses|meeting|course|class|event|appointment|reuni[oó]n|curso|rencontre|réunion|cours|treffen|kurs)\b/i;
-    const directEventTimePattern = /(?:^|[^\p{L}\p{N}_])(?:è|e'|sar[àa]|sono|saranno|is|are|will\s+be|ser[áa]|sera|ser[aã]o|est[áa]|ist|sind)(?=$|[^\p{L}\p{N}_])[^.!?\n]{0,80}(?:^|[^\p{L}\p{N}_])(?:alle?|ore|at|a\s+las|às|à|um)\s+(?:[01]?\d|2[0-3])(?:[:.][0-5]\d)?(?:\s*(?:am|pm))?(?=$|[^\p{L}\p{N}_])/iu;
+    const eventNounPattern = /\b(?:incontro|riunione|corso|lezione|messa|messe|celebrazione|appuntamento|catechesi|ritiro|evento|mass|masses|meeting|course|class|event|appointment|reuni[oó]n|reunião|missa|curso|rencontre|réunion|cours|treffen|kurs)\b/i;
+    const directEventTimePattern = /(?:^|[^\p{L}\p{N}_])(?:è|é|e'|sar[àa]|sono|saranno|is|are|will\s+be|es|est|ser[áa]|sera|ser[aã]o|est[áa]|ist|sind)(?=$|[^\p{L}\p{N}_])[^.!?\n]{0,80}(?:^|[^\p{L}\p{N}_])(?:alle?|ore|at|a\s+las|às|à|um)\s+(?:[01]?\d|2[0-3])(?:[:.][0-5]\d|\s*h(?:\s*[0-5]\d)?)?(?:\s*(?:am|pm|uhr))?(?=$|[^\p{L}\p{N}_])/iu;
 
     const scheduledTimes = [];
     sentences.forEach((sentence) => {

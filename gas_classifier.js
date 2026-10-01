@@ -153,18 +153,24 @@ var Classifier = class Classifier {
     const hasCurrentRequest = this._isSbattezzoFormalRequest_(mainContent) || this._isDocumentSubmission(mainContent);
     // An inherited subject must not reopen an explicit closing message.
     // A genuinely empty reply still follows the subject-based analysis below.
-    if (isReply && !hasFreshSubjectQuestion && !hasCurrentRequest && this._isUltraSimpleAcknowledgment(greetingBody)) {
+    if (isReply && !hasFreshSubjectQuestion && !hasCurrentRequest && (
+      this._isUltraSimpleAcknowledgment(greetingBody) ||
+      (Boolean(mainContent.trim()) && this._isUltraSimpleAcknowledgment(mainContent))
+    )) {
       return { shouldReply: false, reason: 'ultra_simple_acknowledgment', category: null, subIntents: {}, confidence: 1.0 };
     }
-    if (isReply && !hasFreshSubjectQuestion && !hasCurrentRequest && greetingLines.length && greetingLines.every(line => this._isGreetingOnly(line))) {
-      return { shouldReply: false, reason: 'greeting_only', category: null, subIntents: {}, confidence: 0.95 };
+    if (isReply && !hasFreshSubjectQuestion && !hasCurrentRequest && greetingLines.length &&
+        greetingLines.every(line => this._isGreetingOnly(line) || this._isUltraSimpleAcknowledgment(line))) {
+      const closingReason = greetingLines.every(line => this._isGreetingOnly(line))
+        ? 'greeting_only' : 'ultra_simple_acknowledgment';
+      return { shouldReply: false, reason: closingReason, category: null, subIntents: {}, confidence: 0.95 };
     }
 
     const fullText = `${safeSubject} ${mainContent}`;
     const contextualSubIntents = this._detectSubIntents(fullText);
 
     // PRIORITÀ LEGALE/PRIVACY: richieste formali (es. sbattezzo/apostasia)
-    if (this._isSbattezzoFormalRequest_(fullText)) {
+    if (this._isSbattezzoFormalRequest_((isReply && !mainContent.trim()) ? mainContent : fullText)) {
       console.log('        Richiesta formale rilevata (sbattezzo/apostasia)');
       return {
         shouldReply: true,
@@ -210,7 +216,7 @@ var Classifier = class Classifier {
     const contentForQuickChecks = this._isTrivialReplyBody(mainContent) ? subjectForChecks : mainContent;
 
     // FILTRO 1: Acknowledgment ultra-semplice
-    if (this._isUltraSimpleAcknowledgment(contentForQuickChecks) && (isReply || !subjectHasRequest)) {
+    if (!hasFreshSubjectQuestion && this._isUltraSimpleAcknowledgment(contentForQuickChecks) && (isReply || !subjectHasRequest)) {
       console.log('      ✗ Acknowledgment ultra-semplice (≤3 parole, nessuna domanda)');
       return {
         shouldReply: false,
@@ -222,7 +228,7 @@ var Classifier = class Classifier {
     }
 
     // FILTRO 2: Solo saluto
-    if (this._isGreetingOnly(contentForQuickChecks) && (isReply || !subjectHasRequest)) {
+    if (!hasFreshSubjectQuestion && this._isGreetingOnly(contentForQuickChecks) && (isReply || !subjectHasRequest)) {
       console.log('      ✗ Solo saluto (standalone)');
       return {
         shouldReply: false,
