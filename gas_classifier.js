@@ -318,7 +318,7 @@ var Classifier = class Classifier {
       }
 
       // Salta saluti standalone all'inizio
-      if (!options.preserveGreetings && /^(salve|buongiorno|buonasera|ciao)[\s,!.]{0,5}$/i.test(stripped)) {
+      if (!options.preserveGreetings && /^(salve|buongiorno|buon\s+giorno|buonasera|buona\s+sera|buon\s+pomeriggio|ciao|good\s+morning|good\s+afternoon|good\s+evening|hello|hi)[\s,!.]{0,5}$/i.test(stripped)) {
         continue;
       }
 
@@ -427,7 +427,7 @@ var Classifier = class Classifier {
     if (!text || text.trim().length === 0) return false;
 
     // Controllo presenza domanda prima della normalizzazione
-    if (text.includes('?')) return false;
+    if (/[?？]/.test(text)) return false;
 
     // Normalizza
     let normalized = text.toLowerCase().trim();
@@ -442,7 +442,7 @@ var Classifier = class Classifier {
     // Conta parole
     const wordCount = normalized.split(' ').filter(w => w.length > 0).length;
     const hasOperationalInfo = /\b(oggi|domani|stamattina|stasera|alle|ore|appuntamento|vengo|veniamo|venite|vado|arrivo|passo|porto|documenti|pagato|bonifico)\b|\d/.test(normalized);
-    if (hasOperationalInfo) return false;
+    if (hasOperationalInfo || /\b(non|no|not|never|mai|niente|nulla|nessun[oa]?|neanche|nemmeno)\b/.test(normalized)) return false;
 
     // STRICT: max 3 parole
     if (wordCount > 3) return false;
@@ -459,19 +459,17 @@ var Classifier = class Classifier {
    * Rileva pattern espliciti di auto-risposta (OOO/ferie)
    */
   _isOutOfOfficeAutoReply(subject, body) {
-    const normalized = `${subject || ''} ${body || ''}`.toLowerCase();
+    const normalized = `${subject || ''} ${this._extractMainContent(String(body || ''), { preserveGreetings: true })}`.toLowerCase();
+    // Una descrizione personale dell'assenza non prova un autoresponder.
+    const explicitAutoReply = /\b(?:auto(?:matic)?\s*reply|risposta\s+automatica)\b/i;
+    if (explicitAutoReply.test(String(subject || ''))) return true;
+    if (/[?？]|\b(?:possiamo|vorrei|potete|chiedo|fissare|appuntamento)\b/i.test(normalized)) return false;
     const oooPatterns = [
       /\bout\s+of\s+office\b/i,
       /\bout\s+of\s+the\s+office\b/i,
       /\bauto(?:matic)?\s*reply\b/i,
       /\brisposta\s+automatica\b/i,
-      /\bsono\s+in\s+ferie\b/i,
-      /\bassen[tz]a\s+per\s+ferie\b/i,
-      /\bnon\s+sono\s+in\s+ufficio\b/i,
-      /\bassenza\s+per\s+malattia\b/i,
-      /\bcongedo\s+per\s+malattia\b/i,
-      /\bsono\s+in\s+vacc?anze\b/i,
-      /\btorno\s+dalle\s+vacc?anze\b/i
+      /\b(?:mailbox (?:is )?monitored periodically|casella (?:di posta )?consultata periodicamente)\b/i
     ];
 
     return oooPatterns.some(pattern => pattern.test(normalized));
@@ -483,7 +481,7 @@ var Classifier = class Classifier {
   _isGreetingOnly(text) {
     if (typeof text !== 'string' || !text.trim()) return false;
     // Controllo presenza domanda prima della normalizzazione
-    if (text.includes('?')) return false;
+    if (/[?？]/.test(text)) return false;
 
     let normalized = text.toLowerCase().trim();
     try {

@@ -548,7 +548,8 @@ var GmailService = class GmailService {
         const errorMessage = `Gmail.Users.Messages.get non recuperabile per msg ${messageId}: ${lastError ? lastError.message : 'errore sconosciuto'}`;
         console.warn(`⚠️ ${errorMessage}`);
         const err = new Error(errorMessage);
-        err.retryable = false;
+        err.retryable = true;
+        err.isTransient = true;
         err.operation = 'Gmail.Users.Messages.get';
         err.messageId = messageId;
         err.cause = lastError || null;
@@ -1463,6 +1464,7 @@ var GmailService = class GmailService {
                 const payloadParts = Array.isArray(payload.parts) ? payload.parts : null;
                 const partHasAttachment = (part) => {
                     if (!part || typeof part !== 'object') return false;
+                    if (isDecorativeAttachment_(part.filename, part.mimeType)) return false;
                     if (String(part.filename || '').trim()) return true;
                     const partHeaders = Array.isArray(part.headers) ? part.headers : [];
                     const disposition = partHeaders.find((header) =>
@@ -1472,7 +1474,7 @@ var GmailService = class GmailService {
                     return Array.isArray(part.parts) && part.parts.some(partHasAttachment);
                 };
                 if (!payloadMimeType.startsWith('multipart/')) {
-                    hasAttachments = Boolean(String(payload.filename || '').trim());
+                    hasAttachments = partHasAttachment(payload);
                 } else if (payloadParts) {
                     hasAttachments = payloadParts.some(partHasAttachment);
                 }
@@ -1649,7 +1651,7 @@ var GmailService = class GmailService {
 
         let attachments = [];
         try {
-            attachments = message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
+            attachments = (typeof filterDocumentAttachments_ === 'function' ? filterDocumentAttachments_ : value => value)(message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || []);
         } catch (e) {
             console.warn(`⚠️ Impossibile leggere allegati: ${e.message}`);
             return { text: '', items: [], skipped: [{ reason: 'read_error', error: e.message }], ocrConfidence: null, ocrConfidenceLow: false };
@@ -1883,7 +1885,7 @@ var GmailService = class GmailService {
 
         let attachments = [];
         try {
-            attachments = message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
+            attachments = (typeof filterDocumentAttachments_ === 'function' ? filterDocumentAttachments_ : value => value)(message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || []);
         } catch (e) {
             console.warn(`⚠️ Impossibile leggere allegati: ${e.message}`);
             result.skipped.push({ reason: 'read_error', error: e.message });
@@ -2829,7 +2831,7 @@ var GmailService = class GmailService {
         // Troncamento preventivo: evita timeout V8 su HTML anomalo/massivo durante replace regex.
         let text = html.length > 50000 ? html.substring(0, 50000) : html;
         // Rimuove blocchi di codice/stile che altrimenti finirebbero nel prompt testuale.
-        text = text.replace(/<(style|script)\b[^>]*>[\s\S]{0,5000}?<\/\1>/gi, '');
+        text = text.replace(/<(style|script)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, '');
         // Preserva separatori strutturali per evitare blocchi di testo illeggibili.
         text = text.replace(/<br\s*\/?\s*>/gi, '\n');
         text = text.replace(/<\/p\s*>/gi, '\n\n');
@@ -4056,6 +4058,20 @@ function createGmailService() {
 /**
  * Sanitizzazione URL robusta con whitelist di protocolli
  */
+// Esclude soltanto immagini esplicitamente nominate come elementi decorativi.
+// Le foto inline generiche restano documenti potenzialmente utili.
+function isDecorativeAttachment_(name, mimeType) {
+    return /^image\//i.test(String(mimeType || '')) &&
+        /^(?:logo|signature|firma|social[-_ ]?icon|facebook[-_ ]?icon|instagram[-_ ]?icon)(?:[\s_.-]|\d|$)/i.test(String(name || ''));
+}
+
+function filterDocumentAttachments_(attachments) {
+    return (attachments || []).filter(attachment => !isDecorativeAttachment_(
+        attachment && typeof attachment.getName === 'function' ? attachment.getName() : '',
+        attachment && typeof attachment.getContentType === 'function' ? attachment.getContentType() : ''
+    ));
+}
+
 function sanitizeUrl(url) {
     if (!url || typeof url !== 'string') return null;
 
@@ -4065,6 +4081,10 @@ function sanitizeUrl(url) {
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>');
 
+    const originalUrl = decoded.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
+    // Non lasciare che il decoding cambi i confini dell'autorità prima dei controlli.
+    const rawAuthority = originalUrl.match(/^(?:https?:\/\/|www\.)([^/?#]*)/i);
+    if (rawAuthority && /%|\\/.test(rawAuthority[1])) return null;
     try {
         decoded = decodeURIComponent(decoded);
     } catch (e) {
@@ -4107,7 +4127,7 @@ function sanitizeUrl(url) {
     // SSRF: blocco IP interni, IPv6 loopback/link-local, IP decimali
     const INTERNAL_IP_PATTERN = /^\s*(https?:\/\/)?(localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2[0-9]|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+)(?::\d+)?(?:\/|$)/i;
     const DECIMAL_IP = /^https?:\/\/\d{8,10}(?::\d+)?(\/|$)/i;
-    const USERINFO_BYPASS = /^https?:\/\/[^@]+@/i;
+    const USERINFO_BYPASS = /^https?:\/\/[^/?#]*@/i;
 
     // Blocca rappresentazioni numeriche alternative localhost (hex/octal/miste)
     // es: 0x7f000001, 0177.0.0.1, 0x7f.0.0.1
@@ -4266,7 +4286,7 @@ function sanitizeUrl(url) {
         return null;
     }
 
-    return decoded
+    return (/^www\./i.test(originalUrl) ? `https://${originalUrl}` : originalUrl)
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 }

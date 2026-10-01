@@ -1559,6 +1559,7 @@ var EmailProcessor = class EmailProcessor {
         stats.total++;
         // Count review outcomes before infrastructure/quota branches can stop the batch.
         if (result && result.validationFailed) stats.validationFailed++;
+        if (result && result.reason === 'possible_email_loop') stats.skipped_loop++;
         if (result && result.status === 'error' && !result.validationFailed) {
           stats.errors++;
         }
@@ -1767,6 +1768,14 @@ var EmailProcessor = class EmailProcessor {
       raw.includes('daily') ||
       raw.includes('giornal') ||
       raw.includes('rpd');
+
+    if (raw.includes('rpd') && !this._isGmailDailyQuotaError_(raw)) {
+      const limiter = this.geminiService && this.geminiService.rateLimiter;
+      if (limiter && typeof limiter._getNextResetTime === 'function') {
+        const resetMs = Date.parse(limiter._getNextResetTime());
+        if (Number.isFinite(resetMs) && resetMs > Date.now()) return resetMs - Date.now() + 60000;
+      }
+    }
 
     if (looksDailyQuota) {
       return -1;
@@ -5199,8 +5208,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     const explicitPatterns = [
       /\bterritorio\b/i,
       /\bparrocchia\s+di\s+residenza\b/i,
-      /\brientr[aio]\b/i,
-      /\bnon\s+rientr[aio]\b/i,
+      /\brientr[aio]\b[\s\S]{0,60}\b(?:territorio|parrocchia|confini)\b/i,
+      /\b(?:territorio|parrocchia|confini)\b[\s\S]{0,60}\brientr[aio]\b/i,
       /\bcompetenza\s+parrocchiale\b/i,
       /\bquale\s+parrocchia\b/i,
       /\bfuori\s+territorio\b/i,
@@ -5492,7 +5501,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     const hasFollowUpRequestSignal = /[?？]/.test(bodyText) ||
       /(?<![\p{L}\p{N}_])(?:ma|per[oò]|tuttavia|invece|anche|ancora)(?![\p{L}\p{N}_])[\s\S]{0,160}(?<![\p{L}\p{N}_])(?:potrebbe|pu[oò]|potete|possiamo|potremmo|vorrei|desidero|sapere|indicarmi|indicare|dirmi|dire|confermare|chiarire|spiegare|quando|dove|come|quale|quali|quanto|orario|appuntamento)(?![\p{L}\p{N}_])/iu.test(bodyLower) ||
       /(?<![\p{L}\p{N}_])(?:potrebbe|pu[oò]|potete|possiamo|potremmo|vorrei|desidero|sapere|indicarmi|dirmi|quando|dove|come|quale|quali|quanto|orario|appuntamento|prenotare|fissare)(?![\p{L}\p{N}_])/iu.test(bodyLower) ||
-      /\bmi\s+(?:pu[oò]|potrebbe)\s+(?:indicare|dire|confermare|chiarire|spiegare|mandare|inviare)\b/i.test(bodyText);
+      /\bmi\s+(?:pu[oò]|potrebbe)\s+(?:indicare|dire|confermare|chiarire|spiegare|mandare|inviare)\b/i.test(bodyLower);
     const hasDocumentSubmissionSignal =
       /\b(?:allego|in allegato|invio|inoltro|trasmetto|mando|documento|modulo|certificato|dati)\b/i.test(bodyText);
 
@@ -6191,15 +6200,15 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   }
 
   _deriveAttachmentIntentContext_(body, subject, attachmentItems, ocrText, phase = 'pre_ocr') {
-    const fullText = `${subject || ''} ${body || ''} ${ocrText || ''}`.toLowerCase();
-    const currentBodyText = String(body || '').toLowerCase();
-    const attachmentSignalText = `${ocrText || ''} ${(Array.isArray(attachmentItems) ? attachmentItems.map((i) => (i && i.name) ? i.name : '').join(' ') : '')}`.toLowerCase();
+    const fullText = `${subject || ''} ${body || ''} ${ocrText || ''}`.normalize('NFC').toLowerCase();
+    const currentBodyText = String(body || '').normalize('NFC').toLowerCase();
+    const attachmentSignalText = `${ocrText || ''} ${(Array.isArray(attachmentItems) ? attachmentItems.map((i) => (i && i.name) ? i.name : '').join(' ') : '')}`.normalize('NFC').toLowerCase();
     // Rileva domande esplicite, ma anche richieste implicite, condizionali e intenti
     // operativi (es. "se era possibile programmare...") che non contengono "?" né
     // le formule esatte "vorrei sapere"/"chiedo se". \w* dopo gli stem evita che il
     // confine di parola \b finale tronchi il match su forme flesse (es. "possibile",
     // "disponibilità").
-    const attachmentBodyQuestionText = `${subject || ''} ${body || ''}`;
+    const attachmentBodyQuestionText = `${subject || ''} ${body || ''}`.normalize('NFC');
     const hasBodyOperationalRequest = (
       /\b(?:chiedo|richiedo|domando)\b[\s\S]{0,140}\b(?:permesso|autorizzazione|nulla\s*osta|consenso|assenso)\b/i.test(attachmentBodyQuestionText) ||
       /\b(?:permesso|autorizzazione|nulla\s*osta|consenso|assenso)\b[\s\S]{0,180}\b(?:firmare|timbrare|restituir\w*|rinviare|inviare|inoltrare|ricevere|celebrare|seguire)\b/i.test(attachmentBodyQuestionText) ||
@@ -6207,7 +6216,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       /\b(?:firmare|timbrare|restituir\w*|rinviare|inviare|inoltrare)\b[\s\S]{0,100}\b(?:modul\w*|document\w*|letter\w*|autorizz\w*|permesso|nulla\s*osta)\b/i.test(attachmentBodyQuestionText) ||
       /\b(?:vi|le)\s+prego\s+di\s+(?:firmare|timbrare|restituir\w*|rinviare|inviare|inoltrare|confermare|autorizzare|approvare|rispondere)\b/i.test(attachmentBodyQuestionText)
     );
-    const hasBodyQuestion = /\?|\b(?:vorrei|chiedo|mi dica|sapere|possibil\w*|possiamo|potremmo|programmare|fissare|disponibil\w*|se\s+(?:era|fosse|pu[oò]|potete))\b/i.test(attachmentBodyQuestionText)
+    const hasBodyQuestion = /[?？]|(?<![\p{L}\p{N}_])(?:vorrei|chiedo|mi dica|sapere|possibil[\p{L}]*|possiamo|potremmo|programmare|fissare|disponibil[\p{L}]*|se\s+(?:era|fosse|pu[oò]|potete))(?![\p{L}\p{N}_])/iu.test(attachmentBodyQuestionText)
       || hasBodyOperationalRequest;
     // Non trattare punti interrogativi o label OCR come domande rivolte alla segreteria:
     // un form/certificato può contenere campi o diciture interrogative non intenzionali.
@@ -6230,7 +6239,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
         /(?:carta d'identit[aà]|passaporto|documento identit[aà])/.test(fullText);
       const isCamminoContext = /cammino di santiago|pellegrinaggio|iscrizion/i.test(fullText);
       const hasDocumentMention = /\b(?:allegat\w*|document\w*|certificat\w*|modul\w*|sched[ae]|iscrizion\w*)\b/i.test(fullText);
-      const hasDeliveryCueInCurrentBody = /\b(?:in\s+allegato|alleg(?:o|hiamo|at[oaie])|vi\s+invi(?:o|amo)|trasmett(?:o|iamo)|inoltr(?:o|iamo)|mand(?:o|iamo)|ecco|(?:ho|abbiamo)\s+compilat[oaie])\b/i.test(currentBodyText);
+      const hasDeliveryCueInCurrentBody = /\b(?:in\s+allegato|alleg(?:o|hiamo|at[oaie])|(?:(?:le|vi)\s+)?invi(?:o|amo)|trova(?:te)?\s+allegat[oaie]|trasmett(?:o|iamo)|inoltr(?:o|iamo)|mand(?:o|iamo)|ecco|(?:ho|abbiamo)\s+compilat[oaie])\b/i.test(currentBodyText);
       const isSuspectedSubmission =
         (hasDocumentMention && hasDeliveryCueInCurrentBody) ||
         hasIdentityDataSubmission ||
@@ -6606,7 +6615,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   }
 
   _isSubmittingSponsorEligibilityDocument_(text, detectedLanguage = 'it') {
-    const source = String(text || '').toLowerCase();
+    const source = String(text || '').normalize('NFC').toLowerCase();
     const deliverySignals = /\b(allego|in allegato|invio|inoltro|trasmetto|mando|consegno|presento|deposito|ecco|attach|attached|send|sending|env[ií]o|adjunto|j['’]?envoie|anexo|sende)\b/i.test(source);
     const documentSignals = /\b(certificat\w*|attestat\w*|certificate|attestation|certificado|attestation|atestado|bescheinigung)\b/i.test(source);
     return this._hasSacramentalSponsorRole_(source, detectedLanguage) &&
@@ -6616,14 +6625,14 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   }
 
   _isExplicitSponsorEligibilityRequest_(text, detectedLanguage = 'it') {
-    const source = String(text || '').toLowerCase();
+    const source = String(text || '').normalize('NFC').toLowerCase();
     if (!this._hasSacramentalSponsorRole_(source, detectedLanguage)) return false;
     const hasQuestionIntent = /[?？]|(?<![\p{L}\p{N}_])(?:come|cosa|quali|qual[eè]|posso|potrei|devo|dovrei|serve|servono|occorre|occorrono|bisogna|vorrei sapere|mi serve sapere|ho bisogno di sapere|informazioni|info|how|what|which|can i|could i|do i need|requirements?|requisitos?|conditions?|exigences?|voraussetzungen?)(?![\p{L}\p{N}_])/iu.test(source);
     return hasQuestionIntent && (this._hasSponsorEligibilityTopic_(source, detectedLanguage) || this._hasSponsorRoleIntent_(source, detectedLanguage));
   }
 
   _isReceivingOwnCresimaContext_(text, detectedLanguage = 'it') {
-    const source = String(text || '').toLowerCase();
+    const source = String(text || '').normalize('NFC').toLowerCase();
     switch (this._normalizeSponsorGuidanceLanguage_(detectedLanguage)) {
       case 'en':
         return /\b(receive|get|make)\b[\s\S]{0,50}\bconfirmation\b/i.test(source);
@@ -6666,7 +6675,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   }
 
   _detectCresimaAsPrerequisiteForSponsorRole_(text, detectedLanguage = 'it') {
-    const source = String(text || '').toLowerCase();
+    const source = String(text || '').normalize('NFC').toLowerCase();
     const directSponsorRoleIntent = this._hasSponsorRoleIntent_(source, detectedLanguage);
     const sponsorRoleSignals = this._hasSacramentalSponsorRole_(source, detectedLanguage);
     const missingCresimaSignals = this._hasMissingConfirmationSignal_(source, detectedLanguage);
@@ -7032,7 +7041,7 @@ Parish Secretariat of Sant'Eugenio`;
   }
 
   _asksSponsorRequirementsDirectly_(text, detectedLanguage = 'it') {
-    const source = String(text || '').toLowerCase();
+    const source = String(text || '').normalize('NFC').toLowerCase();
     if (!this._hasSacramentalSponsorRole_(source, detectedLanguage)) return false;
     return /\b(?:quali|cosa|che cosa|vorrei sapere|chiedo)\b[\s\S]{0,100}\b(?:requisit|condizion|idoneit)/i.test(source) ||
       /\b(?:requisit|condizion|idoneit)[a-zàèéìòù]*\b[\s\S]{0,100}\b(?:padrin|madrin|sponsor)/i.test(source) ||

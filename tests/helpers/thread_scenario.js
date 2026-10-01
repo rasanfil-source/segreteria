@@ -109,7 +109,7 @@ function runScenario(root, scenario = {}, instrumentation = {}) {
       sendHtmlReply: (message, response, details) => { record('send', [message.getId(), response, details]); if (scenario.sendError) fail(scenario.sendError); },
       reconcileSendOperation: id => { record('send.reconcile', id); return !!scenario.reconciled; },
       removeLabelFromThread: (_, label) => { record('label.cleanThread', label); if (scenario.cleanupError) fail('cleanup failure'); },
-      removeLabelFromMessage: (id, label) => record('label.cleanMessage', [id, label])
+      removeLabelFromMessage: (id, label) => { record('label.cleanMessage', [id, label]); if (scenario.cleanupError) fail('cleanup failure'); }
     },
     classifier: { logger: { original: 'classifier' }, classifyEmail: (...args) => { record('classify', args); return {
       shouldReply: !scenario.classifierReject, reason: 'fixture', category: 'technical', topic: 'catechismo'

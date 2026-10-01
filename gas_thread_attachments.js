@@ -1,5 +1,5 @@
 /** Pre-check, look-back limitato, budget di estrazione e interpretazione OCR.
- * Il look-back conserva intenzionalmente l’array dei messaggi del contesto per identità.
+ * Le sorgenti documentali storiche restano separate dai target del burst corrente.
  * GAS: namespace globale sincrono; dipendenze esplicite, nessun caricatore runtime.
  */
 var ThreadAttachments = {
@@ -29,7 +29,7 @@ var ThreadAttachments = {
         );
         const maxAttachmentMessageBytes = deps._getAttachmentDownloadLimitBytes_(attachmentSettings);
         const attachmentSourceMessages = (responseContextMessages && responseContextMessages.length > 0)
-          ? responseContextMessages
+          ? responseContextMessages.slice()
           : [candidate].filter(Boolean);
         let hasAttachments = false;
         attachmentPreCheckFailed = false;
@@ -53,7 +53,7 @@ var ThreadAttachments = {
               return found;
             }
             if (found) return true;
-            const attachments = message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
+            const attachments = (typeof filterDocumentAttachments_ === 'function' ? filterDocumentAttachments_ : value => value)(message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || []);
             return attachments.length > 0;
           }, false);
         } catch (e) {
@@ -353,7 +353,7 @@ var ThreadAttachments = {
             reason: 'message_too_large_for_attachment_download', sizeEstimate, maxBytes: maxAttachmentMessageBytes });
           return { hasAttachments, usedLookbackAttachments };
         }
-        const pastAttachments = foundValidPastMsg.getAttachments({ includeInlineImages: true, includeAttachments: true }) || [];
+        const pastAttachments = (typeof filterDocumentAttachments_ === 'function' ? filterDocumentAttachments_ : value => value)(foundValidPastMsg.getAttachments({ includeInlineImages: true, includeAttachments: true }) || []);
         if (pastAttachments.length > 0) {
           console.log(`   📎 Look-back stretto: recuperato allegato dal messaggio precedente (${foundValidPastMsg.getId()}) referenziato esplicitamente nel testo.`);
           attachmentSourceMessages.push(foundValidPastMsg);

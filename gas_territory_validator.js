@@ -492,7 +492,7 @@ var TerritoryValidator = class TerritoryValidator {
 
         if (!match) {
             console.log(`❌ Via '${street}' non trovata nel territorio parrocchiale`);
-            return { inTerritory: false, matchedKey: null, rule: 'fuori_territorio', needsReview: false };
+            return { inTerritory: null, matchedKey: null, rule: 'street_not_found', needsReview: true };
         }
 
         const rules = match.rules;
@@ -577,10 +577,11 @@ var TerritoryValidator = class TerritoryValidator {
 
         if (!match) {
             return {
-                inParish: false,
+                inParish: null,
                 needsCivic: false,
-                reason: `'${street}' non è nel territorio della nostra parrocchia`,
-                details: 'fuori_territorio'
+                needsReview: true,
+                reason: `'${street}' non identificata: verifica manuale necessaria`,
+                details: 'street_not_found'
             };
         }
 
@@ -635,7 +636,7 @@ var TerritoryValidator = class TerritoryValidator {
             const isWithoutCivicNumber = /^snc$/i.test(String(addrInfo.fullCivic || '').trim());
             if (isWithoutCivicNumber) {
                 const streetResult = this.verifyStreetWithoutCivic(addrInfo.street);
-                const verification = streetResult.inParish === null
+                const verification = streetResult.inParish === null && streetResult.needsCivic
                     ? {
                         inParish: null,
                         needsCivic: false,
@@ -660,7 +661,10 @@ var TerritoryValidator = class TerritoryValidator {
                 inParish: result.inTerritory,
                 // Campo esplicito per contratto con EmailProcessor: con civico presente non va richiesto.
                 needsCivic: false,
-                reason: result.inTerritory
+                needsReview: Boolean(result.needsReview),
+                reason: result.inTerritory === null
+                    ? `'${addrInfo.street}' n. ${civicLabel}: verifica manuale necessaria, via non identificata`
+                    : result.inTerritory
                     ? `'${addrInfo.street}' n. ${civicLabel} è nel territorio (${result.rule})${suffixWarning}`
                     : `'${addrInfo.street}' n. ${civicLabel} non è nel territorio`,
                 details: result.rule

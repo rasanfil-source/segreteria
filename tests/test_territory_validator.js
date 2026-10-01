@@ -34,16 +34,16 @@ assert(belowRange.rule === 'fuori range tutti', 'Piazza della Marina 23 deve ind
 const aboveRange = validator.verifyAddress('Piazza della Marina', 36);
 assert(aboveRange.inTerritory === false, 'Piazza della Marina 36 deve essere fuori territorio');
 
-console.log('--- Test TerritoryValidator: via assente produce fuori_territorio assertivo ---');
+console.log('--- Test TerritoryValidator: via assente produce street_not_found incerto ---');
 const missingAddress = validator.verifyAddress('Via Bartolo Oriani', 10);
-assert(missingAddress.inTerritory === false, 'Via Bartolo Oriani 10 deve essere fuori territorio se non presente nelle regole');
-assert(missingAddress.rule === 'fuori_territorio', 'via assente con civico deve usare fuori_territorio, non uno stato nullo');
-assert(missingAddress.needsReview === false, 'via assente non deve richiedere revisione civico');
+assert(missingAddress.inTerritory === null, 'Via Bartolo Oriani 10 deve richiedere verifica se non presente nelle regole');
+assert(missingAddress.rule === 'street_not_found', 'via assente con civico deve usare street_not_found, non uno stato nullo');
+assert(missingAddress.needsReview === true, 'via assente deve richiedere revisione');
 
 const missingStreetOnly = validator.verifyStreetWithoutCivic('Via Bartolo Oriani');
-assert(missingStreetOnly.inParish === false, 'Via Bartolo Oriani senza civico deve essere fuori territorio se non presente nelle regole');
+assert(missingStreetOnly.inParish === null, 'Via Bartolo Oriani senza civico deve richiedere verifica se non presente nelle regole');
 assert(missingStreetOnly.needsCivic === false, 'via assente non deve chiedere il civico');
-assert(missingStreetOnly.details === 'fuori_territorio', 'via assente senza civico deve usare fuori_territorio, non street_not_found');
+assert(missingStreetOnly.details === 'street_not_found', 'via assente senza civico deve usare street_not_found, non street_not_found');
 
 const streetInSentence = validator.extractStreetOnlyFromText('Buona domenica, via Bartolo Oriani fa parte della vostra parrocchia?');
 assert(Array.isArray(streetInSentence), 'la via in frase naturale deve essere rilevata');
@@ -55,7 +55,7 @@ const sentenceAnalysis = validator.analyzeEmailForAddress(
 );
 assert(sentenceAnalysis.addressFound === true, 'l analisi deve rilevare la via anche senza civico in una frase naturale');
 assert(sentenceAnalysis.addresses[0].street === 'via Bartolo Oriani', `indirizzo naturale tagliato male: ${sentenceAnalysis.addresses[0].street}`);
-assert(sentenceAnalysis.addresses[0].verification.details === 'fuori_territorio', 'via naturale assente dal DB deve produrre fuori_territorio');
+assert(sentenceAnalysis.addresses[0].verification.details === 'street_not_found', 'via naturale assente dal DB deve produrre street_not_found');
 
 console.log('--- Test TerritoryValidator: via/viale Bruno Buozzi sono tipologie affini ---');
 const buozziMatch = validator.findTerritoryMatch('via Bruno Buozzi');

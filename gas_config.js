@@ -288,7 +288,7 @@ var CONFIG = {
   MAX_SAFE_PROMPT_CHARS: 100000,       // Limite caratteri prompt prima del troncamento di sicurezza
   KB_TOKEN_BUDGET_RATIO: 0.5,          // Budget percentuale KB rispetto a un token massimo
   KB_HALLUCINATION_RISK_THRESHOLD: 8000, // Soglia chars KB oltre cui scatta hallucination_risk
-  LONGITUDINAL_TONE_ONLY_MAX_CHARS: 500, // Max caratteri email per continuità longitudinale solo-tono
+  LONGITUDINAL_TONE_ONLY_MAX_CHARS: 500, // Legacy: valore ignorato; la continuità solo-tono dipende dai segnali
   MAX_PROVIDED_INFO_JSON_CHARS: 45000, // Limite serializzazione memoria providedInfo per riga Sheet
   PROMPT_ENGINE: {
     OVERHEAD_TOKENS: 15000,            // Riserva token per istruzioni/fixed context fuori KB
@@ -420,10 +420,10 @@ var CONFIG = {
   ],
   IGNORE_KEYWORDS: [
     'unsubscribe', 'opt-out',
-    'disiscriviti', 'disiscrizione', 'annulla iscrizione',
-    'annulla l\'iscrizione', 'annulla l’iscrizione', 'gestisci la tua iscrizione',
+    'disiscriviti',
+    'gestisci la tua iscrizione',
     'gestisci le tue preferenze', 'aggiorna le tue preferenze',
-    'cancella iscrizione', 'mailing list', 'inviato con mailup',
+    'inviato con mailup',
     'messaggio inviato con', 'non rispondere a questo messaggio',
     'avviso di sicurezza',
     'scopri i prodotti', 'scopri le novità', 'offerta esclusiva',

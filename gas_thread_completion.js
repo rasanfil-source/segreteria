@@ -7,15 +7,14 @@ var ThreadCompletion = {
   labels(deps, { thread, shouldLabelForReview, messageState, hasDocumentMismatch, validation, messageDetails }) {
     // Pulisci le etichette dello stato precedente in caso di risposta positiva
     try {
-      if (deps.gmailService && typeof deps.gmailService.removeLabelFromThread === 'function') {
-        deps.gmailService.removeLabelFromThread(thread, deps.config.errorLabelName);
-      }
-      if (!shouldLabelForReview) {
-        if (deps.gmailService && typeof deps.gmailService.removeLabelFromThread === 'function') {
-          deps.gmailService.removeLabelFromThread(thread, deps.config.validationErrorLabel);
-        }
-        if (deps.gmailService && typeof deps.gmailService.removeLabelFromMessage === 'function') {
-          deps.gmailService.removeLabelFromMessage(messageState.candidate.getId(), deps.config.validationErrorLabel);
+      if (deps.gmailService && typeof deps.gmailService.removeLabelFromMessage === 'function') {
+        const currentMessages = messageState.responseContextMessages && messageState.responseContextMessages.length
+          ? messageState.responseContextMessages : [messageState.candidate];
+        for (const message of currentMessages) {
+          deps.gmailService.removeLabelFromMessage(message.getId(), deps.config.errorLabelName);
+          if (!shouldLabelForReview && !hasDocumentMismatch) {
+            deps.gmailService.removeLabelFromMessage(message.getId(), deps.config.validationErrorLabel);
+          }
         }
       }
     } catch (cleanupError) {

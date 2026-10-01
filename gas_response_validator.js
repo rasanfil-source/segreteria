@@ -299,7 +299,7 @@ var ResponseValidator = class ResponseValidator {
     // === SEMANTIC VALIDATION (score basso o rischio di trasferimento acritico dalla KB) ===
     const knowledgeContextualization = validationResult.details.knowledgeContextualization || {};
     const forceKnowledgeRelevanceReview = knowledgeContextualization.requiresSemanticReview === true ||
-      /\b(?:dispensa|nullit[aà]|invalid[oa]|garantiamo|garantito|non\s+(?:serve|occorre|[eè]\s+necessario)\s+(?:il\s+|un\s+)?(?:certificato|documento|permesso)|(?:pu[oò]|puoi|potete)\s+(?:comunque\s+)?(?:sposar|ricevere\s+il\s+sacramento))\b/i.test(currentResponse);
+      /\b(?:dispensa|nullit[aà]|invalid[oa]|garantiamo|garantito|non\s+(?:serve|occorre|[eè]\s+necessario)\s+(?:il\s+|un\s+)?(?:certificato|documento|permesso)|(?:pu[oò]|puoi|potete)\s+(?:comunque\s+)?(?:sposar[\p{L}]*|ricevere\s+il\s+sacramento))(?![\p{L}\p{N}_])/iu.test(currentResponse.normalize('NFC'));
     if (forceKnowledgeRelevanceReview && !this.semanticValidator) {
       validationResult.isValid = false;
       validationResult.errors.push('Semantica: controllo necessario non disponibile');
@@ -1089,6 +1089,17 @@ var ResponseValidator = class ResponseValidator {
         console.warn('⚠️ Impossibile serializzare knowledgeBase per check allucinazioni');
         safeKnowledgeBase = '';
       }
+    }
+
+    // URL ammessi solo se presenti nella KB; non decodificare delimitatori percent-encoded.
+    const extractUrls = text => (String(text || '').match(/https?:\/\/[^\s<>"']+/gi) || [])
+      .map(url => url.replace(/[.,;:!?\])}]+$/, '').replace(/&amp;/gi, '&'));
+    const allowedUrls = new Set(extractUrls(safeKnowledgeBase));
+    const unknownUrls = [...new Set(extractUrls(response))].filter(url => !allowedUrls.has(url));
+    if (unknownUrls.length) {
+      hallucinations.urls = unknownUrls;
+      errors.push('URL non presenti nelle informazioni di riferimento');
+      score = 0;
     }
 
     // Helper normalizzazione orari

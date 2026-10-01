@@ -478,17 +478,17 @@ var PromptContext = class PromptContext {
     }
 
     _detectMultiQuestion(body, subject) {
-        const text = [subject, body].filter(Boolean).join('\n').toLowerCase();
+        const text = [subject, body].filter(Boolean).join('\n').normalize('NFC').toLowerCase();
         if (!text.trim()) return false;
 
-        const questionMarks = (text.match(/\?/g) || []).length;
-        const questionOpeners = (text.match(/\b(?:quando|dove|come|quanto|quanti|quale|quali|chi|posso|possiamo|potrei|potremmo|vorrei|vorremmo|serve|servono|occorre|occorrono|bisogna|devo|dobbiamo|si\s+puo|si\s+può)\b/g) || []).length;
+        const questionMarks = (text.match(/[?？]/g) || []).length;
+        const questionOpeners = (text.match(/\b(?:quando|dove|come|quanto|quanti|quale|quali|chi|posso|possiamo|potrei|potremmo|vorrei|vorremmo|serve|servono|occorre|occorrono|bisogna|devo|dobbiamo|si\s+puo|si\s+può)(?![\p{L}\p{N}_])/gu) || []).length;
         const topicSignals = [
-            /\b(?:orari?|date?|giorni?|appuntament[oi])\b/g,
-            /\b(?:document[oi]|certificat[oi]|modul[oi]|validit[aà])\b/g,
-            /\b(?:requisit[oi]|procedur[ae]|iscrizion[ei]|tempistiche?)\b/g,
-            /\b(?:accessibilit[aà]|barriere|scale|ascensore|disabil[ei]|carrozzina)\b/g,
-            /\b(?:costi?|offert[ae]|quota|pagamento)\b/g
+            /\b(?:orari?|date?|giorni?|appuntament[oi])(?![\p{L}\p{N}_])/gu,
+            /\b(?:document[oi]|certificat[oi]|modul[oi]|validit[aà])(?![\p{L}\p{N}_])/gu,
+            /\b(?:requisit[oi]|procedur[ae]|iscrizion[ei]|tempistiche?)(?![\p{L}\p{N}_])/gu,
+            /\b(?:accessibilit[aà]|barriere|scale|ascensore|disabil[ei]|carrozzina)(?![\p{L}\p{N}_])/gu,
+            /\b(?:costi?|offert[ae]|quota|pagamento)(?![\p{L}\p{N}_])/gu
         ].reduce((count, rx) => count + ((text.match(rx) || []).length > 0 ? 1 : 0), 0);
 
         return questionMarks >= 2 ||

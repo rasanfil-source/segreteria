@@ -134,6 +134,20 @@ if (!process.argv.includes('--record-baseline')) {
     }
   }
 }
+// Audit: successful cleanup is scoped to the current burst, never the thread.
+expected.truncated.result.validationFailed = true;
+for (const [name, snapshot] of Object.entries(expected)) {
+  const effects = snapshot.effects;
+  const ids = [...new Set(effects.filter(([event]) => event === 'label.processed').map(([,id]) => id))].filter(id => !id.startsWith('own') && !(name === 'mixed_senders' && id === 'm0'));
+  const cleanupIndex = effects.findIndex(([event]) => event === 'label.cleanThread');
+  ids.sort();
+  if (cleanupIndex < 0) continue;
+  const clearsReview = !effects.some(([event]) => event === 'label.review') && effects.some(([event, label]) => event === 'label.cleanThread' && label === 'Verifica');
+  snapshot.effects = effects.filter(([event]) => event !== 'label.cleanThread' && event !== 'label.cleanMessage');
+  const cleanup = ids.flatMap(id => [['label.cleanMessage', [id, 'Errore']], ...(clearsReview ? [['label.cleanMessage', [id, 'Verifica']]] : [])]);
+  if (name === 'cleanup_failure') cleanup.splice(1);
+  snapshot.effects.splice(cleanupIndex, 0, ...cleanup);
+}
 for (const [name, output] of Object.entries(actual)) {
   assert.deepStrictEqual(output, expected[name], `${name}: return value and ordered effects must match the workspace baseline`);
   assert(output.restored, `${name}: restore service loggers`);

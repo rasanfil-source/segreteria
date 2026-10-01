@@ -2852,6 +2852,9 @@ ${knowledgeBase}
 
   _renderTerritoryVerification(territoryContext) {
     if (!territoryContext) return null;
+    if (/VERIFICA MANUALE NECESSARIA/i.test(String(territoryContext))) {
+      return `**VERIFICA TERRITORIO:**\n${territoryContext}\nPer ogni indirizzo con VERIFICA MANUALE NECESSARIA, comunica che occorre verificare la competenza territoriale. Non dedurre un sì o un no dalla mancata identificazione della via. Chiedi di precisare il nome completo solo se ambiguo; non richiedere un civico già fornito. Gli eventuali esiti certi degli altri indirizzi restano distinti.`;
+    }
 
     return `**VERIFICA TERRITORIO PARROCCHIALE (DATI CERTIFICATI - FONTE SUPREMA):**
 

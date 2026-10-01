@@ -237,16 +237,16 @@ var ThreadPolicy = {
 
     const outOfOfficePatterns = [
       /\b(out of office|away from office|fuori ufficio)\b/i,
-      /\b(sono\s+assente|sarò\s+assente|resterò\s+assente|sar[oò]\s+fuori)\b/i,
       /\b(automatic reply|risposta automatica)\b/i,
-      /\breturn(ing)? on\b/i,
       /\b(mailbox (?:is )?monitored periodically|casella (?:di posta )?(?:e )?consultata periodicamente)\b/i
     ];
 
     const oooSubject = messageDetails.subject || '';
     // Trunca a 2000 char per prevenire Regex Timeout su mega-thread
     const oooBody = (messageDetails.body || '').substring(0, 2000);
-    const isOutOfOfficeText = outOfOfficePatterns.some(p => p.test(`${oooSubject} ${oooBody}`));
+    const isOutOfOfficeText = typeof Classifier === 'function' && typeof Classifier.prototype._isOutOfOfficeAutoReply === 'function'
+      ? new Classifier()._isOutOfOfficeAutoReply(oooSubject, oooBody)
+      : outOfOfficePatterns.some(p => p.test(oooSubject)) || /^\s*(?:sono assente,\s*)?(?:risposta automatica|automatic reply)\b/i.test(oooBody);
     const outOfOfficeTextDecision = deps._evaluatePreAiRules_(buildRuleContext({
       phase: 'post_extract_pre_ai',
       isOutOfOfficeText: isOutOfOfficeText
@@ -277,7 +277,7 @@ var ThreadPolicy = {
       const hasNegationOrAttachmentCue = Boolean(messageDetails.hasAttachments) ||
         /\b(non|not|no|mai|mica|niente|nulla|nessun[oa]?|allego|allegat[oaie]|invio|mando|trasmetto|ecco)\b/i.test(candidateBody);
       const hasOperationalCue = /\d|\b(oggi|domani|dopodomani|stamattina|stasera|alle|ore|vengo|veniamo|passo|passiamo|arrivo|porto)\b/i.test(candidateBody);
-      const hasQuestionSignal = /\?|\b(quando|come|dove|quale|quali|perché|perche|posso|potete|mi\s+serve|vorrei)\b/i
+      const hasQuestionSignal = /[?？]|\b(quando|come|dove|quale|quali|perché|perche|posso|potete|mi\s+serve|vorrei)\b/i
         .test(candidateBody);
       const isShortClosureReply = candidateWords.length > 0 && candidateWords.length <= 4 &&
         hasThanksCue && !hasNegationOrAttachmentCue && !hasOperationalCue && !hasQuestionSignal;

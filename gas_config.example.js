@@ -421,10 +421,10 @@ var CONFIG = {
   ],
   IGNORE_KEYWORDS: [
     'unsubscribe', 'opt-out',
-    'disiscriviti', 'disiscrizione', 'annulla iscrizione',
-    'annulla l\'iscrizione', 'annulla l’iscrizione', 'gestisci la tua iscrizione',
+    'disiscriviti',
+    'gestisci la tua iscrizione',
     'gestisci le tue preferenze', 'aggiorna le tue preferenze',
-    'cancella iscrizione', 'mailing list', 'inviato con mailup',
+    'inviato con mailup',
     'messaggio inviato con', 'non rispondere a questo messaggio',
     'avviso di sicurezza',
     'scopri i prodotti', 'scopri le novità', 'offerta esclusiva',

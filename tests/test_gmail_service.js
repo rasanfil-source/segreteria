@@ -1581,7 +1581,7 @@ console.log('--- Test _getMessageMetadataWithResilience: errore esplicito dopo r
     assert(false, 'messages.get non recuperabile deve lanciare errore esplicito');
   } catch (error) {
     assert(String(error.message).includes('m-empty-explicit'), 'errore deve includere il messageId');
-    assert(error.retryable === false, 'errore dopo retry esauriti deve essere marcato non retryable localmente');
+    assert(error.retryable === true && error.isTransient === true, 'errore transiente preservato dopo esaurimento retry locali');
     assert(error.operation === 'Gmail.Users.Messages.get', 'errore deve mantenere il nome operazione');
   } finally {
     global.Gmail.Users.Messages.get = originalGet;

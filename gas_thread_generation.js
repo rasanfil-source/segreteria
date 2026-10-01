@@ -163,6 +163,14 @@ var ThreadGeneration = {
       const errorToReport = generationError || initialError;
       const errorClass = errorToReport ? deps._classifyError(errorToReport) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
       console.error('🛑 TUTTE le strategie di generazione sono fallite.');
+      if (errorToReport && errorToReport.code === 'TRUNCATED_OUTPUT') {
+        markFailureForCurrentBurst('validation', { reason: 'truncated_output' });
+        result.status = 'validation_failed';
+        result.validationFailed = true;
+        result.reason = 'truncated_output';
+        result.retryable = false;
+        return { terminal: true };
+      }
       if (!errorClass.retryable) {
         markFailureForCurrentBurst('error');
       } else {
@@ -203,6 +211,7 @@ var ThreadGeneration = {
       console.warn('   ⚠️ Blocco <email> incompleto: rinvio per revisione.');
       markFailureForCurrentBurst('validation', { reason: 'truncated_output' });
       result.status = 'validation_failed';
+      result.validationFailed = true;
       result.reason = 'truncated_output';
       return { terminal: true };
     }
