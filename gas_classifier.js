@@ -18,9 +18,14 @@ var Classifier = class Classifier {
 
     // Pattern saluto-solo (saluti standalone senza contenuto)
     this.greetingOnlyPatterns = [
-      /^(buongiorno|buonasera|salve|ciao)\.?\s*$/i,
+      /^(buongiorno|buon\s+giorno|buonasera|buona\s+sera|buon\s+pomeriggio|salve|ciao|good\s+morning|good\s+afternoon|good\s+evening|hello|hi)\.?\s*$/i,
       /^cordiali\s+saluti\.?\s*$/i,
-      /^distinti\s+saluti\.?\s*$/i
+      /^distinti\s+saluti\.?\s*$/i,
+      /^cordialmente\.?\s*$/i,
+      /^in\s+fede\.?\s*$/i,
+      /^(?:best|kind|warm)\s+regards\.?\s*$/i,
+      /^sincerely\.?\s*$/i,
+      /^(?:sent\s+from\s+my\s+iphone|inviato\s+da\s+(?:mio\s+)?(?:iphone|samsung|smartphone|dispositivo|ipad|telefono))\.?\s*$/i
     ];
 
     // Categorie per suggerimenti a Gemini
@@ -372,7 +377,7 @@ var Classifier = class Classifier {
       /^cordialmente[\s,!.-]*$/i,
       /^distinti\s+saluti[\s,!.-]*$/i,
       /^in\s+fede[\s,!.-]*$/i,
-      /^best\s+regards[\s,!.-]*$/i,
+      /^(?:best|kind|warm)\s+regards[\s,!.-]*$/i,
       /^sincerely[\s,!.-]*$/i,
       /^sent\s+from\s+my\s+iphone[\s,!.-]*$/i,
       /^inviato\s+da\s+(?:mio\s+)?(?:iphone|samsung|smartphone|dispositivo|ipad|telefono)[\s,!.-]*$/i

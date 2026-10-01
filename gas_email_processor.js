@@ -3275,7 +3275,10 @@ var EmailProcessor = class EmailProcessor {
   }
 
   _detectYearlessDateTemporalIntent_(text = '') {
-    const normalized = String(text || '').toLowerCase();
+    const normalized = String(text || '').normalize('NFC').toLowerCase();
+    // Unaccented forms need verbal context: "Sara" and "terra" can be a name/noun.
+    const unaccentedFuture = /(?<![\p{L}\p{N}_])(?:(?:quando|ci|si)\s+(?:sara|avra|terra)(?![\p{L}\p{N}_])|(?:sara|avra|terra)\s+(?:il|lo|la|un|una|luogo)(?![\p{L}\p{N}_]))/iu;
+    if (unaccentedFuture.test(normalized)) return 'future';
     const futurePattern = /(?<![\p{L}\p{N}_])(sar(?:à|anno)|ci\s+sar(?:à|anno)|avr(?:à|anno)|farete|celebrerete|terr(?:à|anno)|quando\s+(?:sarà|avrà|terrà)|prossim[oaie]|ventura|futura|futuro|domani|dopodomani)(?![\p{L}\p{N}_])/iu;
     if (futurePattern.test(normalized)) return 'future';
 
@@ -6412,7 +6415,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   }
 
   _detectDocumentTypeFromText_(text) {
-    const src = String(text || '').toLowerCase();
+    const src = String(text || '').normalize('NFC').toLowerCase();
     if (!src.trim()) return 'unknown';
 
     const rules = [
@@ -6422,8 +6425,9 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       // l'engine regex valuta \w in ASCII-only e tratta "à" come carattere non di parola:
       // non c'è transizione \w/\W tra "à" e lo spazio o la fine stringa che segue. Per questo
       // usiamo (?![a-zàèéìòù]) al posto del \b finale dove lo stem può terminare in vocale accentata.
-      { type: 'attestato_idoneita_padrino_madrina', pattern: /\b(attestat[oa]|certificat[oa])\b[\s\S]{0,60}\bidoneit[aà](?![a-zàèéìòù])/i },
-      { type: 'attestato_idoneita_padrino_madrina', pattern: /\bidoneit[aà](?![a-zàèéìòù])|\bpadrin[oa]\b|\bmadrin[ao]\b|\bsponsor\b/i },
+      // Require a document title tied directly to the role, not a distant form field.
+      { type: 'attestato_idoneita_padrino_madrina', pattern: /\b(?:attestat[oa]|certificat[oa]|modul[oa]|autocertificazion[ea]|dichiarazion[ea])\s+(?:(?:di|del|della|per|per il|per la|di un|di una)\s+)?(?:idoneit[aà](?![\p{L}\p{N}_])|(?:padrin[oa]|madrin[ao]|sponsor)\b)/iu },
+      { type: 'attestato_idoneita_padrino_madrina', pattern: /\bidoneit[aà](?![\p{L}\p{N}_])/iu },
       { type: 'certificato_battesimo', pattern: /\bcertificat[oa]\b[\s\S]{0,40}\bbattesim[oa]\b/i },
       { type: 'certificato_cresima', pattern: /\bcertificat[oa]\b[\s\S]{0,40}\bcresim[ao]\b/i },
       { type: 'scheda_iscrizione_corso_prematrimoniale', pattern: /\b(scheda|modulo)\b[\s\S]{0,40}\biscrizion[ea]\b[\s\S]{0,60}\bprematrimoniale\b/i },
@@ -6433,6 +6437,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       { type: 'scheda_iscrizione_pellegrinaggio', pattern: /\bpellegrinaggi[oa]\b|\bcammino\s+di\s+santiago\b/i },
       { type: 'modulo_sbattezzo_rinuncia_cancellazione_registri', pattern: /\b(sbattezz[oa]|apostasi[ao]|rinuncia)\b/i },
       { type: 'modulo_sbattezzo_rinuncia_cancellazione_registri', pattern: /\bcancellazion[ea]\b[\s\S]{0,40}\bregistr[oi]\b[\s\S]{0,30}\bbattesim[oa]\b/i },
+      { type: 'attestato_idoneita_padrino_madrina', pattern: /\b(?:padrin[oa]|madrin[ao]|sponsor)\b/i },
       // Tenuta in fondo come fallback di bassa priorità: un documento d'identità è quasi
       // sempre allegato a supporto di una richiesta più specifica (idoneità, battesimo...),
       // mai il "soggetto" della richiesta. Se la regola fosse più in alto, un corpo email
