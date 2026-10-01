@@ -3022,9 +3022,7 @@ var GmailService = class GmailService {
                 const opening = /^<(div|blockquote)\b[^>]*>/i.exec(currentHtml.slice(start));
                 if (!opening) break;
                 if (/\bdivRplyFwdMsg\b/i.test(opening[0])) {
-                    const tail = this._htmlToPlainText(currentHtml.slice(start));
-                    const ps = tail.match(/^\s*P\.?S\.?\s*[:.-]?[\s\S]*/im);
-                    currentHtml = currentHtml.slice(0, start) + (ps ? '<p>' + ps[0] + '</p>' : '');
+                    currentHtml = currentHtml.slice(0, start);
                     break;
                 }
                 const tags = new RegExp('<\\/?' + opening[1] + '\\b[^>]*>', 'gi');
@@ -3090,8 +3088,7 @@ var GmailService = class GmailService {
         }
 
         if (earliestMatch !== -1) {
-            const postscript = result.substring(earliestMatch).match(/^\s*P\.?S\.?\s*[:.-]?[\s\S]*/im);
-            result = result.substring(0, earliestMatch) + (postscript ? '\n' + postscript[0] : '');
+            result = result.substring(0, earliestMatch);
         }
 
         // Outlook e alcuni client mobili riportano il messaggio precedente come

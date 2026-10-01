@@ -100,10 +100,8 @@ var ThreadDocuments = {
     console.log(`   Scopo richiesta: ${requestPurpose.type}, confidence=${requestPurpose.confidence}, source=${requestPurpose.source}`);
 
     const indirectSbattezzo = deps._detectIndirectSbattezzoRequest_(messageDetails.subject, messageDetails.body);
-    if (
-      indirectSbattezzo.detected &&
-      !/^document_submission/i.test(String(categoryHintSource || ''))
-    ) {
+    if (indirectSbattezzo.detected) {
+      forceReceiptOnlyForSubmission = false;
       categoryHintSource = 'formal';
       classification.category = 'formal';
       classification.topic = 'sbattezzo';

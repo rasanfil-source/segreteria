@@ -150,7 +150,6 @@ var RequestTypeClassifier = class RequestTypeClassifier {
       { pattern: /\bapostatare\b/i, weight: 4 },
       { pattern: /\bcancellazione dal registro\b/i, weight: 4 },
       { pattern: /\bnon mi ritengo più cristiano\b/i, weight: 4 },
-      { pattern: /\buscire\s+dalla\s+chiesa\b/i, weight: 4 },
       { pattern: /\bcancellarmi\s+dalla\s+chiesa\b/i, weight: 4 },
       { pattern: /\bdisiscrivermi\s+dalla\s+chiesa\b/i, weight: 4 },
       { pattern: /\brinunciare\s+al\s+battesim[oa]\b/i, weight: 4 },
@@ -196,6 +195,11 @@ var RequestTypeClassifier = class RequestTypeClassifier {
     const pastoralResult = this._calculateScore(text, this.PASTORAL_INDICATORS);
     const doctrineResult = this._calculateScore(text, this.DOCTRINE_INDICATORS);
     const formalResult = this._calculateScore(text, this.FORMAL_INDICATORS);
+    if (this._hasNonPhysicalChurchExit_(text)) {
+      formalResult.score += 4;
+      formalResult.matchCount += 1;
+      formalResult.matched.push('uscire_dalla_chiesa_non_physical');
+    }
 
     // 2. Normalizzazione Punteggi (0.0 - 1.0)
     // Soglia saturazione arbitraria: 5 match = 1.0
@@ -468,8 +472,8 @@ var RequestTypeClassifier = class RequestTypeClassifier {
         continue;
       }
 
+      if (/^>/.test(stripped)) continue;
       if (
-        /^>/.test(stripped) ||
         /^On .* wrote:.*$/i.test(stripped) ||
         /^Il giorno .* ha scritto:.*$/i.test(stripped) ||
         /^Il .* alle .* ha scritto:.*$/i.test(stripped) ||
@@ -606,7 +610,19 @@ var RequestTypeClassifier = class RequestTypeClassifier {
       externalHint.description
     ].map(value => String(value || '').toLowerCase()).join(' ');
 
-    return /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|cancellazione\s+(?:dal|dai|dei)\s+registr|uscire\s+dalla\s+chiesa|rinunciare\s+al\s+battesim[oa]/i.test(searchableText);
+    return /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|cancellazione\s+(?:dal|dai|dei)\s+registr|rinunciare\s+al\s+battesim[oa]/i.test(searchableText) ||
+      this._hasNonPhysicalChurchExit_(searchableText);
+  }
+
+  _hasNonPhysicalChurchExit_(text) {
+    return String(text || '').split(/[.!?;\n]+/).some(clause => {
+      if (!/\buscire\s+dalla\s+chiesa\b/i.test(clause)) return false;
+      const physicalTerms = /\b(?:porta|uscita|navata|edificio|rampa|scale|carrozzina|accessibil\w*|disabil\w*)\b/i.test(clause);
+      const institutionalDecision = /\b(?:ho\s+deciso\s+di|intendo|voglio|vorrei|desidero|chiedo\s+(?:come|informazioni\s+per)|procedura\s+per)\s+uscire\s+dalla\s+chiesa\s+cattolica\b/i.test(clause);
+      if (institutionalDecision && !physicalTerms) return true;
+      const eventExit = /\b(?:dopo|durante|prima|al termine di|alla fine di)\s+(?:la|della|una|un|il|del)?\s*(?:messa|cerimonia|funerale|matrimonio)\b/i.test(clause);
+      return !physicalTerms && !eventExit;
+    });
   }
 
   /**

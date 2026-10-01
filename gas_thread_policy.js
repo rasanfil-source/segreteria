@@ -274,10 +274,13 @@ var ThreadPolicy = {
       const candidateBody = messageDetails.body || '';
       const candidateWords = candidateBody.trim().split(/\s+/).filter(Boolean);
       const hasThanksCue = /\b(grazie|ok|perfetto|ricevuto)\b/i.test(candidateBody);
+      const hasNegationOrAttachmentCue = Boolean(messageDetails.hasAttachments) ||
+        /\b(non|not|no|mai|mica|niente|nulla|nessun[oa]?|allego|allegat[oaie]|invio|mando|trasmetto|ecco)\b/i.test(candidateBody);
+      const hasOperationalCue = /\d|\b(oggi|domani|dopodomani|stamattina|stasera|alle|ore|vengo|veniamo|passo|passiamo|arrivo|porto)\b/i.test(candidateBody);
       const hasQuestionSignal = /\?|\b(quando|come|dove|quale|quali|perché|perche|posso|potete|mi\s+serve|vorrei)\b/i
         .test(candidateBody);
       const isShortClosureReply = candidateWords.length > 0 && candidateWords.length <= 4 &&
-        hasThanksCue && !hasQuestionSignal;
+        hasThanksCue && !hasNegationOrAttachmentCue && !hasOperationalCue && !hasQuestionSignal;
 
       shortClosureReplyDetected = Boolean(previousIsUs && arrivedSoonAfterUs && isShortClosureReply);
     }

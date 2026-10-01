@@ -888,7 +888,10 @@ var ResponseValidator = class ResponseValidator {
       // marker EN; altrimenti si applica il controllo normale di mismatch.
       const bodyWithoutSignature = responseLower.replace(/segreteria\s+parrocchia[^\n]*/gi, '');
       const itMarkersInBody = (this.languageMarkers.it || []).reduce(
-        (count, marker) => count + (bodyWithoutSignature.includes(marker) ? 1 : 0), 0
+        (count, marker) => {
+          const escaped = String(marker).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          return count + (new RegExp(`(?:^|[^\\wÀ-ÿ])${escaped}(?=[^\\wÀ-ÿ]|$)`, 'i').test(bodyWithoutSignature) ? 1 : 0);
+        }, 0
       );
       const isItalianEnglishMixedSignal = (
         expectedLanguage === 'it' &&
@@ -3315,23 +3318,23 @@ var ResponseValidator = class ResponseValidator {
     };
 
     let match;
-    const iso = /\b(20\d{2})-(0?[1-9]|1[0-2])-([0-2]?\d|3[01])\b/g;
+    const iso = /\b((?:19|20)\d{2})-(0?[1-9]|1[0-2])-([0-2]?\d|3[01])\b/g;
     while ((match = iso.exec(normalized)) !== null) {
       addDate(parseInt(match[1], 10), parseInt(match[2], 10), parseInt(match[3], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length), { hasExplicitYear: true });
     }
 
-    const numeric = /\b([0-2]?\d|3[01])([\/.-])(0?[1-9]|1[0-2])\2(20\d{2})\b/g;
+    const numeric = /\b([0-2]?\d|3[01])([\/.-])(0?[1-9]|1[0-2])\2((?:19|20)\d{2})\b/g;
     while ((match = numeric.exec(normalized)) !== null) {
       addDate(parseInt(match[4], 10), parseInt(match[3], 10), parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length), { hasExplicitYear: true });
     }
 
-    const dayMonthYear = /\b([0-2]?\d|3[01])(?:°|º|\.)?\s+(?:di\s+|de\s+|del\s+|d['’]\s*)?([a-z]{3,15})\.?\s+(20\d{2})\b/g;
+    const dayMonthYear = /\b([0-2]?\d|3[01])(?:°|º|\.)?\s+(?:di\s+|de\s+|del\s+|d['’]\s*)?([a-z]{3,15})\.?\s+((?:19|20)\d{2})\b/g;
     while ((match = dayMonthYear.exec(normalized)) !== null) {
       const month = monthMap[match[2]];
       if (month) addDate(parseInt(match[3], 10), month, parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length), { hasExplicitYear: true });
     }
 
-    const monthDayYear = /\b([a-z]{3,15})\.?\s+([0-2]?\d|3[01])(?:st|nd|rd|th)?[,]?\s+(20\d{2})\b/g;
+    const monthDayYear = /\b([a-z]{3,15})\.?\s+([0-2]?\d|3[01])(?:st|nd|rd|th)?[,]?\s+((?:19|20)\d{2})\b/g;
     while ((match = monthDayYear.exec(normalized)) !== null) {
       const month = monthMap[match[1]];
       if (month) addDate(parseInt(match[3], 10), month, parseInt(match[2], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length), { hasExplicitYear: true });
@@ -3341,15 +3344,18 @@ var ResponseValidator = class ResponseValidator {
     while ((match = dayMonth.exec(normalized)) !== null) {
       const trailing = normalized.substring(match.index + match[0].length, match.index + match[0].length + 8);
       const month = monthMap[match[2]];
-      if (month && referenceYear && !/\s*20\d{2}/.test(trailing)) {
+      if (month && referenceYear && !/^\s*\d{4}\b/.test(trailing)) {
         addDate(referenceYear, month, parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length), { hasExplicitYear: false });
       }
     }
 
-    const numericWithoutYear = /\b([0-2]?\d|3[01])([\/.])(0?[1-9]|1[0-2])\b/g;
+    const numericWithoutYear = /(?<![\d\/.-])\b([0-2]?\d|3[01])([\/.])(0?[1-9]|1[0-2])\b/g;
     while ((match = numericWithoutYear.exec(normalized)) !== null) {
       const trailing = normalized.substring(match.index + match[0].length, match.index + match[0].length + 6);
-      if (referenceYear && !/^[\/.-]?20\d{2}/.test(trailing)) {
+      // A bare dotted pair is ambiguous with a time; require an explicit date cue.
+      const before = normalized.substring(Math.max(0, match.index - 30), match.index);
+      const dottedDate = match[2] !== '.' || /\b(?:il|del|dal|al|am|den|le|du)\s*$/.test(before);
+      if (referenceYear && dottedDate && !/^[\/.-]?\d{2,4}\b/.test(trailing)) {
         addDate(referenceYear, parseInt(match[3], 10), parseInt(match[1], 10), match.index, match[0].length, source.substring(match.index, match.index + match[0].length), { hasExplicitYear: false });
       }
     }
