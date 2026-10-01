@@ -1786,10 +1786,11 @@ var EmailProcessor = class EmailProcessor {
     const looksDailyQuota =
       this._isGmailDailyQuotaError_(raw) ||
       raw.includes('daily') ||
+      /per[\s_-]*day/.test(raw) ||
       raw.includes('giornal') ||
       raw.includes('rpd');
 
-    if (raw.includes('rpd') && !this._isGmailDailyQuotaError_(raw)) {
+    if (looksDailyQuota && !this._isGmailDailyQuotaError_(raw)) {
       const limiter = this.geminiService && this.geminiService.rateLimiter;
       if (limiter && typeof limiter._getNextResetTime === 'function') {
         const resetMs = Date.parse(limiter._getNextResetTime());
@@ -2867,13 +2868,16 @@ var EmailProcessor = class EmailProcessor {
     } catch (e) {
       console.warn(`  Impossibile committare la transazione in cache per ${messageId}: ${e.message}`);
     } finally {
-      this._persistSendIdempotencyBackup_(messageId, props);
-      // Do not discard the durable guard if persisting confirmed evidence failed.
-      if (props && typeof props.deleteProperty === 'function' && this._readSendIdempotencyBackup_(messageId, props)) {
-        props.deleteProperty(`send_uncertain_${messageId}`);
-      }
-      if (sendTxn && sendTxn.lock && typeof sendTxn.lock.releaseLock === 'function') {
-        sendTxn.lock.releaseLock();
+      try {
+        this._persistSendIdempotencyBackup_(messageId, props);
+        // Do not discard the durable guard if persisting confirmed evidence failed.
+        if (props && typeof props.deleteProperty === 'function' && this._readSendIdempotencyBackup_(messageId, props)) {
+          props.deleteProperty(`send_uncertain_${messageId}`);
+        }
+      } finally {
+        if (sendTxn && sendTxn.lock && typeof sendTxn.lock.releaseLock === 'function') {
+          try { sendTxn.lock.releaseLock(); } catch (_) { }
+        }
       }
     }
   }
@@ -4956,7 +4960,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     // Confronto semantico: controlla il testo privo di data per evitare duplicati giornalieri.
     const cleanBullet = summarySentence ? summarySentence.trim().toLowerCase() : '';
     const isDuplicate = cleanBullet && summaryLines.some(
-      line => line.replace(/^•?\s*\[\d{4}-\d{2}-\d{2}\]\s*/, '').trim().toLowerCase() === cleanBullet
+      line => line.replace(/^\s*(?:[-•*]\s*)?\[\d{4}-\d{2}-\d{2}\]\s*/, '').trim().toLowerCase() === cleanBullet
     );
     if (summarySentence && !isDuplicate) {
       const newBullet = `• [${this._getBusinessDateString(referenceDate || new Date())}] ${summarySentence}`;
@@ -5731,6 +5735,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
           return mkResult('NETWORK', true, normalized.message);
         case ErrorTypes.INVALID_API_KEY:
         case ErrorTypes.CONFIG_ERROR:
+        case 'FATAL':
+        case 'SYSTEM_ERROR':
           return mkResult(normalized.type, false, normalized.message);
         case ErrorTypes.INVALID_RESPONSE:
           return mkResult('INVALID_RESPONSE', false, normalized.message);
@@ -5779,7 +5785,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
 
     if (/\b(401|403)\b/.test(msg) || AUTH_ERRORS.some(token => msg.includes(token))) return mkResult('INVALID_API_KEY', false, rawMessage);
     if (/\b404\b/.test(msg) && (msg.includes('models/') || msg.includes('not found'))) return mkResult('CONFIG_ERROR', false, rawMessage);
-    if (msg.includes('invalid_argument')) return mkResult('INVALID_RESPONSE', false, rawMessage);
+    if (msg.includes('invalid_argument') || /\bfatal\s*:/.test(msg)) return mkResult('FATAL', false, rawMessage);
+    if (msg.includes('system_error')) return mkResult('SYSTEM_ERROR', false, rawMessage);
 
     for (const retryable of RETRYABLE_ERRORS) {
       if (msg.includes(retryable.toLowerCase())) return mkResult('QUOTA_EXCEEDED', true, rawMessage);
@@ -6130,7 +6137,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
         if (collectAll) {
           // Normalizza solo il corpo: l'oggetto non deve creare evidenze personali nella clausola.
           const clauses = String(body || '').toLowerCase().normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '').split('\n');
+            .replace(/[\u0300-\u036f]/g, '').split(/[.!?;\n]+/);
           const personal = clauses.some(clause => {
             if (!rule.pattern.test(clause)) return false;
             if (['health', 'mobility', 'legal_restriction'].includes(rule.type)) {
@@ -6308,7 +6315,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     if (!hasAttachments) return null;
 
     let intent = 'document_submission';
-    let responseDirective = 'Consegna documenti rilevata. Ringrazia per l\'invio e conferma la ricezione.';
+    let responseDirective = 'Confermare la ricezione della documentazione allegata.';
     let categoryHintSource = null;
 
     if (isSponsorDoc) {
@@ -6326,9 +6333,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
 
     if (hasBodyQuestion || hasOcrQuestion) {
       intent += '_with_question';
-      responseDirective = `Confermare la ricezione dell'allegato, poi rispondere puntualmente alla richiesta operativa contenuta nel corpo usando KB e contesto disponibili.`;
-    } else {
-      responseDirective = `Confermare la ricezione della documentazione allegata.`;
+      responseDirective += ' Rispondere inoltre puntualmente alla richiesta operativa contenuta nel corpo usando KB e contesto disponibili.';
     }
 
     return {

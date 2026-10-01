@@ -9,6 +9,7 @@ var _CACHED_PROPS = {};
 // durante la stessa run GAS; non e' pensata come persistenza fra trigger.
 var _SCRIPT_PROPERTY_CACHE_TTL_MS = 60 * 1000;
 function _refreshScriptPropertyCache_(requestedKey, now) {
+  requestedKey = typeof requestedKey === 'string' ? requestedKey.trim() : '';
   const hasGetProperties = typeof _SCRIPT_PROPERTIES.getProperties === 'function';
   const allProps = hasGetProperties
     ? (_SCRIPT_PROPERTIES.getProperties() || {})
@@ -72,7 +73,7 @@ function _clearScriptPropertyCache(keys) {
   }
   const keyList = Array.isArray(keys) ? keys : [keys];
   keyList.forEach(key => {
-    delete _CACHED_PROPS[key];
+    if (typeof key === 'string' && key.trim()) delete _CACHED_PROPS[key.trim()];
   });
 }
 
@@ -80,9 +81,7 @@ function _getScriptPropertyStringArray(key, fallback) {
   const safeFallback = Array.isArray(fallback) ? fallback.slice() : [];
   let raw = '';
   try {
-    raw = (typeof PropertiesService !== 'undefined' && PropertiesService && typeof PropertiesService.getScriptProperties === 'function')
-      ? _getScriptProperty(key)
-      : '';
+    raw = _getScriptProperty(key) || '';
   } catch (e) {
     raw = '';
   }
@@ -512,6 +511,7 @@ function validateConfig() {
 
   // 2. Validazione Tipi e Valori Logici
   checkType('MODEL_NAME', CONFIG.MODEL_NAME, 'string');
+  checkType('LITE_MODEL_NAME', CONFIG.LITE_MODEL_NAME, 'string');
   checkType('MAX_OUTPUT_TOKENS', CONFIG.MAX_OUTPUT_TOKENS, 'number');
   checkType('MAX_SAFE_TOKENS', CONFIG.MAX_SAFE_TOKENS, 'number');
   checkRange('MAX_SAFE_TOKENS', CONFIG.MAX_SAFE_TOKENS, 3000, 1000000);

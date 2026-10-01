@@ -10,6 +10,8 @@ var ErrorTypes = {
     QUOTA_EXCEEDED: 'QUOTA_EXCEEDED',
     INVALID_API_KEY: 'INVALID_API_KEY',
     CONFIG_ERROR: 'CONFIG_ERROR',
+    FATAL: 'FATAL',
+    SYSTEM_ERROR: 'SYSTEM_ERROR',
     TIMEOUT: 'TIMEOUT',
     INVALID_RESPONSE: 'INVALID_RESPONSE',
     NETWORK: 'NETWORK',
@@ -107,7 +109,13 @@ function classifyError(error) {
         return { type: ErrorTypes.TIMEOUT, retryable: true, message: rawMessage };
     }
 
-    if (message.includes('invalid_argument') || message.includes('malformed') ||
+    if (message.includes('invalid_argument') || /\bfatal\s*:/.test(message)) {
+        return { type: ErrorTypes.FATAL, retryable: false, message: rawMessage };
+    }
+    if (message.includes('system_error')) {
+        return { type: ErrorTypes.SYSTEM_ERROR, retryable: false, message: rawMessage };
+    }
+    if (message.includes('malformed') ||
         message.includes('non json valida')) {
         return { type: ErrorTypes.INVALID_RESPONSE, retryable: false, message: rawMessage };
     }

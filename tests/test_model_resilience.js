@@ -56,7 +56,7 @@ for (const withGlobal of [false,true]) {
   for (const error of ['401 UNAUTHENTICATED','403 PERMISSION_DENIED','400 INVALID_ARGUMENT: API key not valid','API_KEY_INVALID','Forbidden']) {
     assert.equal(processor._classifyError(Error(error)).type, 'INVALID_API_KEY', error);
   }
-  assert.equal(processor._classifyError(Error('400 INVALID_ARGUMENT: unsupported parameter')).type,'INVALID_RESPONSE');
+  assert.equal(processor._classifyError(Error('400 INVALID_ARGUMENT: unsupported parameter')).type,'FATAL');
 }
 const service = Object.create(ctx.GeminiService.prototype);
 Object.assign(service, {config, primaryKey:'primary', backupKey:'backup', _withRetry:fn=>fn()});

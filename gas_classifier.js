@@ -145,7 +145,7 @@ var Classifier = class Classifier {
 
     // Estrai contenuto principale
     const mainContent = this._extractMainContent(safeBody);
-    if (this._hasPastoralCrisisSignal_(mainContent)) {
+    if (this._hasPastoralCrisisSignal_(mainContent, safeSubject)) {
       return { shouldReply: true, reason: 'pastoral_crisis_detected', category: 'pastoral', subIntents: { emotional_distress: true }, confidence: 1.0 };
     }
     console.log(`      Contenuto principale: ${mainContent.length} caratteri`);
@@ -220,6 +220,9 @@ var Classifier = class Classifier {
           subIntents: contextualSubIntents,
           confidence: 0.8
         };
+      }
+      if (!hasFreshSubjectQuestion && !greetingLines.some(line => line !== '--')) {
+        return { shouldReply: false, reason: 'empty_email', category: null, subIntents: {}, confidence: 0.95 };
       }
     }
 
@@ -477,12 +480,12 @@ var Classifier = class Classifier {
   /**
    * Verifica se solo saluto
    */
-  _hasPastoralCrisisSignal_(text) {
+  _hasPastoralCrisisSignal_(text, subject = '') {
     if (typeof PromptContext === 'function') {
-      return PromptContext.prototype._detectPastoralCrisisSignal_.call(PromptContext.prototype, '', text).strong;
+      return PromptContext.prototype._detectPastoralCrisisSignal_.call(PromptContext.prototype, subject || '', text || '').strong;
     }
     // Compatibilità con utilizzatori che caricano solo il classificatore.
-    return /\b(?:voglio\s+morire|vorrei\s+morire|suicid\w*|farmi\s+del\s+male|farla\s+finita|togliermi\s+la\s+vita|sono\s+disperat[oa]|sto\s+crollando)\b/i.test(text || '');
+    return /\b(?:voglio\s+morire|vorrei\s+morire|suicid\w*|farmi\s+del\s+male|farla\s+finita|togliermi\s+la\s+vita|sono\s+disperat[oa]|sto\s+crollando)\b/i.test(`${subject || ''} ${text || ''}`);
   }
 
   _isGreetingOnly(text) {
@@ -557,7 +560,7 @@ var Classifier = class Classifier {
     // Ritorna categoria con punteggio più alto
     let maxCategory = null;
     let maxScore = 0;
-    const priority = ['sbattezzo', 'sacrament', 'complaint', 'quotation', 'collaboration', 'appointment', 'information'];
+    const priority = ['sbattezzo', 'document_submission', 'sacrament', 'complaint', 'quotation', 'collaboration', 'appointment', 'information'];
     const getPriorityOrInfinity = (category) => {
       const idx = priority.indexOf(category);
       return idx !== -1 ? idx : Number.POSITIVE_INFINITY;

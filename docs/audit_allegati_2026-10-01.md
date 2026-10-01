@@ -70,3 +70,15 @@ Le schede ufficiali confermano i modelli [Gemini 3.8 Flash](https://ai.google.de
 Regressioni aggiunte in `tests/test_model_resilience.js`: override e parità delle configurazioni, cache a lettura singola, assenza di modelli storici, catene con 404 consecutivi, arresto quando tutti i modelli mancano, esclusione dei 404 di cache, selezione della chiave, token e allegati. Il test batch copre separatamente `CONFIG_ERROR`, `INVALID_API_KEY` e `FATAL`. Tutte le prove sono offline: nessun invio Gmail, chiamata Gemini o deployment eseguito.
 
 Verifica finale dell'integrazione: smoke test superati, 152/152 unit test e 70/70 file di test modulari superati. Copertura: validatore risposte 97,83% funzioni / 81,64% blocchi V8; validatore territorio 100% / 87,39%. Soglie di copertura e `git diff --check` superati.
+
+## Ulteriore audit: cinque punti residui
+
+- `INVALID_ARGUMENT` ora diventa `FATAL` nel classificatore globale e nel fallback locale. Le chiavi non valide mantengono precedenza e categoria `INVALID_API_KEY`; `malformed` resta `INVALID_RESPONSE`. Il processor conserva anche `FATAL` e `SYSTEM_ERROR` restituiti dal classificatore globale. Il batch dispone già dello stop e del checkpoint per questi errori.
+- Le quote con `per day`, `PerDay`, `daily` o `RPD` attendono il reset restituito dal limiter, quando disponibile; altrimenti mantengono la sospensione giornaliera. `QUOTA_EXHAUSTED` da solo non prova un esaurimento giornaliero: il percorso RPM/TPM mantiene il ritardo breve. Applicare letteralmente quella parte del diff avrebbe sospeso per ore anche gli esaurimenti al minuto.
+- Le evidenze personali dei vincoli di presenza vengono valutate per frase, così una negazione nella frase precedente non nasconde il ricovero. La deduplicazione dei ricordi accetta anche `-` e `*` oltre al prefisso `•` già gestito.
+- Il controllo rapido della crisi considera anche l'oggetto. Le reply vuote con oggetto troppo breve/lungo vengono filtrate; una domanda nuova esplicita nell'oggetto conserva il percorso di analisi, così come il caso storico `Re: Orari messe`.
+- In entrambe le configurazioni, refresh diretto e invalidazione della cache normalizzano le chiavi con `trim()`, anche su backend senza lettura multipla.
+
+I casi sono coperti da `tests/test_followup_audit.js`, con classificatore globale presente e assente, PromptContext presente e assente, entrambi i file di configurazione e i due tipi di backend delle proprietà. I voti numerici e la garanzia “100% Free Tier” espressi nell'allegato non sono conclusioni dimostrate dai test: restano valide le limitazioni operative descritte sopra.
+
+Esito dopo quest'ultimo audit: smoke superati, 152/152 unit test e 71/71 suite modulari superati; soglie di copertura e `git diff --check` superati. Log locale in `outputs/followup-audit.log`. Nessun deployment effettuato.

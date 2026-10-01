@@ -179,6 +179,19 @@ for (const [name, snapshot] of Object.entries(expected)) {
 for (const [name, output] of Object.entries(actual)) {
   // With no configured model in these mocks the semantic fallback is evergreen.
   for (const [event, value] of expected[name].effects) {
+    // Post-OCR directives now retain the document-specific guidance.
+    if (event === 'prompt' && value.attachmentIntentContext?.phase === 'post_ocr') {
+      const context = value.attachmentIntentContext;
+      const types = context.detectedDocTypes || {};
+      context.responseDirective = types.sponsor
+        ? 'Consegna documento idoneità padrino/madrina rilevata. Conferma la ricezione della documentazione allegata.'
+        : types.sbattezzo
+          ? 'Ricevuto modulo per sbattezzo/apostasia. Segui protocollo FORMAL: conferma ricezione e informa che la pratica verrà inoltrata al Parroco.'
+          : types.sacrament
+            ? "Consegna modulo sacramentale o di iscrizione alla catechesi rilevata. Conferma con calore la ricezione specificando chiaramente la tipologia di modulo/documento ricevuto dall'utente."
+            : 'Confermare la ricezione della documentazione allegata.';
+      if (context.hasQuestions) context.responseDirective += ' Rispondere inoltre puntualmente alla richiesta operativa contenuta nel corpo usando KB e contesto disponibili.';
+    }
     if (event === 'generate' && typeof value[0] === 'string' && value[0].startsWith('Rispondi SOLO con un oggetto JSON valido')) {
       value[1].modelName = 'gemini-flash-lite-latest';
     }
