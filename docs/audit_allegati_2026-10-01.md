@@ -82,3 +82,15 @@ Verifica finale dell'integrazione: smoke test superati, 152/152 unit test e 70/7
 I casi sono coperti da `tests/test_followup_audit.js`, con classificatore globale presente e assente, PromptContext presente e assente, entrambi i file di configurazione e i due tipi di backend delle proprietà. I voti numerici e la garanzia “100% Free Tier” espressi nell'allegato non sono conclusioni dimostrate dai test: restano valide le limitazioni operative descritte sopra.
 
 Esito dopo quest'ultimo audit: smoke superati, 152/152 unit test e 71/71 suite modulari superati; soglie di copertura e `git diff --check` superati. Log locale in `outputs/followup-audit.log`. Nessun deployment effettuato.
+
+## Audit successivo: direttive degli allegati e commit invio
+
+- Le direttive post-OCR per sbattezzo, idoneità padrini e documenti sacramentali restano nel contesto. Una domanda nel corpo aggiunge l'istruzione di risposta senza sostituire la direttiva del documento. I punti interrogativi dell'OCR restano esclusi dal rilevamento delle domande, come previsto dalla policy esistente.
+- `document_submission` partecipa allo spareggio delle categorie subito dopo `sbattezzo`.
+- Il rilascio del lock al commit non propaga errori propri ed è tentato anche quando la persistenza del marker fallisce. Un errore di persistenza continua a propagarsi e non elimina il marker di invio incerto.
+- `_getScriptPropertyStringArray` usa lo store iniettato anche senza `PropertiesService` globale, in entrambe le configurazioni. Aggiunto il controllo di tipo di `LITE_MODEL_NAME`.
+- Nessun cambiamento alla quota generica: `QUOTA_EXHAUSTED` resta insufficiente, da solo, a distinguere una quota giornaliera da un limite al minuto.
+
+Regressioni in `tests/test_attachment_directive_audit.js`; aspettative aggiornate esplicitamente nel test di caratterizzazione senza modificare le fixture originali.
+
+Verifica finale: smoke superati, 152/152 unit test e 72/72 suite modulari superati; copertura sopra le soglie e `git diff --check` superato. Log in `outputs/attachment-audit.log`. Modifiche locali, nessun deployment o invio reale.
