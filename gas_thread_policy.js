@@ -143,7 +143,7 @@ var ThreadPolicy = {
     console.log(`   🌐 Lingua (rilevamento locale): ${detectedLanguage.toUpperCase()}`);
 
     // PORTA 1: Interrompiamo se l'email deve essere ignorata in base alla lingua
-    if (shouldSkipByLanguageMode_(detectedLanguage, languageMode)) {
+    if (shouldSkipByLanguageMode_(detectedLanguage, languageMode) && languageDetection.safetyGrade !== 1) {
       console.log('   ⊖ Saltato: modalità "Solo straniere", email in italiano');
       // Nota di manutenzione: il punto medio ('·') ha un significato preciso.
       // Qui segnala una email italiana solo temporaneamente rinviata perché
@@ -280,6 +280,7 @@ var ThreadPolicy = {
       const hasQuestionSignal = /[?？]|\b(quando|come|dove|quale|quali|perché|perche|posso|potete|mi\s+serve|vorrei)\b/i
         .test(candidateBody);
       const isShortClosureReply = candidateWords.length > 0 && candidateWords.length <= 4 &&
+        !(typeof Classifier === 'function' && typeof Classifier.prototype._hasPastoralCrisisSignal_ === 'function' && Classifier.prototype._hasPastoralCrisisSignal_(candidateBody)) &&
         hasThanksCue && !hasNegationOrAttachmentCue && !hasOperationalCue && !hasQuestionSignal;
 
       shortClosureReplyDetected = Boolean(previousIsUs && arrivedSoonAfterUs && isShortClosureReply);

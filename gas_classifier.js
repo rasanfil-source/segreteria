@@ -145,6 +145,9 @@ var Classifier = class Classifier {
 
     // Estrai contenuto principale
     const mainContent = this._extractMainContent(safeBody);
+    if (this._hasPastoralCrisisSignal_(mainContent)) {
+      return { shouldReply: true, reason: 'pastoral_crisis_detected', category: 'pastoral', subIntents: { emotional_distress: true }, confidence: 1.0 };
+    }
     console.log(`      Contenuto principale: ${mainContent.length} caratteri`);
 
     const subjectForChecks = safeSubject.replace(/^(?:(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]\s*)+/i, '').trim();
@@ -153,6 +156,9 @@ var Classifier = class Classifier {
     }
     const greetingBody = this._extractMainContent(safeBody, { preserveGreetings: true });
     const greetingLines = greetingBody.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (!subjectForChecks && !mainContent.trim() && !greetingLines.some(line => line !== '--')) {
+      return { shouldReply: false, reason: 'empty_email', category: null, subIntents: {}, confidence: 1.0 };
+    }
     const hasFreshSubjectQuestion = /[?？]/.test(safeSubject) &&
       !/^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]/i.test(safeSubject.trim());
     const hasCurrentRequest = this._isSbattezzoFormalRequest_(mainContent) || this._isDocumentSubmission(mainContent);
@@ -313,12 +319,8 @@ var Classifier = class Classifier {
 
       // Mantieni righe vuote per separazione paragrafi
       if (stripped === '') {
+        if (inQuoteBlock && quoteMode === 'header') quoteMode = 'history';
         if (!inQuoteBlock) cleanLines.push(safeLine);
-        continue;
-      }
-
-      // Salta saluti standalone all'inizio
-      if (!options.preserveGreetings && /^(salve|buongiorno|buon\s+giorno|buonasera|buona\s+sera|buon\s+pomeriggio|ciao|good\s+morning|good\s+afternoon|good\s+evening|hello|hi)[\s,!.]{0,5}$/i.test(stripped)) {
         continue;
       }
 
@@ -362,6 +364,8 @@ var Classifier = class Classifier {
         quoteMode = null;
       }
       if (inQuoteBlock) continue;
+      // Aggiorna prima lo stato delle citazioni: un saluto può aprire una risposta inline.
+      if (!options.preserveGreetings && /^(salve|buongiorno|buon\s+giorno|buonasera|buona\s+sera|buon\s+pomeriggio|ciao|good\s+morning|good\s+afternoon|good\s+evening|hello|hi)[\s,!.]{0,5}$/i.test(stripped)) continue;
       cleanLines.push(safeLine);
     }
 
@@ -373,6 +377,7 @@ var Classifier = class Classifier {
     // L'approccio line-based garantisce precisione nell'identificazione delle firme
     // ed evita falsi positivi all'interno di frasi di testo libero.
     const signatureLineMarkers = [
+      /^--\s*$/,
       /^cordiali\s+saluti[\s,!.-]*$/i,
       /^cordialmente[\s,!.-]*$/i,
       /^distinti\s+saluti[\s,!.-]*$/i,
@@ -386,19 +391,11 @@ var Classifier = class Classifier {
     const contentLines = content.split('\n');
     let signatureStartIndex = -1;
     for (let i = contentLines.length - 1; i >= 0; i--) {
-      const line = (contentLines[i] || '').trim();
-      if (!line) continue;
-      if (signatureLineMarkers.some(marker => marker.test(line))) {
-        signatureStartIndex = i;
-        break;
-      }
-    }
-
-    if (signatureStartIndex !== -1) {
+      if (!signatureLineMarkers.some(marker => marker.test(contentLines[i].trim()))) continue;
       const remainingLines = contentLines
-        .slice(signatureStartIndex + 1)
+        .slice(i + 1)
         .map(line => (line || '').trim())
-        .filter(Boolean);
+        .filter(line => line && !signatureLineMarkers.some(marker => marker.test(line)));
       const remainingText = remainingLines.join(' ').trim();
       const containsUserContentAfterSignature = /[?!]|\b(?:ah\s+dimenticavo|dimenticavo|vorrei|posso|potrei|chiedo|sapere|informazioni|prenotare|allego|inoltre)\b/i.test(remainingText);
       const tailLooksLikeSignature = remainingLines.length === 0 || (
@@ -411,10 +408,11 @@ var Classifier = class Classifier {
         })
       );
 
-      if (tailLooksLikeSignature) {
-        const sliceEnd = options.preserveGreetings ? signatureStartIndex + 1 : signatureStartIndex;
-        content = contentLines.slice(0, sliceEnd).join('\n').trim();
-      }
+      if (tailLooksLikeSignature) signatureStartIndex = i;
+    }
+    if (signatureStartIndex !== -1) {
+      const sliceEnd = options.preserveGreetings ? signatureStartIndex + 1 : signatureStartIndex;
+      content = contentLines.slice(0, sliceEnd).join('\n').trim();
     }
 
     return content;
@@ -425,6 +423,7 @@ var Classifier = class Classifier {
    */
   _isUltraSimpleAcknowledgment(text) {
     if (!text || text.trim().length === 0) return false;
+    if (this._hasPastoralCrisisSignal_(text)) return false;
 
     // Controllo presenza domanda prima della normalizzazione
     if (/[?？]/.test(text)) return false;
@@ -478,6 +477,14 @@ var Classifier = class Classifier {
   /**
    * Verifica se solo saluto
    */
+  _hasPastoralCrisisSignal_(text) {
+    if (typeof PromptContext === 'function') {
+      return PromptContext.prototype._detectPastoralCrisisSignal_.call(PromptContext.prototype, '', text).strong;
+    }
+    // Compatibilità con utilizzatori che caricano solo il classificatore.
+    return /\b(?:voglio\s+morire|vorrei\s+morire|suicid\w*|farmi\s+del\s+male|farla\s+finita|togliermi\s+la\s+vita|sono\s+disperat[oa]|sto\s+crollando)\b/i.test(text || '');
+  }
+
   _isGreetingOnly(text) {
     if (typeof text !== 'string' || !text.trim()) return false;
     // Controllo presenza domanda prima della normalizzazione
@@ -495,6 +502,7 @@ var Classifier = class Classifier {
       normalized = normalized.replace(/[^\w\sÀ-ÖØ-öø-ÿ]/g, '');
     }
 
+    normalized = normalized.replace(/\s+/g, ' ').trim();
     if (this.greetingOnlyPatterns.some(pattern => pattern.test(normalized))) {
       return true;
     }

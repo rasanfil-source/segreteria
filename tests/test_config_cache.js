@@ -236,10 +236,10 @@ assert(
   'forceRefresh fallito deve invalidare lo stale cached e rileggere al tentativo successivo'
 );
 
-assert(CONFIG.MAX_SAFE_PROMPT_CHARS === 100000, 'MAX_SAFE_PROMPT_CHARS deve avere un fallback esplicito');
+assert(CONFIG.MAX_SAFE_PROMPT_CHARS === 120000, 'MAX_SAFE_PROMPT_CHARS deve avere un fallback esplicito');
 assert(CONFIG.MAX_PROVIDED_INFO_JSON_CHARS === 45000, 'MAX_PROVIDED_INFO_JSON_CHARS deve avere un fallback esplicito');
-assert(CONFIG.MODEL_NAME === 'gemini-3.7-flash', 'MODEL_NAME deve puntare al modello qualita aggiornato per le risposte');
-assert(CONFIG.MODEL_STRATEGY.generation[0] === 'flash-3.7', 'la generazione deve partire da Gemini 3.7 Flash');
+assert(CONFIG.MODEL_NAME === 'gemini-3.8-flash', 'MODEL_NAME deve puntare al modello qualita aggiornato per le risposte');
+assert(CONFIG.MODEL_STRATEGY.generation[0] === 'flash-primary', 'la generazione deve partire dal modello primario configurabile');
 assert(CONFIG.MODEL_STRATEGY.quick_check[0] === 'flash-lite', 'quick_check/categoria/lingua devono partire dal modello lite');
 assert(
   CONFIG.MODEL_STRATEGY.quick_check.includes('flash-lite-backup'),

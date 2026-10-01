@@ -164,7 +164,7 @@ var ResponseValidator = class ResponseValidator {
     this.signaturePatterns = [
       /segreteria\s+parrocchia\s+sant['\u2018\u2019]?eugenio/i,        // IT
       /parish\s+secretariat\s+(of\s+)?sant['\u2018\u2019]?eugenio/i,   // EN
-      /secretar[ií]a\s+parroquial/i,                                   // ES
+      /secretar[ií]a\s+parroqui(?:al|a\b)/i,                            // ES
       /secretaria\s+par[oó]quia(l)?\s+sant['\u2018\u2019]?eugenio/i,   // PT
       /secr[eé]tariat\s+paroiss(e|ial)\s+sant['\u2018\u2019]?eugenio/i, // FR
       /pfarrsekretariat\s+sant['\u2018\u2019]?eugenio/i                // DE
@@ -3631,7 +3631,7 @@ var ResponseValidator = class ResponseValidator {
     targets.forEach(word => {
       const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const apostropheAgnosticWord = escapedWord.replace(/'/g, "['\u2019]");
-      const regex = new RegExp(`,(\\s+)(${apostropheAgnosticWord})(?!['\\u2019])(?![\\wÀ-ÖØ-öø-ÿ])(?!\\s+[A-ZÀÈÉÌÒÙ])`, 'g');
+      const regex = new RegExp(`,([ \\t]+)(${apostropheAgnosticWord})(?!['\\u2019])(?![\\wÀ-ÖØ-öø-ÿ])(?![ \\t]+[A-ZÀÈÉÌÒÙ])`, 'g');
       result = result.replace(regex, (fullMatch, sep, p1) => {
         if (capitalizationExceptions.includes(p1)) {
           return fullMatch;
@@ -3845,9 +3845,7 @@ var SemanticValidator = class SemanticValidator {
   // ========================================================================
 
   _buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose = '') {
-    const kbTruncated = knowledgeBase && knowledgeBase.length > 30000
-      ? knowledgeBase.substring(0, 30000) + '...[TRUNCATED]'
-      : knowledgeBase;
+    const kbTruncated = knowledgeBase;
     const emailTruncated = emailContent && emailContent.length > 2000
       ? emailContent.substring(0, 2000) + '...[TRUNCATED]'
       : emailContent;
@@ -3941,6 +3939,10 @@ Rispondi SOLO con questo JSON (senza markdown):
         throw new Error('GeminiService non disponibile per validazione semantica');
       }
       this.geminiService = new GeminiService();
+    }
+
+    if (typeof this.geminiService.generateForTask === 'function') {
+      return this.geminiService.generateForTask(this.taskType, prompt, {maxRetries:this.maxRetries});
     }
 
     const estimatedTokens = (typeof estimateTokenCount === 'function')

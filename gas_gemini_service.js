@@ -80,7 +80,7 @@ var GeminiContentClient = class GeminiContentClient {
 
   usesLatestSamplingPolicy(modelName) {
     const normalized = String(modelName || '').trim().toLowerCase();
-    return /^gemini-(?:3\.7-flash|3\.6-flash|3\.5-flash-lite)(?:$|-)/.test(normalized);
+    return /^gemini-(?:3\.[678]-flash|3\.5-flash-lite|flash(?:-lite)?-latest)(?:$|-)/.test(normalized);
   }
 
   buildGenerationConfig(taskType, modelName, overrides = {}) {
@@ -335,10 +335,9 @@ var GeminiContentClient = class GeminiContentClient {
     }
     if (candidate.finishReason === 'MAX_TOKENS') {
       // Testo troncato a meta' frase: non e' una risposta valida da spedire.
-      // Marcato transitorio per consentire il fallback su modello/strategia
-      // successiva (o il retry con budget diverso) invece dell'invio.
+      // Retry gestito da generateResponse con budget diverso: niente retry identici.
       const truncatedErr = new Error('Risposta troncata da Gemini (MAX_TOKENS)');
-      truncatedErr.isTransient = true;
+      truncatedErr.isTransient = false;
       truncatedErr.code = 'TRUNCATED_OUTPUT';
       throw truncatedErr;
     }
@@ -974,6 +973,13 @@ Output JSON:
     }
 
     const parts = candidate.content?.parts || [];
+    if (candidate.finishReason === 'MAX_TOKENS') {
+      console.warn('Quick check troncato: JSON rifiutato senza riparazione.');
+      const error = new Error('Quick check troncato (MAX_TOKENS)');
+      error.code = 'TRUNCATED_OUTPUT';
+      error._nonRetryable = true;
+      throw error;
+    }
     const textResponse = parts.map(p => p.text || '').join('').trim();
 
     console.log(`Quick check: risposta ricevuta (${textResponse.length} caratteri)`);
@@ -1025,9 +1031,7 @@ Output JSON:
     // Fail-closed: il campo e obbligatorio. Un JSON sintatticamente valido ma
     // incompleto non deve trasformarsi in un'autorizzazione implicita a rispondere.
     const shouldRespond = (normalizedReplyNeeded === true || normalizedReplyNeeded === 'true');
-    const finalShouldRespond = EmailQuickCheckPolicy.isDocumentSubmissionIntent(intentContext)
-      ? true
-      : shouldRespond;
+    const finalShouldRespond = shouldRespond;
     const safeDimensions = (data.dimensions && typeof data.dimensions === 'object')
       ? data.dimensions
       : null;
@@ -1367,18 +1371,19 @@ Output JSON:
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
     const actionPatterns = [
-      /\b(?:richiedo|richiediamo|richiedono|si\s+richiede|chiedo)\b[\s\S]{0,80}\b(?:certificat\w*|rilasc\w*|copi\w*|document\w*|iscrizion\w*|prenotazion\w*)\b/,
+      /\b(?:richiedo|richiediamo|richiedono|si\s+richiede|chiedo)\b(?!\s+informazioni)[^.!?]{0,80}\b(?:certificat\w*|rilasc\w*|copi\w*|document\w*|iscrizion\w*|prenotazion\w*)\b/,
       /\b(?:mi\s+serve|ci\s+serve|avrei\s+bisogno\s+di|abbiamo\s+bisogno\s+di)\b[\s\S]{0,80}\b(?:certificat\w*|document\w*|attestat\w*|iscrizion\w*)\b/,
       /\b(?:ho|abbiamo)\s+gia\s+(?:avviato|iniziato|presentato|compilato|consegnato|inviato)\b[\s\S]{0,100}\b(?:pratica|richiesta|modulo|domanda|document\w*|certificat\w*)\b/,
-      /\b(?:vorrei|desidero|intendo)\s+(?:richiedere|ottenere|prenotare|iscrivermi|ritirare|partecipare|frequentare|seguire)\b/,
+      /\b(?:vorrei|desidero|intendo)\s+(?:richiedere|ottenere|prenotare|ritirare)\b/,
       /\b(?:potete|potreste|puo|puoi)\s+(?:preparare|stampare|rilasciare|prenotare|iscrivere|registrare|confermare)\b/,
-      /\b(?:verro|passero|ritirero|vengo|passo)\b[\s\S]{0,60}\b(?:ritir\w*|segreteria|parrocchia|persona)\b/,
+      /(?:^|[.!]\s*)(?:verro|passero|ritirero|vengo|passo)\b[^?!.]{0,60}\b(?:ritir\w*|segreteria|parrocchia|persona)\b[^?!.]*(?:[!.]|$)/,
       /\b(?:je\s+demande|je\s+souhaite\s+demander|pourriez-vous\s+(?:preparer|delivrer|inscrire|reserver))\b/,
       /\b(?:i\s+(?:request|would\s+like\s+to\s+(?:request|book|register))|could\s+you\s+(?:prepare|issue|book|register))\b/,
       /\b(?:quisiera\s+(?:solicitar|reservar|inscribirme)|podrian\s+(?:preparar|expedir|reservar|inscribir))\b/,
       /\b(?:ich\s+mochte\s+(?:beantragen|buchen|mich\s+anmelden)|konnten\s+sie\s+(?:vorbereiten|ausstellen|buchen))\b/
     ];
     const informationPatterns = [
+      /\b(?:a\s+che\s+ora|quando|posso\s+ritirare|come\s+posso|se\s+vengo)\b/,
       /\b(?:come\s+(?:si\s+fa|funziona|posso)|quali\s+(?:(?:sono|sarebbero)\s+)?(?:i\s+)?(?:prossimi\s+)?(?:dati|documenti|requisiti|passi)|cosa\s+(?:serve|occorre)|dove\s+(?:devo|posso)|a\s+chi\s+(?:devo|posso)|vorrei\s+(?:avere|ricevere)?\s*informazioni|chiedo\s+informazioni)\b/,
       /\b(?:how\s+(?:do|can)|what\s+(?:documents|requirements)|where\s+(?:do|can)|i\s+would\s+like\s+information)\b/,
       /\b(?:comment\s+(?:faire|puis-je)|quels?\s+(?:documents|conditions)|ou\s+(?:dois-je|puis-je)|je\s+voudrais\s+des\s+renseignements)\b/,
@@ -1402,6 +1407,9 @@ Output JSON:
     }
     if (hasInformationQuestion) {
       return { type: 'information_request', confidence: 0.92, source: 'local_explicit_question' };
+    }
+    if (!/[?？]/.test(text) && /\b(?:vorrei|desidero|intendo)\s+(?:iscrivermi|partecipare|frequentare|seguire)\b/.test(text)) {
+      return { type: 'operational_request', confidence: 0.75, source: 'local_weak_action' };
     }
     if (updatePatterns.some(pattern => pattern.test(text)) && !/[?]/.test(text)) {
       return { type: 'status_update', confidence: 0.88, source: 'local_explicit_update' };
@@ -1542,10 +1550,7 @@ var GeminiService = class GeminiService {
     return bodyLower.includes('api_key_invalid') ||
       bodyLower.includes('api key not valid') ||
       bodyLower.includes('invalid api key') ||
-      bodyLower.includes('billing') ||
-      bodyLower.includes('permission') ||
-      bodyLower.includes('disabled') ||
-      bodyLower.includes('not enabled');
+      /\b(?:billing_disabled|billing_not_active|service_disabled|access_not_configured)\b/.test(bodyLower);
   }
 
   getModelNameForTask(taskType, fallbackName = null) {
@@ -1566,7 +1571,51 @@ var GeminiService = class GeminiService {
       }
     }
 
-    return fallbackName || this.modelName || 'gemini-3.7-flash';
+    return fallbackName || (taskType === 'generation'
+      ? ((this.config || {}).MODEL_NAME || this.modelName || 'gemini-flash-latest')
+      : ((this.config || {}).LITE_MODEL_NAME || 'gemini-flash-lite-latest'));
+  }
+
+  _runConfiguredTask_(taskType, requestFn, options = {}) {
+    if (this.useRateLimiter && this.rateLimiter) {
+      const result = this.rateLimiter.executeRequest(taskType, requestFn, options);
+      if (result && result.success) return result.result;
+      throw new Error('Task Gemini rifiutato: ' + ((result && result.reason) || taskType));
+    }
+    const models = (this.config && this.config.GEMINI_MODELS) || {};
+    const chain = ((this.config && this.config.MODEL_STRATEGY) || {})[taskType] || [];
+    const unavailableNames = new Set();
+    let lastError = null;
+    const candidates = chain.filter(key => models[key] && models[key].name)
+      .map(key => ({name: models[key].name, usesBackupKey: /backup/i.test(key)}));
+    if (!candidates.length) candidates.push({name:this.getModelNameForTask(taskType), usesBackupKey:false});
+    for (const candidate of candidates) {
+      const {name, usesBackupKey} = candidate;
+      if (unavailableNames.has(name) || (usesBackupKey && !this.backupKey)) continue;
+      try {
+        return this._withRetry(() => requestFn(name, {usesBackupKey}), taskType, options.maxRetries);
+      } catch (error) {
+        lastError = error;
+        const message = String(error.message || error);
+        if (/\b404\b/.test(message) && !/cached\s*content|cachedcontent/i.test(message)) {
+          unavailableNames.add(name);
+          continue;
+        }
+        if (this._canFailoverToBackupKey_(error, usesBackupKey ? this.backupKey : this.primaryKey)) continue;
+        throw error;
+      }
+    }
+    throw lastError || new Error('CONFIG_ERROR: nessun modello per ' + taskType);
+  }
+
+  generateForTask(taskType, prompt, options = {}) {
+    return this._runConfiguredTask_(taskType, (modelName, context) => {
+      const key = context && context.usesBackupKey && this.backupKey ? this.backupKey : this.primaryKey;
+      if (this.useRateLimiter && this.rateLimiter) {
+        return this._generateWithModelEnvelope_(prompt, modelName, key, options.attachments || []);
+      }
+      return this._generateWithModel(prompt, modelName, key, options.attachments || []);
+    }, {estimatedTokens:this._estimateTokens(prompt, options.attachments || []), maxRetries:options.maxRetries});
   }
 
   _getDefaultGenerationModelNames_() {
@@ -1670,7 +1719,7 @@ var GeminiService = class GeminiService {
     return this._createGeminiContentClient_().getSafetySettings();
   }
 
-  _generateWithModelResult_(prompt, modelName, apiKeyOverride = null, attachments = []) {
+  _generateWithModelResult_(prompt, modelName, apiKeyOverride = null, attachments = [], generationConfigOverrides = {}) {
     const client = this._createGeminiContentClient_();
     const promptPayload = this._normalizePromptPayload_(prompt);
     const userPromptText = promptPayload.userPrompt;
@@ -1678,15 +1727,17 @@ var GeminiService = class GeminiService {
 
     console.log(`🤖 Chiamata ${modelName} (prompt utente: ${userPromptText.length} car., system: ${systemInstructionText.length} car.)...`);
 
-    const generated = client.generateText({
+    const request = {
       taskType: 'generation',
       prompt: prompt,
       promptPayload: promptPayload,
       modelName: modelName,
       apiKey: apiKeyOverride || this.primaryKey,
       attachments: attachments,
+      generationConfigOverrides: generationConfigOverrides,
       primaryFallbackSignalReason: 'generateResponse'
-    });
+    };
+    const generated = client.generateText(request);
     const generatedText = generated.text;
 
     console.log(`✓ Generati ${generatedText.length} caratteri (da ${generated.partsCount} parti)`);
@@ -1701,13 +1752,13 @@ var GeminiService = class GeminiService {
    * @param {Array<Blob>} attachments - Array di Blob (immagini/PDF) da inviare
    * @returns {string|null} Testo generato
    */
-  _generateWithModel(prompt, modelName, apiKeyOverride = null, attachments = []) {
-    const generated = this._generateWithModelResult_(prompt, modelName, apiKeyOverride, attachments);
+  _generateWithModel(prompt, modelName, apiKeyOverride = null, attachments = [], generationConfigOverrides = {}) {
+    const generated = this._generateWithModelResult_(prompt, modelName, apiKeyOverride, attachments, generationConfigOverrides);
     return generated.text;
   }
 
-  _generateWithModelEnvelope_(prompt, modelName, apiKeyOverride = null, attachments = []) {
-    const generated = this._generateWithModelResult_(prompt, modelName, apiKeyOverride, attachments);
+  _generateWithModelEnvelope_(prompt, modelName, apiKeyOverride = null, attachments = [], generationConfigOverrides = {}) {
+    const generated = this._generateWithModelResult_(prompt, modelName, apiKeyOverride, attachments, generationConfigOverrides);
     const usageMetadata = generated.usageMetadata || null;
     const actualTokens = usageMetadata && Number.isFinite(Number(usageMetadata.totalTokenCount))
       ? Number(usageMetadata.totalTokenCount)
@@ -2329,10 +2380,8 @@ NON aggiungere altro testo.
 Testo:
 "${text.substring(0, 1000)}"`;
 
-    const languageModelName = this.getModelNameForTask('language', 'gemini-3.5-flash-lite');
-
     try {
-      const generated = this.generateResponse(prompt, { modelName: languageModelName });
+      const generated = this.generateForTask('language', prompt);
       const response = generated && typeof generated === 'object' ? generated.text : generated;
       
       const cleaned = (response || '').replace(/`/g, '').trim().toLowerCase().substring(0, 2);
@@ -2810,12 +2859,10 @@ Testo:
     // IMPLEMENTAZIONE ORIGINALE (fallback o quando Rate Limiter disabilitato)
     try {
       const safeSubject = typeof emailSubject === "string" ? emailSubject : (emailSubject == null ? "" : String(emailSubject));
-      const quickModelName = this.getModelNameForTask('quick_check', 'gemini-3.5-flash-lite');
       console.log(`🔍 Gemini quick check per: ${safeSubject.substring(0, 40)}...`);
-      return this._withRetry(
-        () => this._quickCheckWithModel(emailContent, safeSubject, quickModelName, detection, intentContext),
-        'Quick check'
-      );
+      return this._runConfiguredTask_('quick_check',
+        (model, context) => this._quickCheckWithModel(emailContent, safeSubject, model, detection, intentContext,
+          context.usesBackupKey ? this.backupKey : this.primaryKey));
     } catch (error) {
       console.warn(`⚠️ Quick check fallito: ${error.message}. Interruzione per evitare skip silente.`);
       throw error;
@@ -2850,6 +2897,20 @@ Testo:
    * @returns {Object} { success: boolean, text: string, error?: string, modelUsed?: string }
    */
   generateResponse(prompt, options = {}) {
+    try {
+      return this._generateResponseAttempt_(prompt, options);
+    } catch (error) {
+      if (error.code !== 'TRUNCATED_OUTPUT') throw error;
+      const initialBudget = Number((options.generationConfigOverrides || {}).maxOutputTokens ||
+        (this.config || {}).MAX_OUTPUT_TOKENS || GEMINI_TASK_PROFILES.generation.defaultMaxOutputTokens);
+      console.warn('Generazione troncata: un solo nuovo tentativo con budget raddoppiato, contabilizzato dal limiter.');
+      return this._generateResponseAttempt_(prompt, Object.assign({}, options, {
+        generationConfigOverrides: Object.assign({}, options.generationConfigOverrides, { maxOutputTokens: initialBudget * 2 })
+      }));
+    }
+  }
+
+  _generateResponseAttempt_(prompt, options = {}) {
     const requestedKey = options.apiKey || this.primaryKey;
     const targetModel = options.modelName || this.modelName;
     const startsOnBackupKey = !!(
@@ -2900,7 +2961,7 @@ Testo:
     }).filter(Boolean);
     const runDirectGeneration = (apiKey, contextLabel) => {
       const text = this._withRetry(
-        () => this._generateWithModel(prompt, targetModel, apiKey, preEncodedAttachments),
+        () => this._generateWithModel(prompt, targetModel, apiKey, preEncodedAttachments, options.generationConfigOverrides),
         contextLabel
       );
       return {
@@ -2936,7 +2997,7 @@ Testo:
             const selectedApiKey = requestContext && requestContext.usesBackupKey && this.backupKey
               ? this.backupKey
               : targetKey;
-            return this._generateWithModelEnvelope_(prompt, modelName, selectedApiKey, preEncodedAttachments);
+            return this._generateWithModelEnvelope_(prompt, modelName, selectedApiKey, preEncodedAttachments, options.generationConfigOverrides);
           },
           {
             estimatedTokens: estimatedTokens,

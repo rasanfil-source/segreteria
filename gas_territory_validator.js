@@ -177,7 +177,7 @@ var TerritoryValidator = class TerritoryValidator {
         const streetType = this._streetTypePatternSource;
         const streetNameToken = `[a-zA-Z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF'.-]{1,50}`;
         const streetName = `${streetNameToken}(?:[ \\t]+${streetNameToken}){0,5}`;
-        return new RegExp(`(${streetType})[ \\t]+(${streetName})\\b(?!\\s*(?:n\\.?\\s*|civico\\s+)?(?:\\d+|snc\\b))`, 'gi');
+        return new RegExp(`\\b(${streetType})[ \\t]+(${streetName})\\b(?!\\s*(?:n\\.?\\s*|civico\\s+)?(?:\\d+|snc\\b))`, 'gi');
     }
 
     _trimStreetOnlyCandidate(name) {
@@ -460,6 +460,13 @@ var TerritoryValidator = class TerritoryValidator {
                 if (viaName.length < 2 || viaName.length > 100) continue;
 
                 const street = viaType + ' ' + viaName;
+                if (!this.findTerritoryMatch(street)) {
+                    const prefix = text.slice(0, match.index);
+                    const explicitAddress = /^\s*$/.test(prefix) || /\b(?:abitare|abito|abitiamo|vivo|viviamo|residente|residenza|indirizzo|domicilio)\b/i.test(prefix) ||
+                        /\b(?:fa parte|rientra nel territorio|parrocchia)\b/i.test(text.slice(match.index));
+                    if (!explicitAddress || /^(?:email|e-mail|mail|fax|telefono|internet|di\b)/i.test(viaName) ||
+                        (viaType === 'corso' && /\b(?:cresima|catechismo|matrimonio|preparazione)\b/i.test(viaName))) continue;
+                }
                 const isDuplicate = streets.some(existing =>
                     existing.toLowerCase() === street.toLowerCase()
                 );

@@ -1429,7 +1429,7 @@ function runAllTests() {
                 && calls[1].includes('backup-key-abcdefghijklmnopqrstuvwxyz')
                 && out.shouldRespond === true;
         });
-        test('Quick check forza risposta di cortesia su consegna documentale', results, () => {
+        test('Quick check preserva no-reply anche su consegna documentale', results, () => {
             const service = new GeminiService({
                 fetchFn: () => ({
                     getResponseCode: () => 200,
@@ -1466,7 +1466,7 @@ function runAllTests() {
                 { lang: 'it', confidence: 5, safetyGrade: 5 },
                 { intent: 'document_submission' }
             );
-            return out.shouldRespond === true &&
+            return out.shouldRespond === false &&
                 out.classification.topic === 'documentazione ricevuta' &&
                 out.needs_sponsor_guidance === false;
         });

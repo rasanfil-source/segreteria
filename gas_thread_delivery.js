@@ -60,7 +60,7 @@ var ThreadDelivery = {
         deps._rollbackSendTransaction(messageState.candidate.getId(), sendTxn);
       } else {
         const confirmed = typeof deps.gmailService.reconcileSendOperation === 'function' &&
-          deps.gmailService.reconcileSendOperation(messageDetails.sendOperationId);
+          deps.gmailService.reconcileSendOperation(messageDetails.sendOperationId, threadId);
         if (confirmed) {
           delivery.confirmed = true;
           deps._commitSendTransaction(messageState.candidate.getId(), sendTxn);

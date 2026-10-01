@@ -88,7 +88,7 @@ function classifyError(error) {
         return { type: ErrorTypes.CACHE_EXPIRED, retryable: true, message: rawMessage };
     }
 
-    if (message.includes('api key') || message.includes('unauthorized') ||
+    if (message.includes('api key') || message.includes('api_key_invalid') || message.includes('forbidden') || message.includes('unauthorized') ||
         message.includes('unauthenticated') || message.includes('permission_denied') ||
         /\b(401|403)\b/.test(message)) {
         return { type: ErrorTypes.INVALID_API_KEY, retryable: false, message: rawMessage };

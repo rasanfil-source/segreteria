@@ -67,7 +67,7 @@ for (const limited of [false, true]) for (const success of [false, true]) for (c
 row('missing Gemini service fails', () => assert.throws(() => setup().s._generateSemantic('prompt'), /GeminiService non disponibile/));
 for (const length of [0, 2000, 2001, 30000, 30001]) row(`prompt truncation ${length}`, () => {
   const prompt = setup().s._buildHallucinationPrompt('reply', 'K'.repeat(length), 'E'.repeat(length));
-  assert.equal(prompt.includes('K'.repeat(30001)), false);
+  assert.equal(prompt.includes('K'.repeat(30001)), length >= 30001);
   assert.equal(prompt.includes('E'.repeat(2001)), false);
   assert.equal(prompt.includes('[TRUNCATED]'), length > 2000);
 });

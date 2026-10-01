@@ -199,6 +199,19 @@ var EmailProcessor = class EmailProcessor {
     return { exists: exists, lastMessageDate: lastMessageDate };
   }
 
+  _resolveConfiguredModelNameForTask_(taskType = 'generation') {
+    if (this.geminiService && typeof this.geminiService.getModelNameForTask === 'function') {
+      return this.geminiService.getModelNameForTask(taskType);
+    }
+    const cfg = typeof CONFIG !== 'undefined' ? CONFIG : {};
+    const models = cfg.GEMINI_MODELS || {};
+    for (const key of (cfg.MODEL_STRATEGY || {})[taskType] || []) {
+      if (models[key] && typeof models[key].name === 'string' && models[key].name.trim()) return models[key].name.trim();
+    }
+    return (taskType === 'generation' ? cfg.MODEL_NAME : cfg.LITE_MODEL_NAME) ||
+      (taskType === 'generation' ? 'gemini-flash-latest' : 'gemini-flash-lite-latest');
+  }
+
   _buildGenerationStrategies_(geminiService, options = {}) {
     if (geminiService && typeof geminiService.buildGenerationStrategies === 'function') {
       return geminiService.buildGenerationStrategies(options);
@@ -235,7 +248,7 @@ var EmailProcessor = class EmailProcessor {
         return {
           attemptStrategy: [],
           strategies: [],
-          fallbackModelName: 'gemini-3.7-flash',
+          fallbackModelName: this._resolveConfiguredModelNameForTask_('generation'),
           configuredGenerationStrategy: []
         };
       }
@@ -249,7 +262,7 @@ var EmailProcessor = class EmailProcessor {
     return {
       attemptStrategy: [],
       strategies: [],
-      fallbackModelName: 'gemini-3.7-flash',
+      fallbackModelName: this._resolveConfiguredModelNameForTask_('generation'),
       configuredGenerationStrategy: []
     };
   }
@@ -1239,11 +1252,13 @@ var EmailProcessor = class EmailProcessor {
       ? this.gmailService._gmailCounterLockCovered
       : undefined;
     let deferredBatchCheckpoint = null;
+    const throttledThreads = [];
+    let throttleDelayMs = 0;
     const deferBatchCheckpoint = (threadsToResume, startIndex, remainingTimeMs) => {
       deferredBatchCheckpoint = {
-        threads: threadsToResume,
-        startIndex: startIndex,
-        remainingTimeMs: remainingTimeMs
+        threads: throttledThreads.concat(threadsToResume.slice(startIndex)),
+        startIndex: 0,
+        remainingTimeMs: remainingTimeMs < 0 ? remainingTimeMs : Math.max(remainingTimeMs, throttleDelayMs)
       };
     };
 
@@ -1598,7 +1613,7 @@ var EmailProcessor = class EmailProcessor {
           break;
         }
 
-        if (result && (result.errorClass === 'SYSTEM_ERROR' || result.errorClass === 'CONFIG_ERROR' || result.errorClass === 'INVALID_API_KEY')) {
+        if (result && ['SYSTEM_ERROR', 'CONFIG_ERROR', 'INVALID_API_KEY', 'FATAL'].includes(result.errorClass)) {
           runLogger.warn('⚠️ Stop batch: errore di sistema/configurazione, salvo checkpoint per evitare cascata di error label.');
           deferBatchCheckpoint(
             threads,
@@ -1618,8 +1633,10 @@ var EmailProcessor = class EmailProcessor {
             : Math.max(1000, Math.floor(senderThrottleWindowSeconds * 1000) + 5000);
           stats.dilata++;
           runLogger.info(`Thread ${index + 1}/${threads.length} - Dilata: ${result.reason || 'rinvio temporaneo'}`);
-          deferBatchCheckpoint(threads, index, dilataDelayMs);
-          break;
+          throttledThreads.push(thread);
+          throttleDelayMs = Math.max(throttleDelayMs, dilataDelayMs);
+          processedCount++;
+          continue;
         }
 
         // Vincola il numero assoluto di thread analizzati nel run, inclusi
@@ -1655,6 +1672,9 @@ var EmailProcessor = class EmailProcessor {
         duration: Date.now() - this._startTime
       });
 
+      if (!deferredBatchCheckpoint && throttledThreads.length) {
+        deferBatchCheckpoint([], 0, throttleDelayMs);
+      }
       if (!deferredBatchCheckpoint) {
         this._clearBatchCheckpoint_('batch completato');
       }
@@ -1919,7 +1939,7 @@ var EmailProcessor = class EmailProcessor {
       entries = entries.map(value => value.trim().toLowerCase()).filter(Boolean);
       if (entries.some(value => !/^[^\s<>@]+@(?:[a-z0-9-]+\.)+[a-z]{2,}$/i.test(value))) throw new Error('invalid');
     } catch (_) {
-      throw new Error('PERSONAL_IGNORE_SENDERS non valido: correggere la Script Property prima di elaborare');
+      throw new Error('CONFIG_ERROR: PERSONAL_IGNORE_SENDERS non valido: correggere la Script Property prima di elaborare');
     }
     return [...new Set(entries.map(entry => this._normalizeEmailAddress_(entry)))];
   }
@@ -1935,7 +1955,10 @@ var EmailProcessor = class EmailProcessor {
       ? GLOBAL_CACHE.ignoreDomains
       : ((typeof CONFIG !== 'undefined' && Array.isArray(CONFIG.IGNORE_DOMAINS)) ? CONFIG.IGNORE_DOMAINS : []);
     const ignoreDomains = ignoreDomainsArray.concat(this._getPersonalIgnoreSenders_())
-      .map(d => String(d == null ? '' : d).trim().toLowerCase())
+      .map(d => {
+        const cleaned = String(d == null ? '' : d).trim().toLowerCase();
+        return !cleaned.startsWith('@') && cleaned.includes('@') ? this._normalizeEmailAddress_(cleaned) : cleaned;
+      })
       .filter(Boolean);
 
     const atIndex = email.lastIndexOf('@');
@@ -1945,10 +1968,11 @@ var EmailProcessor = class EmailProcessor {
     if (ignoreDomains.some(domain => {
       const blacklistDomain = domain.startsWith('@') ? domain.substring(1) : domain;
       const isExactMatch = email === domain;
+      const isConfiguredUsername = !domain.includes('@') && !domain.includes('.') && localPart === domain;
       const isDomainMatch = (domain.startsWith('@') || !domain.includes('@')) && senderDomain === blacklistDomain;
       const isSubdomainMatch = !domain.startsWith('@') && !domain.includes('@') &&
         senderDomain.endsWith('.' + blacklistDomain);
-      return isExactMatch || isDomainMatch || isSubdomainMatch;
+      return isExactMatch || isConfiguredUsername || isDomainMatch || isSubdomainMatch;
     })) {
       console.log('🚫 Ignorato: mittente in blacklist');
       return true;
@@ -2804,8 +2828,16 @@ var EmailProcessor = class EmailProcessor {
 
       const nowTs = String(Date.now());
       props.setProperty(`send_uncertain_${messageId}`, nowTs);
-      cache.put(sendingKey, nowTs, sendingTtlSeconds); // 5 minuti
-      cache.put(startedKey, nowTs, startedTtlSeconds); // 15 minuti: finestra anti-duplicato per errori ambigui
+      try {
+        cache.put(sendingKey, nowTs, sendingTtlSeconds); // 5 minuti
+        cache.put(startedKey, nowTs, startedTtlSeconds); // 15 minuti: finestra anti-duplicato per errori ambigui
+      } catch (cacheError) {
+        // Nessun invio è iniziato; elimina soltanto i marker appena acquisiti.
+        try { props.deleteProperty(`send_uncertain_${messageId}`); } catch (_) { }
+        try { cache.remove(sendingKey); } catch (_) { }
+        try { cache.remove(startedKey); } catch (_) { }
+        throw cacheError;
+      }
       if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
         try { scriptLock.releaseLock(); } catch (_) { }
       }
@@ -2828,6 +2860,7 @@ var EmailProcessor = class EmailProcessor {
     try {
       if (cache) {
         cache.put(`sent_${messageId}`, String(Date.now()), 21599);
+        cache.remove(`sending_${messageId}`);
       } else {
         console.warn(`  CacheService non disponibile durante commit invio per ${messageId}`);
       }
@@ -3967,22 +4000,28 @@ var EmailProcessor = class EmailProcessor {
     // 3. Configurazione statica VALIDATION_REVIEW_ALERTS.email
     // 4. Configurazione statica LOGGING.ADMIN_EMAIL
     const cacheEmail = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBAL_CACHE.validationReviewEmail : '';
-    const rawCandidate = String(cacheEmail || propertyEmail || configEmail || adminEmail || '');
-    // Reject malformed configured recipients rather than rewriting the destination.
-    if (/[\r\n\x00-\x1f\x7f]/.test(rawCandidate)) return '';
-    const candidate = rawCandidate.trim();
-
-    if (!candidate || candidate.includes('[') || candidate.includes('YOUR_')) return '';
-    if (candidate.length > 254) return '';
-    const parts = candidate.split('@');
-    if (parts.length !== 2) return '';
-    const [local, domain] = parts;
-    if (!local || local.length > 64 || !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(local) ||
-        local.startsWith('.') || local.endsWith('.') || local.includes('..')) return '';
-    const labels = domain.split('.');
-    if (labels.length < 2 || labels.some(label =>
-      !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(label))) return '';
-    return candidate;
+    const validateRecipient = (value) => {
+      const rawCandidate = String(value || '');
+      // Reject malformed configured recipients rather than rewriting the destination.
+      if (/[\r\n\x00-\x1f\x7f]/.test(rawCandidate)) return '';
+      const candidate = rawCandidate.trim();
+      if (!candidate || candidate.includes('[') || candidate.includes('YOUR_')) return '';
+      if (candidate.length > 254) return '';
+      const parts = candidate.split('@');
+      if (parts.length !== 2) return '';
+      const [local, domain] = parts;
+      if (!local || local.length > 64 || !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(local) ||
+          local.startsWith('.') || local.endsWith('.') || local.includes('..')) return '';
+      const labels = domain.split('.');
+      if (labels.length < 2 || labels.some(label =>
+        !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(label))) return '';
+      return candidate;
+    };
+    for (const source of [cacheEmail, propertyEmail, configEmail, adminEmail]) {
+      const valid = validateRecipient(source);
+      if (valid) return valid;
+    }
+    return '';
   }
 
   _getValidationReviewTargetInfo_(target) {
@@ -4880,12 +4919,6 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       return summaryLines.slice(-maxBullets).join('\n') || null;
     }
 
-    const plainText = responseText
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    const sentenceMatches = plainText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
     const ignorePatterns = [
       /^ciao\b/i,
       /^buongiorno/i,
@@ -4897,8 +4930,17 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       /^saluti\b/i
     ];
 
+    const plainText = responseText
+      .replace(/<br\s*\/?\s*>|<\/(?:p|div|li)>/gi, '\n')
+      .replace(/<[^>]*>/g, ' ')
+      .split(/\r?\n/)
+      .map(line => line.replace(/\s+/g, ' ').trim())
+      .filter(line => line && !/^(?:(?:gentile|caro|cara)\s+[^,]{1,40},|(?:ciao|buongiorno|buonasera|salve|grazie|cordiali saluti|saluti)[,! .]*)$/i.test(line))
+      .join('\n');
+    // Conserva punti fra cifre (orari, date e decimali) e la punteggiatura finale.
+    const sentenceMatches = plainText.match(/(?:\d[.]\d|[^.!?\n]|(?<=\d)[.](?=\d))+(?:[.!?]+|$)|[^\n]+$/gm) || [];
     const candidateSentences = sentenceMatches
-      .map(sentence => sentence.trim())
+      .map(sentence => sentence.replace(/^(?:gentile|caro|cara|buongiorno|buonasera|salve|ciao)\b[^,\n]{0,40},\s*/i, '').trim())
       .filter(sentence => sentence.length > 20)
       .filter(sentence => !ignorePatterns.some(pattern => pattern.test(sentence)));
 
@@ -5004,6 +5046,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     );
     const isFormal = Boolean(
       isSbattezzo ||
+      category === 'formal' ||
       subIntents.canonical_complexity === true ||
       (requestType && requestType.canonical_complexity === true)
     );
@@ -5469,14 +5512,14 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     // Usiamo il flag /s (dotAll) affinché .* includa anche gli a capo (\n)
 
     const patterns = {
-      'orari_messe': /messe?\b.*?\d{1,2}[:.]\d{2}|orari\w*\s+messe|mass\s+time|mass\s+schedule/is,
+      'orari_messe': /\bmesse?\b.*?\d{1,2}[:.]\d{2}|\borari\w*\s+messe|\bmass\s+time|\bmass\s+schedule/is,
       'contatti': /(?:\b(?:telefono|cellulare|phone)\b|\btel\.?)\s*[:：]?\s*(?:\+?\d|della\s+segreteria|parrocchiale)|\b(?:email|e-mail)\b\s*[:：]\s*[^\s@]+@[^\s@]+|\b(?:contatt\w*|scriv\w*|chiam\w*|telefon\w*)\b[\s\S]{0,100}(?:\b(?:telefono|cellulare|phone)\b|\btel\.?|\b(?:email|e-mail|segreteria)\b)/i,
       'battesimo_info': /battesimo.*?documento|documento.*?battesimo|baptism|baptême|bautismo/is,
       'comunione_info': /comunione.*?catechismo|catechismo.*?comunione/is,
       'cresima_info': /cresima.*?percorso|percorso.*?cresima|confirmation|confirmación/is,
       'matrimonio_info': /matrimonio.*?corso|corso.*?matrimonio|wedding|marriage|mariage/is,
       'territorio': /rientra|non rientra|parrocchia.*?competenza|parish\s+territory|territory/is,
-      'indirizzo': /(?:via|viale|corso|piazza|largo|circonvallazione)\s+[^,\n]{3,60}?,?\s*\d+/i
+      'indirizzo': /\b(?:via|viale|corso|piazza|largo|circonvallazione)\s+[^,\n]{3,60}?,?\s*\d+/i
     };
 
     for (const [topic, pattern] of Object.entries(patterns)) {
@@ -5541,7 +5584,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       ]
     };
 
-    const matchedQuestioned = patterns.questioned.find(p => bodyLower.includes(p));
+    const doubtText = bodyLower.replace(/\b(?:senza\s+dubbi[oa]?|nessun\s+dubbio|non\s+ho\s+(?:(?:alcun|nessun)\s+dubbio|dubbi))\b/g, '');
+    const matchedQuestioned = patterns.questioned.find(p => (p === 'dubbio' ? doubtText : bodyLower).includes(p));
     const matchedExpansion = patterns.needs_expansion.find(p => bodyLower.includes(p));
     const negatedAck = /\b(?:non\s+(?:ho\s+)?ricevut\w*|non\s+[eè]\s+(?:tutto\s+)?chiar\w*|non\s+(?:ho\s+)?compreso|not\s+(?:received|understood|all\s+clear)|haven't\s+received|no\s+(?:he\s+)?recibid\w*)\b/i.test(bodyLower);
     const matchedAcknowledged = !negatedAck && patterns.acknowledged.find(p => bodyLower.includes(p));
@@ -5716,7 +5760,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     const msg = rawMessage.toLowerCase();
 
     const RETRYABLE_ERRORS = ['quota', 'RESOURCE_EXHAUSTED', 'resource_exhausted'];
-    const FATAL_ERRORS = ['INVALID_ARGUMENT', 'PERMISSION_DENIED', 'UNAUTHENTICATED', 'unauthorized', 'forbidden', 'unauthenticated'];
+    const AUTH_ERRORS = ['api_key_invalid', 'api key not valid', 'invalid api key', 'permission_denied', 'unauthenticated', 'unauthorized', 'forbidden'];
 
     if (msg.includes('gmail_counter_lock_not_acquired_retryable')) {
       return mkResult('NETWORK', true, rawMessage);
@@ -5733,11 +5777,9 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       return mkResult('NETWORK', true, rawMessage);
     }
 
-    for (const fatal of FATAL_ERRORS) {
-      if (msg.includes(fatal.toLowerCase())) return mkResult('FATAL', false, rawMessage);
-    }
-    if (/\b(401|403)\b/.test(msg)) return mkResult('INVALID_API_KEY', false, rawMessage);
+    if (/\b(401|403)\b/.test(msg) || AUTH_ERRORS.some(token => msg.includes(token))) return mkResult('INVALID_API_KEY', false, rawMessage);
     if (/\b404\b/.test(msg) && (msg.includes('models/') || msg.includes('not found'))) return mkResult('CONFIG_ERROR', false, rawMessage);
+    if (msg.includes('invalid_argument')) return mkResult('INVALID_RESPONSE', false, rawMessage);
 
     for (const retryable of RETRYABLE_ERRORS) {
       if (msg.includes(retryable.toLowerCase())) return mkResult('QUOTA_EXCEEDED', true, rawMessage);
@@ -6374,7 +6416,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     if (!trimmedSubject && !trimmedBody) return null;
     if (!effectiveOcrText && !attachmentBlobs.length) return null;
 
-    if (!this.geminiService || typeof this.geminiService.generateResponse !== 'function') {
+    if (!this.geminiService || (typeof this.geminiService.generateForTask !== 'function' &&
+        typeof this.geminiService.generateResponse !== 'function')) {
       return null;
     }
 
@@ -6396,11 +6439,14 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     ].join('\n');
 
     try {
-      const rawResult = this.geminiService.generateResponse(prompt, {
+      const generateSemantic = typeof this.geminiService.generateForTask === 'function'
+        ? (text, options) => this.geminiService.generateForTask('semantic', text, options)
+        : (text, options) => this.geminiService.generateResponse(text, options);
+      const rawResult = generateSemantic(prompt, {
         attachments: attachmentBlobs,
         // Modello leggero per un controllo ausiliario a bassa latenza/costo:
         // stesso fallback usato altrove in questo file per chiamate non critiche.
-        modelName: 'gemini-3.5-flash-lite'
+        modelName: this._resolveConfiguredModelNameForTask_('semantic')
       });
 
       const rawText = (rawResult && typeof rawResult === 'object') ? rawResult.text : rawResult;

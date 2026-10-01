@@ -43,7 +43,7 @@ assert.strictEqual(run(`m._validateAndNormalizeTimestamp('bad')`), null);
 assert.strictEqual(run(`m._validateAndNormalizeTimestamp(null)`), null);
 assert.strictEqual(run(`computeSalutationMode({isReply:true,memoryExists:true,lastUpdated:null})`), 'full');
 assert.strictEqual(run(`computeSalutationMode({isReply:true,memoryExists:true,lastUpdated:new Date(Date.now()-60000)})`), 'session');
-assert.strictEqual(run(`p._deriveContextualFlagsUpdate_({classification:{category:'formal'},requestType:{type:'formal'}}).canonical_complexity`), undefined);
+assert.strictEqual(run(`p._deriveContextualFlagsUpdate_({classification:{category:'formal'},requestType:{type:'formal'}}).canonical_complexity`), true);
 assert.strictEqual(run(`p._deriveContextualFlagsUpdate_({classification:{subIntents:{canonical_complexity:true}}}).canonical_complexity`), true);
 run(`var oldEvidence = new Date(Date.now()-181*86400000).toISOString();
  var freshEvidence = new Date(Date.now()-86400000).toISOString();

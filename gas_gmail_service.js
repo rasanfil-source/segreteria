@@ -868,6 +868,12 @@ var GmailService = class GmailService {
         const cursorSignature = JSON.stringify([labelName, errorLabel, validationLabel, skipLabels, safeMessageBuffer,
             Number.isFinite(this._getFiniteOptionNumber_(options, 'staleOnlyMs'))]);
         let cursor = this._readDiscoveryCursor_('metadata', cursorSignature);
+        // Controlla la testa a ogni run, poi riprendi il backlog salvato.
+        const backlogCursor = cursor.pageToken || cursor.afterId ? cursor : null;
+        let checkingHead = Boolean(backlogCursor);
+        let headId = cursor.headId || null;
+        let headBudgetReached = false;
+        if (checkingHead) cursor = {};
         let pageToken = cursor.pageToken || undefined;
         let page = 0;
         let metadataGets = 0;
@@ -910,6 +916,7 @@ var GmailService = class GmailService {
                 page++;
 
                 const messages = (response && response.messages) || [];
+                if (!pageToken && messages.length) headId = messages[0].id;
                 let addedInPage = 0;
                 console.log(`📬 [metadata] Pagina ${page}: ${messages.length} messaggi candidati in:inbox + UNREAD`);
                 if (messages.length > 0) {
@@ -920,6 +927,11 @@ var GmailService = class GmailService {
                 let messageIndex = cursor.afterId ? messages.findIndex(msg => msg && msg.id === cursor.afterId) + 1 : 0;
                 for (; messageIndex < messages.length; messageIndex++) {
                     const msg = messages[messageIndex];
+                    if (checkingHead && backlogCursor.headId && msg && msg.id === backlogCursor.headId) break;
+                    if (checkingHead && metadataGets >= Math.floor(maxMetadataGets / 2)) {
+                        headBudgetReached = true;
+                        break;
+                    }
                     if (!msg || !msg.id || !msg.threadId || seenThreadIds.has(msg.threadId) || unavailableThreadIds.has(msg.threadId)) continue;
                     if (blacklistMessageIds && blacklistMessageIds.has(msg.id)) continue;
                     if (skipBlacklistMessageIds && skipBlacklistMessageIds.has(msg.id)) continue;
@@ -986,9 +998,20 @@ var GmailService = class GmailService {
                     }
                 }
 
+                if (checkingHead) {
+                    checkingHead = false;
+                    cursor = backlogCursor;
+                    if (headBudgetReached) headId = backlogCursor.headId || null;
+                    if (!metadataLimitReached && !headBudgetReached && seenThreadIds.size < safeTargetThreads) cursor.headId = headId;
+                    pageToken = cursor.pageToken || undefined;
+                    // Riserva almeno una pagina al backlog anche con budget di una pagina.
+                    page--;
+                    if (seenThreadIds.size >= safeTargetThreads || metadataLimitReached) break;
+                    continue;
+                }
                 cursor = messageIndex < messages.length
-                    ? { pageToken: pageToken || null, afterId: messageIndex > 0 ? messages[messageIndex - 1].id : null }
-                    : { pageToken: response.nextPageToken || null };
+                    ? { pageToken: pageToken || null, afterId: messageIndex > 0 ? messages[messageIndex - 1].id : null, headId }
+                    : { pageToken: response.nextPageToken || null, headId };
                 this._writeDiscoveryCursor_('metadata', cursorSignature, cursor);
                 console.log(`📬 [metadata] Pagina ${page}: ${addedInPage} thread aggiunto/i dopo filtro label`);
                 if (metadataLimitReached) {
@@ -996,7 +1019,7 @@ var GmailService = class GmailService {
                     break;
                 }
                 pageToken = response ? response.nextPageToken : null;
-            } while (pageToken);
+            } while (pageToken || cursor.afterId);
 
             console.log(`📬 [metadata] Trovati ${threads.length} thread da elaborare (${page} pagina/e)`);
             return {
@@ -1520,6 +1543,8 @@ var GmailService = class GmailService {
             }
         } catch (e) {
             console.warn(`⚠️ Impossibile estrarre RFC 2822 Message-ID: ${e.message}`);
+            if (!/GMAIL_DAILY_CALL_LIMIT_REACHED|CONFIG_ERROR|quota|permission|\b(?:401|403)\b/i.test(String(e.message || ''))) e.isTransient = true;
+            throw e;
         }
 
         let replyTo = '';
@@ -2845,6 +2870,8 @@ var GmailService = class GmailService {
         text = text.replace(/<(style|script)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, '');
         // Preserva separatori strutturali per evitare blocchi di testo illeggibili.
         text = text.replace(/<br\s*\/?\s*>/gi, '\n');
+        text = text.replace(/<!doctype\b[^>]*>|<!--[\s\S]*?-->/gi, '');
+        text = text.replace(/<\/li\s*>/gi, '\n');
         text = text.replace(/<\/p\s*>/gi, '\n\n');
         text = text.replace(/<\/div\s*>/gi, '\n');
         text = text.replace(/<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi, (_match, _quote, href, label) => {
@@ -3147,6 +3174,10 @@ var GmailService = class GmailService {
             }
         }
         if (earliestSigMatch !== -1) {
+            const tailLines = result.substring(earliestSigMatch).split('\n').slice(1).map(line => line.trim()).filter(Boolean);
+            const hasUserContent = tailLines.some(line => !sigMarkers.some(marker => marker.test(line)) &&
+                (/[?？!]|\b(?:dimenticavo|vorrei|posso|potrei|chiedo|sapere|informazioni|prenotare|allego|inoltre)\b/i.test(line) || line.length > 80));
+            if (hasUserContent) return result.trim();
             const postscript = result.substring(earliestSigMatch).match(/^\s*P\.?S\.?\s*[:.-]?[\s\S]*/im);
             result = result.substring(0, earliestSigMatch) + (postscript ? '\n' + postscript[0] : '');
         }
@@ -3194,14 +3225,25 @@ var GmailService = class GmailService {
     // INVIO RISPOSTA
     // ========================================================================
 
-    reconcileSendOperation(operationId) {
+    reconcileSendOperation(operationId, threadId = null) {
         if (!/^[a-zA-Z0-9_-]+$/.test(operationId || '')) return false;
         try {
             this._incrementGmailCallCounterOrThrow_('messages.list');
             const found = Gmail.Users.Messages.list('me', {
                 q: `in:sent rfc822msgid:${operationId}@parish-reply.invalid`, maxResults: 2
             });
-            return Boolean(found && found.messages && found.messages.length === 1);
+            if (found && found.messages && found.messages.length === 1) return true;
+            if (!threadId) return false;
+            // Il marker applicativo non dipende dal mantenimento del Message-ID.
+            this._incrementGmailCallCounterOrThrow_('threads.get');
+            const sentThread = Gmail.Users.Threads.get('me', threadId, {
+                format: 'metadata', metadataHeaders: ['X-Parish-Reply-Operation']
+            });
+            const matches = (sentThread.messages || []).filter(message =>
+                (message.labelIds || []).includes('SENT') &&
+                ((message.payload && message.payload.headers) || []).some(header =>
+                    String(header.name || '').toLowerCase() === 'x-parish-reply-operation' && header.value === operationId));
+            return matches.length === 1;
         } catch (_) { return false; }
     }
 
@@ -3273,7 +3315,7 @@ var GmailService = class GmailService {
                 msg.includes('backend error') ||
                 msg.includes('internal error') ||
                 /\b(500|502|503|504)\b/.test(msg) ||
-                !/\b(?:400|401|403|404|429)\b|invalid argument|invalid recipient|permission|not authorized|quota|daily.*limit|gmail_daily_call_limit_reached/i.test(msg);
+                !/\b(?:400|401|403|404|429)\b|invalid argument|invalid recipient|invalid (?:to|from|reply-to) header|permission|not authorized|quota|daily.*limit|gmail_daily_call_limit_reached/i.test(msg);
         };
 
         const htmlBody = (typeof markdownToHtml === 'function')
@@ -3422,6 +3464,7 @@ var GmailService = class GmailService {
                 const rawHeaders = [
                     'MIME-Version: 1.0',
                     messageDetails.sendOperationId ? `Message-ID: <${messageDetails.sendOperationId}@parish-reply.invalid>` : '',
+                    messageDetails.sendOperationId ? `X-Parish-Reply-Operation: ${messageDetails.sendOperationId}` : '',
                     `Date: ${new Date().toUTCString()}`,
                     `From: ${safeFrom}`,
                     `To: ${safeTo}`,

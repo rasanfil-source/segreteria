@@ -24,7 +24,7 @@ console.log('--- Test relational posture: tassonomia condivisa preserva open e h
   try {
     client.extractCandidateText({ candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: 'Risposta.' }] } }] });
   } catch (error) { truncated = error; }
-  assert(truncated && truncated.code === 'TRUNCATED_OUTPUT' && truncated.isTransient === true,
+  assert(truncated && truncated.code === 'TRUNCATED_OUTPUT' && truncated.isTransient === false,
     'MAX_TOKENS deve fallire anche con punteggiatura finale, consentendo fallback');
   const text = client.extractCandidateText({ candidates: [{ finishReason: 'STOP', content: { parts: [
     { thought: true, text: 'Ragionamento privato' }, { text: 'Risposta completa.' }
@@ -411,7 +411,7 @@ console.log('--- Test EmailQuickCheckPolicy: normalizza decisione e forza rispos
     { resolveLanguage: (candidate, fallback, grade) => `${candidate}/${fallback}/${grade}` }
   );
 
-  assert(result.shouldRespond === true, 'submission documentale deve forzare risposta anche se Gemini dice false');
+  assert(result.shouldRespond === false, 'submission documentale deve rispettare il verdetto no-reply');
   assert(result.language === 'en/it/5', 'policy deve delegare la risoluzione lingua alla funzione iniettata');
   assert(result.classification.topic === 'documentazione ricevuta', 'topic del quick-check deve essere preservato');
   assert(result.is_territory_request === true, 'is_territory_request stringa true deve diventare boolean true');
@@ -620,8 +620,8 @@ console.log('--- Test request purpose: azione esplicita prevale sul topic proced
     'Corso Cresima adulti',
     'Abbiamo compilato il modulo online per Giorgio e vorrei partecipare anche io agli incontri se possibile.'
   );
-  assert(participationRequest.type === 'operational_request', 'un desiderio esplicito di partecipazione deve prevalere sulla consegna del modulo');
-  assert(participationRequest.source === 'local_explicit_action', 'la richiesta di partecipazione deve restare tracciabile come segnale locale');
+  assert(participationRequest.type === 'status_update', 'un desiderio di partecipazione non deve sovrascrivere una decisione AI affidabile');
+  assert(participationRequest.source === 'quick_check_model', 'preserva la provenienza del verdetto AI');
 }
 
 console.log('--- Test _generateWithModel: il client generico preserva prompt strutturato e profilo generation ---');

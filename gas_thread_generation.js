@@ -29,7 +29,8 @@ var ThreadGeneration = {
     const attemptStrategy = Array.isArray(generationPlan.attemptStrategy)
       ? generationPlan.attemptStrategy
       : [];
-    const fallbackModelName = generationPlan.fallbackModelName || 'gemini-3.7-flash';
+    const fallbackModelName = generationPlan.fallbackModelName || 'gemini-flash-latest';
+    const unavailableModels = new Set();
 
     if (shouldUseReceiptOnly) {
       response = deps._buildReceiptOnlySubmissionResponse_(
@@ -44,7 +45,7 @@ var ThreadGeneration = {
       console.log(`✅ Risposta di sola ricezione generata (${strategyUsed})`);
     } else {
       for (const plan of attemptStrategy) {
-        if (!plan.key) continue;
+        if (!plan.key || unavailableModels.has(plan.model)) continue;
         if (!plan.usesBackupKey && deps.geminiService && deps.geminiService.isPrimaryExhausted) {
           console.warn(`↪️ Strategia '${plan.name}' saltata: chiave primaria già esaurita.`);
           continue;
@@ -128,13 +129,15 @@ var ThreadGeneration = {
           const planIndex = attemptStrategy.indexOf(plan);
           const hasNextPlan = planIndex >= 0 && planIndex < attemptStrategy.length - 1;
           const rawGenerationError = String(err && err.message ? err.message : err).toLowerCase();
+          const isMissingModel = /\b404\b/.test(rawGenerationError) && !/cached\s*content|cachedcontent/i.test(rawGenerationError);
+          if (isMissingModel) unavailableModels.add(plan.model);
           const isQuotaLike = (
             errorClass.type === 'QUOTA_EXHAUSTED' ||
             errorClass.type === 'QUOTA_EXCEEDED' ||
             rawGenerationError.includes('quota')
           );
           const canTryNextPlan = hasNextPlan && (
-            isQuotaLike ||
+            isQuotaLike || isMissingModel ||
             ['RETRYABLE', 'NETWORK', 'TIMEOUT', 'INVALID_RESPONSE', 'UNKNOWN'].includes(errorClass.type)
           );
 

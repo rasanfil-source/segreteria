@@ -76,9 +76,9 @@ assert.ok(request._calculateScore('Mi sento solo', request.PASTORAL_INDICATORS).
 const gemini = Object.create(ctx.GeminiService.prototype);
 gemini.getModelNameForTask = () => 'language-model';
 let tracked = 0;
-gemini.generateResponse = (prompt, options) => {
+gemini.generateForTask = (task, prompt) => {
   tracked++;
-  assert.equal(options.modelName, 'language-model');
+  assert.equal(task, 'language');
   return { text: 'it' };
 };
 assert.equal(gemini.detectLanguageAI('Vorrei informazioni'), 'it');

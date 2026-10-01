@@ -62,7 +62,7 @@ vm.runInContext(`
     sendError, classification: classifyError(new Error('Service unavailable')).type };
 `, context);
 assert.deepStrictEqual(Array.from(context.discoveryResults), [0, 1]);
-assert.deepStrictEqual(Array.from(context.requestedPages), [0, 1, 2, 3]);
+assert.deepStrictEqual(Array.from(context.requestedPages), [0, 1, 2, 0, 3]);
 assert.strictEqual(context.sendResults.nativeAttempts, 0);
 assert.match(context.sendResults.sendError, /ambiguo/);
 assert.strictEqual(context.sendResults.classification, 'NETWORK');
@@ -157,3 +157,19 @@ assert.strictEqual(context.unsafeReplies, 0);
 assert.strictEqual(context.replyGuardErrors.length, 4);
 assert(context.replyGuardErrors.slice(0, 2).every(error => error.includes('destinatario diverso')));
 console.log('OK: Reply-To filtrato anche senza API, dopo rifiuto API e nel fallback al thread');
+
+properties.clear();
+vm.runInContext(`
+  let freshArrived = false;
+  service._getMetadataDiscoveryGetLimit_ = () => 120;
+  service._listMessagesWithResilience = params => params.pageToken
+    ? {messages:[{id:'deep',threadId:'deep-thread'}]}
+    : {messages:[...(freshArrived ? [{id:'fresh',threadId:'fresh-thread'}] : []),
+        {id:'old-head',threadId:'old-head-thread'}],nextPageToken:'backlog'};
+  service._getMessageMetadataWithResilience = id => ({labelIds:id==='old-head' ? ['UNREAD','Label_IA'] : ['UNREAD']});
+  service.getUnprocessedUnreadThreads('IA','Errore','Verifica',150,50,1);
+  freshArrived = true;
+  globalThis.freshAndBacklog = service.getUnprocessedUnreadThreads('IA','Errore','Verifica',150,50,1).map(t=>t.getId());
+`,context);
+assert.deepStrictEqual(Array.from(context.freshAndBacklog),['fresh-thread','deep-thread']);
+console.log('OK: nuova posta e backlog avanzano nello stesso run');

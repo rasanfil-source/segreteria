@@ -162,6 +162,7 @@ var ThreadDocuments = {
       ['status_update', 'acknowledgment'].includes(requestPurpose.type)
     );
     const shouldUseReceiptOnly = !hasDocumentDeliveryBlockingIssue &&
+      ['it', 'en', 'es', 'fr', 'pt', 'de'].includes(String(promptOptions.detectedLanguage || 'it').toLowerCase().split(/[-_]/)[0]) &&
       forceReceiptOnlyForSubmission && aiConfirmsPureDelivery;
     const shouldSkipValidationForReceiptOnly = shouldUseReceiptOnly;
     const directivesData = ThreadDocuments.directives(deps, {
@@ -343,6 +344,7 @@ var ThreadDocuments = {
     const hasRiskyUnknownReceived = !!(
       documentConsistency &&
       documentConsistency.mode === 'unknown_received' &&
+      !(semanticConsistency && semanticConsistency.consistent === true) &&
       (isDocumentDeliveryContext || (
         documentDeliveryModel.expectsDocument &&
         documentDeliveryModel.hasAttachmentContent

@@ -1337,7 +1337,7 @@ console.log('--- Test _commitSendTransaction: preserva marker in-flight fino a T
   processor._commitSendTransaction('m-commit-preserve');
 
   assert(cacheStore.get('sent_m-commit-preserve'), 'commit deve impostare il marker sent');
-  assert(cacheStore.get('sending_m-commit-preserve') === 'sending-marker', 'commit deve preservare sending fino a scadenza naturale');
+  assert(!cacheStore.has('sending_m-commit-preserve'), 'commit deve rimuovere sending dopo conferma invio');
   assert(cacheStore.get('sendstarted_m-commit-preserve') === 'started-marker', 'commit deve preservare sendstarted fino a scadenza naturale');
   cacheStore.clear();
 }
@@ -5713,7 +5713,7 @@ console.log('--- Test attachment semantic consistency: JSON Gemini e fail-open -
   assert(result.source === 'semantic_zero_shot', 'la sorgente deve tracciare il controllo semantico');
   assert(capturedPrompt.includes('Invio locandina concerto') && capturedPrompt.includes('Programma del pellegrinaggio'), 'il prompt deve includere email e OCR');
   assert(capturedPrompt.includes('locandina del concerto'), 'il prompt semantico deve includere la descrizione attesa dal quick check');
-  assert(capturedOptions && capturedOptions.modelName === 'gemini-3.5-flash-lite' && !capturedOptions.skipRateLimit && !capturedOptions.apiKey, 'il controllo semantico usa limiter e selezione chiave del servizio');
+  assert(capturedOptions && capturedOptions.modelName === 'gemini-flash-lite-latest' && !capturedOptions.skipRateLimit && !capturedOptions.apiKey, 'il controllo semantico usa fallback evergreen senza configurazione e selezione chiave del servizio');
 
   const failOpenProcessor = new EmailProcessor({
     gmailService: {},
@@ -6097,6 +6097,8 @@ console.log('--- Test processUnreadEmails: stop su errore config usa backoff lun
   let checkpointDelayMs = null;
   let processCalls = 0;
   const threads = [createExternalThread('config-1'), createExternalThread('config-2')];
+  for (const errorClass of ['CONFIG_ERROR', 'INVALID_API_KEY', 'FATAL']) {
+  processCalls = 0;
   const processor = new EmailProcessor({
     gmailService: {
       getUnprocessedUnreadThreads: () => threads,
@@ -6106,7 +6108,7 @@ console.log('--- Test processUnreadEmails: stop su errore config usa backoff lun
   processor._hasUnreadMessagesToProcess = () => true;
   processor.processThread = () => {
     processCalls++;
-    return { status: 'error', errorClass: 'CONFIG_ERROR', error: 'config mancante' };
+    return { status: 'error', errorClass, error: 'config mancante' };
   };
   processor._storeBatchCheckpointAndScheduleContinuation_ = (_threads, startIndex, delayMs) => {
     checkpointStartIndex = startIndex;
@@ -6118,6 +6120,7 @@ console.log('--- Test processUnreadEmails: stop su errore config usa backoff lun
   assert(stats.total === 1, 'deve conteggiare solo il thread analizzato prima dello stop config');
   assert(checkpointStartIndex === 0, 'checkpoint config deve ripartire dal thread fallito');
   assert(checkpointDelayMs === 300000, `errore CONFIG_ERROR deve usare backoff lungo 5 min, ottenuto ${checkpointDelayMs}`);
+  }
 }
 
 console.log('--- Test processUnreadEmails: checkpoint dopo rilascio lock batch ---');
@@ -6445,7 +6448,7 @@ console.log('--- Test processThread: near deadline prima della generazione usa d
   }
 }
 
-console.log('--- Test processUnreadEmails: dilata salva checkpoint senza consumare MAX_EMAILS_PER_RUN ---');
+console.log('--- Test processUnreadEmails: dilata salva checkpoint e rispetta MAX_EMAILS_PER_RUN ---');
 {
   const originalPropertiesService = global.PropertiesService;
   const originalScriptApp = global.ScriptApp;
@@ -6479,12 +6482,26 @@ console.log('--- Test processUnreadEmails: dilata salva checkpoint senza consuma
 
     const stats = processor.processUnreadEmails('kb', '', true);
     const checkpoint = JSON.parse(props.get('EMAIL_BATCH_CHECKPOINT'));
-    assert(calls.length === 1, 'dilata deve interrompere il batch e non passare ai thread successivi');
+    assert(calls.length === 1, 'il limite di un thread deve fermare il run');
     assert(stats.dilata === 1, `stats.dilata deve essere 1, ottenuto ${stats.dilata}`);
     assert(stats.filtered === 0, 'dilata non deve essere conteggiato come filtered');
     assert(checkpoint.startIndex === 0, `checkpoint deve ripartire dal thread dilatato, ottenuto ${checkpoint.startIndex}`);
     assert(checkpoint.pendingThreadIds[0] === 't-dilata-retry', 'checkpoint deve includere come primo residuo il thread dilatato');
     assert(checkpoint.remainingTimeMs === 7000, `delay dilata deve essere finestra + 5s, ottenuto ${checkpoint.remainingTimeMs}`);
+    global.CONFIG.MAX_EMAILS_PER_RUN = 2;
+    calls.length = 0;
+    props.clear();
+    processor.processThread = thread => {
+      calls.push(thread.getId());
+      return thread.getId() === 't-dilata-retry'
+        ? {status:'dilata',reason:'cross_thread_burst'} : {status:'filtered'};
+    };
+    const nextStats = processor.processUnreadEmails('kb', '', true);
+    assert(calls.length === 2, 'un mittente rallentato non deve fermare un altro thread');
+    assert(nextStats.dilata === 1 && nextStats.filtered === 1, 'statistiche indipendenti per i due thread');
+    const nextCheckpoint = JSON.parse(props.get('EMAIL_BATCH_CHECKPOINT'));
+    assert(nextCheckpoint.pendingThreadIds.length === 1 && nextCheckpoint.pendingThreadIds[0] === 't-dilata-retry',
+      'il checkpoint deve conservare solo il thread rinviato');
   } finally {
     global.CONFIG.MAX_EMAILS_PER_RUN = originalMax;
     if (typeof originalSenderThrottle === 'undefined') {

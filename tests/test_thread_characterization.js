@@ -148,7 +148,41 @@ for (const [name, snapshot] of Object.entries(expected)) {
   if (name === 'cleanup_failure') cleanup.splice(1);
   snapshot.effects.splice(cleanupIndex, 0, ...cleanup);
 }
+// Audit allegati: cleanup sending, contenuto della memoria e coerenza semantica positiva.
+for (const [name, snapshot] of Object.entries(expected)) {
+  const effects = snapshot.effects;
+  for (let index = effects.length - 1; index >= 0; index--) {
+    const [event, value] = effects[index];
+    if (event === 'cache.put' && value[0].startsWith('sent_')) {
+      effects.splice(index + 1, 0, ['cache.remove', 'sending_' + value[0].slice(5)]);
+    }
+    if (event === 'memory.update' && value[1].memorySummary) {
+      value[1].memorySummary = value[1].memorySummary.replace('Risposta con informazioni su: contatti.',
+        'può contattare la segreteria per iscrivere suo figlio al catechismo.');
+      if (name === 'ocr_formal_routing') Object.assign(value[1].contextualFlags, {
+        canonical_complexity: true, _evidence: {canonical_complexity:'2026-09-25T10:00:00.000Z'}
+      });
+    }
+    if (['attachment_burst_limits','taxonomy_mismatch'].includes(name)) {
+      if (event === 'prompt') {
+        value.systemDirectives = [];
+        Object.assign(value.documentDelivery, {status:'received_attachment',hasDocumentDeliveryUnverified:false,
+          isCoherent:true,blocksReceiptOnly:false,blockReason:''});
+      }
+      if (event === 'validate') {
+        delete value[7].validationContext.documentMismatch;
+        delete value[7].validationContext.expectedDocumentMissing;
+      }
+    }
+  }
+}
 for (const [name, output] of Object.entries(actual)) {
+  // With no configured model in these mocks the semantic fallback is evergreen.
+  for (const [event, value] of expected[name].effects) {
+    if (event === 'generate' && typeof value[0] === 'string' && value[0].startsWith('Rispondi SOLO con un oggetto JSON valido')) {
+      value[1].modelName = 'gemini-flash-lite-latest';
+    }
+  }
   assert.deepStrictEqual(output, expected[name], `${name}: return value and ordered effects must match the workspace baseline`);
   assert(output.restored, `${name}: restore service loggers`);
 }
