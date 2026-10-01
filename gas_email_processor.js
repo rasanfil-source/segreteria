@@ -3276,10 +3276,10 @@ var EmailProcessor = class EmailProcessor {
 
   _detectYearlessDateTemporalIntent_(text = '') {
     const normalized = String(text || '').toLowerCase();
-    const futurePattern = /\b(sar(?:à|anno)|ci\s+sar(?:à|anno)|avr(?:à|anno)|farete|celebrerete|terr(?:à|anno)|quando\s+(?:sarà|avrà|terrà)|prossim[oaie]|ventura|futura|futuro|domani|dopodomani)\b/i;
+    const futurePattern = /(?<![\p{L}\p{N}_])(sar(?:à|anno)|ci\s+sar(?:à|anno)|avr(?:à|anno)|farete|celebrerete|terr(?:à|anno)|quando\s+(?:sarà|avrà|terrà)|prossim[oaie]|ventura|futura|futuro|domani|dopodomani)(?![\p{L}\p{N}_])/iu;
     if (futurePattern.test(normalized)) return 'future';
 
-    const pastPattern = /\b(sono\s+state|erano|c[' ]?erano|si\s+(?:è|e)\s+(?:tenuta|tenuto|svolta|svolto)|avete\s+(?:celebrato|fatto)|passat[oaie]|scors[oaie])\b/i;
+    const pastPattern = /(?<![\p{L}\p{N}_])(sono\s+state|erano|c['’ ]?erano|si\s+(?:è|e)\s+(?:tenuta|tenuto|svolta|svolto)|avete\s+(?:celebrato|fatto)|passat[oaie]|scors[oaie])(?![\p{L}\p{N}_])/iu;
     if (pastPattern.test(normalized)) return 'past';
 
     return 'unspecified';
@@ -5081,7 +5081,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     const hasSacramentalType = /\b(battesim[oa]|cresim[ao]|matrimoni[oa]|morte)\b/.test(normalized);
     const hasPreparationAction = /\b(richied(?:o|ere|iamo|erei|erebbe|ete)|richiesta|chiedo|vorrei|desidero|ho bisogno|mi serve|ottenere|rilasci(?:o|are|ate)|prepar(?:are|ate|arlo|i|o)|stamp(?:are|arlo|ate|i|o))\b/.test(normalized);
     const hasFormatOrPurpose = /\b(originale|copia\s+originale|cartace[oa]|pdf|uso\s+matrimoni[oa]|uso\s+matrimoniale|per\s+matrimoni[oa])\b/.test(normalized);
-    const hasDeliveryOrPickup = /\b(ritir(?:are|arlo|o|er[oò])|ritiro|di\s+persona|personalmente|ven(?:ire|go|ir[oò])|pass(?:are|o|er[oò])|email|e-mail|mail)\b/.test(normalized);
+    const hasDeliveryOrPickup = /(?<![\p{L}\p{N}_])(ritir(?:are|arlo|o|er[oò])|ritiro|di\s+persona|personalmente|ven(?:ire|go|ir[oò])|verr[oò]|pass(?:are|o|er[oò])|email|e-mail|mail)(?![\p{L}\p{N}_])/u.test(normalized);
     const hasArchiveData = /\b(nat[oa]\s+(?:il\s*)?\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|battezzat[oa]|battesimo\s+\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})\b/.test(normalized);
 
     const detected = hasCertificate && hasSacramentalType && hasPreparationAction && (hasFormatOrPurpose || hasDeliveryOrPickup || hasArchiveData);
@@ -5339,9 +5339,9 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       /(?:^|[^\p{L}\p{N}_])(?:is|are|will\s+be)\s+(?:held|scheduled|planned)(?=$|[^\p{L}\p{N}_])/iu,
       /(?:^|[^\p{L}\p{N}_])(?:starts?|begins?|takes?\s+place)(?=$|[^\p{L}\p{N}_])/iu,
       /(?:^|[^\p{L}\p{N}_])(?:empieza|empiezan|comienza|comienzan|ser[áa]|ser[aá]n)(?=$|[^\p{L}\p{N}_])/iu,
-      /(?:^|[^\p{L}\p{N}_])(?:commence|commencer[ao]nt|aura\s+lieu|auront\s+lieu|se\s+tiendra|se\s+tiendront)(?=$|[^\p{L}\p{N}_])/iu,
-      /(?:^|[^\p{L}\p{N}_])(?:começa|começam|ter[áa]|ter[aã]o\s+lugar)(?=$|[^\p{L}\p{N}_])/iu,
-      /(?:^|[^\p{L}\p{N}_])(?:beginnt|beginnen|findet|finden)\s+statt(?=$|[^\p{L}\p{N}_])/iu
+      /(?:^|[^\p{L}\p{N}_])(?:commence(?:nt|ra|ront)?|(?:a|ont|aura|auront)\s+lieu|se\s+(?:tient|tiennent|tiendra|tiendront))(?=$|[^\p{L}\p{N}_])/iu,
+      /(?:^|[^\p{L}\p{N}_])(?:começa|começam|(?:tem|têm|ter[áa]|ter[aã]o)\s+lugar)(?=$|[^\p{L}\p{N}_])/iu,
+      /(?:^|[^\p{L}\p{N}_])(?:beginnt|beginnen|(?:findet|finden)\b[^!?\n]{0,60}\bstatt)(?=$|[^\p{L}\p{N}_])/iu
     ];
     const eventNounPattern = /\b(?:incontro|riunione|corso|lezione|messa|messe|celebrazione|appuntamento|catechesi|ritiro|evento|mass|masses|meeting|course|class|event|appointment|reuni[oó]n|reunião|missa|curso|rencontre|réunion|cours|treffen|kurs)\b/i;
     const directEventTimePattern = /(?:^|[^\p{L}\p{N}_])(?:è|é|e'|sar[àa]|sono|saranno|is|are|will\s+be|es|est|ser[áa]|sera|ser[aã]o|est[áa]|ist|sind)(?=$|[^\p{L}\p{N}_])[^.!?\n]{0,80}(?:^|[^\p{L}\p{N}_])(?:alle?|ore|at|a\s+las|às|à|um)\s+(?:[01]?\d|2[0-3])(?:[:.][0-5]\d|\s*h(?:\s*[0-5]\d)?)?(?:\s*(?:am|pm|uhr))?(?=$|[^\p{L}\p{N}_])/iu;
@@ -5429,7 +5429,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       it: "\n\nNota: la informiamo che l'incontro si svolgerà in un orario diverso rispetto a quanto da Lei indicato.",
       en: "\n\nNote: please note that the meeting will take place at a different time than what you indicated.",
       es: "\n\nNota: le informamos que la reunión se llevará a cabo en un horario diferente al indicado por usted.",
-      pt: "\n\nNota: informamos que a reunião terá lugar num horário diferente do indicato por si.",
+      pt: "\n\nNota: informamos que a reunião terá lugar num horário diferente do indicado por si.",
       fr: "\n\nNote : nous vous informons que la réunion aura lieu à une heure différente de celle que vous avez indiquée.",
       de: "\n\nHinweis: Wir informieren Sie, dass das Treffen zu einer anderen Zeit stattfinden wird, als von Ihnen angegeben."
     };
@@ -5487,8 +5487,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     const wordMatches = bodyLower.match(/[a-zà-ÿ0-9]+/gi) || [];
     const wordCount = wordMatches.length;
     const hasFollowUpRequestSignal = /[?？]/.test(bodyText) ||
-      /\b(?:ma|per[oò]|tuttavia|invece|anche|ancora)\b[\s\S]{0,160}\b(?:potrebbe|pu[oò]|potete|possiamo|potremmo|vorrei|desidero|sapere|indicarmi|indicare|dirmi|dire|confermare|chiarire|spiegare|quando|dove|come|quale|quali|quanto|orario|appuntamento)\b/i.test(bodyText) ||
-      /\b(?:potrebbe|pu[oò]|potete|possiamo|potremmo|vorrei|desidero|sapere|indicarmi|dirmi|quando|dove|come|quale|quali|quanto|orario|appuntamento|prenotare|fissare)\b/i.test(bodyText) ||
+      /(?<![\p{L}\p{N}_])(?:ma|per[oò]|tuttavia|invece|anche|ancora)(?![\p{L}\p{N}_])[\s\S]{0,160}(?<![\p{L}\p{N}_])(?:potrebbe|pu[oò]|potete|possiamo|potremmo|vorrei|desidero|sapere|indicarmi|indicare|dirmi|dire|confermare|chiarire|spiegare|quando|dove|come|quale|quali|quanto|orario|appuntamento)(?![\p{L}\p{N}_])/iu.test(bodyLower) ||
+      /(?<![\p{L}\p{N}_])(?:potrebbe|pu[oò]|potete|possiamo|potremmo|vorrei|desidero|sapere|indicarmi|dirmi|quando|dove|come|quale|quali|quanto|orario|appuntamento|prenotare|fissare)(?![\p{L}\p{N}_])/iu.test(bodyLower) ||
       /\bmi\s+(?:pu[oò]|potrebbe)\s+(?:indicare|dire|confermare|chiarire|spiegare|mandare|inviare)\b/i.test(bodyText);
     const hasDocumentSubmissionSignal =
       /\b(?:allego|in allegato|invio|inoltro|trasmetto|mando|documento|modulo|certificato|dati)\b/i.test(bodyText);
@@ -6613,7 +6613,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   _isExplicitSponsorEligibilityRequest_(text, detectedLanguage = 'it') {
     const source = String(text || '').toLowerCase();
     if (!this._hasSacramentalSponsorRole_(source, detectedLanguage)) return false;
-    const hasQuestionIntent = /\?|come|cosa|quali|qual[eè]|posso|potrei|devo|dovrei|serve|servono|occorre|occorrono|bisogna|vorrei sapere|mi serve sapere|ho bisogno di sapere|informazioni|info|how|what|which|can i|could i|do i need|requirements?|requisitos?|conditions?|conditions?|exigences?|voraussetzungen?/i.test(source);
+    const hasQuestionIntent = /[?？]|(?<![\p{L}\p{N}_])(?:come|cosa|quali|qual[eè]|posso|potrei|devo|dovrei|serve|servono|occorre|occorrono|bisogna|vorrei sapere|mi serve sapere|ho bisogno di sapere|informazioni|info|how|what|which|can i|could i|do i need|requirements?|requisitos?|conditions?|exigences?|voraussetzungen?)(?![\p{L}\p{N}_])/iu.test(source);
     return hasQuestionIntent && (this._hasSponsorEligibilityTopic_(source, detectedLanguage) || this._hasSponsorRoleIntent_(source, detectedLanguage));
   }
 
@@ -6632,7 +6632,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
         return /\b(empfangen|machen|erhalten)\b[\s\S]{0,50}\bfirmung\b/i.test(source);
       default:
         return /\b(ricev\w+|ricever\w+|celebr\w+)\b[\s\S]{0,80}\bcresim\w*/i.test(source) ||
-          /\b(fare|farò)\b\s+(la\s+)?cresim\w*/i.test(source) ||
+          /(?<![\p{L}\p{N}_])(fare|far[oò])(?![\p{L}\p{N}_])\s+(la\s+)?cresim\w*/iu.test(source) ||
           /\bcresim\w*[\s\S]{0,80}\b(prossim[aoie]?|imminente|celebrazione|cerimonia|\d{1,2}\s+\w+\s+20\d{2})\b/i.test(source);
     }
   }
@@ -6708,7 +6708,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
         detectedLanguage
       );
 
-    const deliverySignals = /\b(allego|in allegato|invio|inoltro|trasmetto|ecco|certificato|attestato|idoneit[aà])\b/i.test(text);
+    const deliverySignals = /(?<![\p{L}\p{N}_])(allego|in allegato|invio|inoltro|trasmetto|ecco|certificato|attestato|idoneit[aà])(?![\p{L}\p{N}_])/iu.test(text);
     if (deliverySignals && isSubmission && !hasSubmissionQuestion && !asksEligibility && !cresimaAsPrerequisiteSignals) {
       return false;
     }
@@ -6734,8 +6734,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     let skippingSponsorBlock = false;
 
     lines.forEach((line) => {
-      const startsSponsorBlock = /\b(padrin[oa]?|madrin[ao]?|sponsor)\b[\s\S]{0,120}\b(requisit[oi]|condizion[ei]|necessario|necessari|soddisfare|idoneit[aà])\b/i.test(line) ||
-        /\b(requisit[oi]|condizion[ei]|necessario|necessari|soddisfare|idoneit[aà])\b[\s\S]{0,120}\b(padrin[oa]?|madrin[ao]?|sponsor)\b/i.test(line);
+      const startsSponsorBlock = /\b(padrin[oa]?|madrin[ao]?|sponsor)\b[\s\S]{0,120}(?<![\p{L}\p{N}_])(requisit[oi]|condizion[ei]|necessario|necessari|soddisfare|idoneit[aà])(?![\p{L}\p{N}_])/iu.test(line) ||
+        /(?<![\p{L}\p{N}_])(requisit[oi]|condizion[ei]|necessario|necessari|soddisfare|idoneit[aà])(?![\p{L}\p{N}_])[\s\S]{0,120}\b(padrin[oa]?|madrin[ao]?|sponsor)\b/iu.test(line);
       if (startsSponsorBlock) {
         skippingSponsorBlock = true;
         return;
@@ -6750,7 +6750,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       // Rimuovi solo righe esplicitamente relative ai requisiti per padrino/madrina.
       // Termini generici come "divorzio" o "convivenza" possono essere legittimi
       // in risposte matrimoniali o pastorali e non vanno filtrati da soli.
-      if (/\b(requisit[oi]|condizion[ei]|necessari[oae]|idoneit[aà])\b.{0,60}\b(padrin[oa]?|madrin[ao]?|sponsor)\b|\b(padrin[oa]?|madrin[ao]?|sponsor)\b.{0,60}\b(requisit[oi]|condizion[ei]|necessari[oae]|idoneit[aà])\b/i.test(line)) {
+      if (/(?<![\p{L}\p{N}_])(requisit[oi]|condizion[ei]|necessari[oae]|idoneit[aà])(?![\p{L}\p{N}_]).{0,60}\b(padrin[oa]?|madrin[ao]?|sponsor)\b|\b(padrin[oa]?|madrin[ao]?|sponsor)\b.{0,60}(?<![\p{L}\p{N}_])(requisit[oi]|condizion[ei]|necessari[oae]|idoneit[aà])(?![\p{L}\p{N}_])/iu.test(line)) {
         return;
       }
       filtered.push(line);

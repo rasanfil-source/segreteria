@@ -389,7 +389,7 @@ var Classifier = class Classifier {
       }
     }
 
-    if (signatureStartIndex !== -1 && !options.preserveGreetings) {
+    if (signatureStartIndex !== -1) {
       const remainingLines = contentLines
         .slice(signatureStartIndex + 1)
         .map(line => (line || '').trim())
@@ -407,7 +407,8 @@ var Classifier = class Classifier {
       );
 
       if (tailLooksLikeSignature) {
-        content = contentLines.slice(0, signatureStartIndex).join('\n').trim();
+        const sliceEnd = options.preserveGreetings ? signatureStartIndex + 1 : signatureStartIndex;
+        content = contentLines.slice(0, sliceEnd).join('\n').trim();
       }
     }
 
