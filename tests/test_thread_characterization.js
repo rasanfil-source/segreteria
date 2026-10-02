@@ -196,6 +196,12 @@ for (const [name, output] of Object.entries(actual)) {
       value[1].modelName = 'gemini-flash-lite-latest';
     }
   }
+  // Il nuovo cursore tecnico e verificato in test_generation_checkpoint.js.
+  // Manteniamo il confronto integrale degli altri effetti, inclusi invio e label.
+  output.effects = output.effects.filter(([event, value]) => !(
+    event === 'props.set' && String(value[0]).startsWith('generation_progress_') ||
+    event === 'props.delete' && String(value).startsWith('generation_progress_')
+  ));
   assert.deepStrictEqual(output, expected[name], `${name}: return value and ordered effects must match the workspace baseline`);
   assert(output.restored, `${name}: restore service loggers`);
 }

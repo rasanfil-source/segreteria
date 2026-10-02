@@ -977,7 +977,8 @@ var EmailProcessor = class EmailProcessor {
       const generationServices = this._threadGenerationServices_();
       const generated = ThreadGeneration.generate(generationServices, {
         ...message, ...analysis, ...attachments, ...documents, ...consistency,
-        result, fullPrompt, markFailureForCurrentBurst: messageState.markFailureForCurrentBurst
+        result, fullPrompt, threadId, generationMessageId: messageState.candidate.getId(),
+        markFailureForCurrentBurst: messageState.markFailureForCurrentBurst
       });
       if (generated.terminal) return result;
       const prepared = ThreadGeneration.prepareResponse(generationServices, {
@@ -1143,6 +1144,7 @@ var EmailProcessor = class EmailProcessor {
   /** Narrow dependencies for ThreadGeneration; resolved per call so overrides remain effective. */
   _threadGenerationServices_() {
     return {
+      _getProperties_: this._getProperties_.bind(this),
       _isNearDeadline: this._isNearDeadline.bind(this),
       config: this.config,
       _buildGenerationStrategies_: this._buildGenerationStrategies_.bind(this),

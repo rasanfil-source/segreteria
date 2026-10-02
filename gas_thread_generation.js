@@ -2,12 +2,72 @@
  * Preserva fallback, quote, NO_REPLY, guardrail di ricezione e ordine delle trasformazioni.
  * GAS: namespace globale sincrono; dipendenze esplicite, nessun caricatore runtime.
  */
+// Stato tecnico invisibile in Script Properties, separato dal checkpoint batch.
+// Non contiene prompt, risposte o chiavi API. Un solo cursore per thread.
+function createGenerationProgress_(deps, threadId, messageId, plans) {
+  const completed = new Set();
+  const noop = { completed, advance() {}, clear() {} };
+  if (!threadId || !messageId || typeof deps._getProperties_ !== 'function') return noop;
+  const prefix = 'generation_progress_';
+  const key = prefix + threadId;
+  const signature = JSON.stringify(plans.map(p => [p.name, p.model, !!p.usesBackupKey]));
+  const now = Date.now();
+  let props, expiresAt = now + 6 * 60 * 60 * 1000;
+  try {
+    props = deps._getProperties_();
+    if (!props) return noop;
+    // Rimuove anche cursori di email archiviate o gestite manualmente.
+    if (typeof props.getProperties === 'function') {
+      const values = props.getProperties();
+      let removed = 0;
+      for (const name of Object.keys(values)) {
+        if (!name.startsWith(prefix) || removed >= 50) continue;
+        let state;
+        try { state = JSON.parse(values[name]); } catch (_) {}
+        if (!state || !Number.isFinite(state.expiresAt) || state.expiresAt <= now) {
+          props.deleteProperty(name);
+          removed++;
+        }
+      }
+    }
+    const raw = props.getProperty(key);
+    let saved;
+    try { saved = raw ? JSON.parse(raw) : null; } catch (_) {}
+    if (saved && saved.messageId === messageId && saved.signature === signature &&
+        Number.isFinite(saved.expiresAt) && saved.expiresAt > now && Array.isArray(saved.completed)) {
+      saved.completed.forEach(name => { if (plans.some(p => p.name === name)) completed.add(name); });
+      expiresAt = saved.expiresAt;
+      if (completed.size >= plans.length) completed.clear();
+      if (completed.size) console.log(`⏭️ Ripresa generazione: ${completed.size} strategie gia esaurite per questo messaggio.`);
+    } else if (raw) props.deleteProperty(key);
+  } catch (error) {
+    console.warn(`Checkpoint generazione non disponibile: ${error.message}`);
+    return noop;
+  }
+  return {
+    completed,
+    advance(name) {
+      completed.add(name);
+      try {
+        props.setProperty(key, JSON.stringify({messageId, signature, expiresAt, completed: Array.from(completed)}));
+      } catch (error) { console.warn(`Checkpoint generazione non salvato: ${error.message}`); }
+    },
+    clear() {
+      try {
+        const raw = props.getProperty(key);
+        if (raw && JSON.parse(raw).messageId === messageId) props.deleteProperty(key);
+      }
+      catch (error) { console.warn(`Checkpoint generazione non rimosso: ${error.message}`); }
+    }
+  };
+}
+
 var ThreadGeneration = {
   /** generate: ingressi locali espliciti; restituisce i dati della fase. */
   generate(deps, {
     result, shouldUseReceiptOnly, detectedLanguage, categoryHintSource, receiptOnlyDeliveryChannel,
     messageDetails, hasRiskyUnknownReceived, fullPrompt, attachmentBlobs, quickCheck,
-    markFailureForCurrentBurst
+    markFailureForCurrentBurst, threadId, generationMessageId
   }) {
     let response = null;
     let generationError = null;
@@ -31,6 +91,7 @@ var ThreadGeneration = {
       : [];
     const fallbackModelName = generationPlan.fallbackModelName || 'gemini-flash-latest';
     const unavailableModels = new Set();
+    const progress = createGenerationProgress_(deps, threadId, generationMessageId, attemptStrategy);
 
     if (shouldUseReceiptOnly) {
       response = deps._buildReceiptOnlySubmissionResponse_(
@@ -45,7 +106,11 @@ var ThreadGeneration = {
       console.log(`✅ Risposta di sola ricezione generata (${strategyUsed})`);
     } else {
       for (const plan of attemptStrategy) {
-        if (!plan.key || unavailableModels.has(plan.model)) continue;
+        if (progress.completed.has(plan.name)) continue;
+        if (!plan.key || unavailableModels.has(plan.model)) {
+          progress.advance(plan.name);
+          continue;
+        }
         if (!plan.usesBackupKey && deps.geminiService && deps.geminiService.isPrimaryExhausted) {
           console.warn(`↪️ Strategia '${plan.name}' saltata: chiave primaria già esaurita.`);
           continue;
@@ -119,6 +184,7 @@ var ThreadGeneration = {
             // Se la chiave corrente è invalida/non autorizzata (401/403),
             // prova la strategia successiva: una chiave/modello di backup può essere ancora valido.
             if (/401|403|unauthorized|forbidden|permission_denied|api[_\s-]?key/i.test(String(err && err.message ? err.message : err))) {
+              progress.advance(plan.name);
               console.warn('↪️ Errore di autenticazione/permessi rilevato, provo la strategia successiva.');
               continue;
             }
@@ -142,6 +208,7 @@ var ThreadGeneration = {
           );
 
           if (canTryNextPlan) {
+            progress.advance(plan.name);
             console.warn(`↪️ Errore ${errorClass.type}, provo la strategia successiva.`);
             continue;
           }
@@ -162,6 +229,9 @@ var ThreadGeneration = {
       }
     }
 
+    // Solo il rinvio per deadline conserva il cursore. Successo o fine della
+    // cascata lo cancellano: un nuovo ciclo potra ritentare tutti i modelli.
+    progress.clear();
     if (!response) {
       const errorToReport = generationError || initialError;
       const errorClass = errorToReport ? deps._classifyError(errorToReport) : { type: 'UNKNOWN', retryable: false, message: 'Generation strategies exhausted' };
