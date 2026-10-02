@@ -39,8 +39,8 @@ for (const phrase of ['Sono guarito.', 'I have recovered.', 'Je suis guéri.', '
 assert.strictEqual(run("reconcile('Sono guarito, ma sono ancora ricoverato.', ['health']).has_constraint"), true);
 assert.strictEqual(run("reconcile('Ora posso venire.', ['health','temporary_unavailability']).type"), 'health');
 assert.strictEqual(run("reconcile('Grazie per gli orari.', ['health']).type"), 'health');
-assert.strictEqual(run("processor._reconcilePhysicalPresenceConstraint_(negative,'','Sono a Roma.',{contextualFlags:{remote_user:true}},now).type"), 'other');
-assert.strictEqual(run("processor._reconcilePhysicalPresenceConstraint_(negative,'','Sono a Roma.',{contextualFlags:{remote_user:true},conversationState:{physicalPresenceState:{version:1,constraints:[{}]}}},now).type"), 'other');
+assert.strictEqual(run("processor._reconcilePhysicalPresenceConstraint_(negative,'','Sono a Roma.',{contextualFlags:{remote_user:true}},now).type"), 'none');
+assert.strictEqual(run("processor._reconcilePhysicalPresenceConstraint_(negative,'','Sono a Roma.',{contextualFlags:{remote_user:true},conversationState:{physicalPresenceState:{version:1,constraints:[{}]}}},now).type"), 'none');
 // Persistenza nel formato reale della colonna I e lettura del turno successivo.
 run(`var resolved = reconcile('Sono a Roma.');
 var prior = remembered(['geographic_distance']);

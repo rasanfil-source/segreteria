@@ -6,6 +6,7 @@
 
 var _SCRIPT_PROPERTIES = null;
 var _CACHED_PROPS = {};
+var _ALL_PROPS_CACHE_TS = 0;
 // Cache solo intra-esecuzione: riduce letture ripetute a PropertiesService
 // durante la stessa run GAS; non e' pensata come persistenza fra trigger.
 var _SCRIPT_PROPERTY_CACHE_TTL_MS = 60 * 1000;
@@ -15,7 +16,10 @@ function _refreshScriptPropertyCache_(requestedKey, now) {
   const allProps = hasGetProperties
     ? (_SCRIPT_PROPERTIES.getProperties() || {})
     : {};
-  if (hasGetProperties) _CACHED_PROPS = {};
+  if (hasGetProperties) {
+    _CACHED_PROPS = {};
+    _ALL_PROPS_CACHE_TS = now;
+  }
   Object.keys(allProps).forEach(key => {
     _CACHED_PROPS[key] = {
       value: allProps[key],
@@ -54,6 +58,12 @@ function _getScriptProperty(key, forceRefresh = false) {
     (now - cached.ts) <= _SCRIPT_PROPERTY_CACHE_TTL_MS;
   if (forceRefresh) {
     delete _CACHED_PROPS[key];
+    _ALL_PROPS_CACHE_TS = 0;
+  }
+  if (!forceRefresh && !hasFreshCachedValue && typeof _SCRIPT_PROPERTIES.getProperties === 'function' &&
+      _ALL_PROPS_CACHE_TS > 0 && (now - _ALL_PROPS_CACHE_TS) <= _SCRIPT_PROPERTY_CACHE_TTL_MS) {
+    _CACHED_PROPS[key] = { value: null, ts: _ALL_PROPS_CACHE_TS };
+    return null;
   }
   if (forceRefresh || !hasFreshCachedValue) {
     try {
@@ -67,6 +77,7 @@ function _getScriptProperty(key, forceRefresh = false) {
 }
 
 function _clearScriptPropertyCache(keys) {
+  _ALL_PROPS_CACHE_TS = 0;
   if (!keys) {
     _CACHED_PROPS = {};
     _SCRIPT_PROPERTIES = null;
@@ -82,7 +93,7 @@ function _getScriptPropertyStringArray(key, fallback) {
   const safeFallback = Array.isArray(fallback) ? fallback.slice() : [];
   let raw = '';
   try {
-    raw = _getScriptProperty(key) || '';
+    raw = String(_getScriptProperty(key) || '').trim();
   } catch (e) {
     raw = '';
   }
@@ -91,9 +102,10 @@ function _getScriptPropertyStringArray(key, fallback) {
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed
+      const values = parsed
         .map(value => String(value || '').trim())
         .filter(Boolean);
+      return values.length ? values : safeFallback;
     }
   } catch (e) {
     // Non JSON: accettiamo liste separate da virgola, punto e virgola o newline.
@@ -101,10 +113,11 @@ function _getScriptPropertyStringArray(key, fallback) {
 
   const normalized = String(raw).replace(/\r\n?/g, '\n');
   const hasStructuredSeparators = /[\n;]/.test(normalized);
-  return normalized
+  const values = normalized
     .split(hasStructuredSeparators ? /[\n;]/ : /,/)
     .map(value => value.trim())
     .filter(Boolean);
+  return values.length ? values : safeFallback;
 }
 
 var CONFIG = {

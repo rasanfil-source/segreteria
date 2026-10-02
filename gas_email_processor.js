@@ -388,6 +388,7 @@ var EmailProcessor = class EmailProcessor {
         when: (ctx) => ctx.classifierShouldReply === false,
         do: {
           status: 'filtered',
+          reason: (ctx) => ctx.classifierReason || 'classifier_filtered',
           logs: (ctx) => [`   ⊖ Filtrato dal classifier: ${ctx.classifierReason || ''}`],
           gmailActions: [{ type: 'markHandledUnread' }]
         }
@@ -517,7 +518,9 @@ var EmailProcessor = class EmailProcessor {
         result.status = decision.status;
       }
       if (Object.prototype.hasOwnProperty.call(decision, 'reason')) {
-        result.reason = decision.reason;
+        result.reason = (typeof decision.reason === 'function')
+          ? decision.reason(context)
+          : decision.reason;
       }
       if (Object.prototype.hasOwnProperty.call(decision, 'retryDelayMs')) {
         result.retryDelayMs = decision.retryDelayMs;
@@ -1344,7 +1347,8 @@ var EmailProcessor = class EmailProcessor {
       // Discovery e punto medio:
       // - in "Solo straniere" escludiamo '·' perché identifica email italiane già rinviate;
       // - in "Tutte le lingue" non lo escludiamo, così quelle email tornano lavorabili.
-      const labelsDaIgnorare = languageMode === 'foreign_only' ? [this.config.skipLabelName] : [];
+      const hasSkipLabel = Boolean(String(this.config.skipLabelName || '').trim());
+      const labelsDaIgnorare = languageMode === 'foreign_only' && hasSkipLabel ? [this.config.skipLabelName] : [];
       let labeledMessageIds = new Set();
       let skippedMessageIds = new Set();
       let messageLabelCachesPreloaded = false;
@@ -1396,7 +1400,7 @@ var EmailProcessor = class EmailProcessor {
 
         // Pre-caricamento degli ID dei messaggi con etichetta skip (·)
         // per evitare ri-discovery di thread già valutati in foreign_only.
-        if (languageMode === 'foreign_only') {
+        if (languageMode === 'foreign_only' && hasSkipLabel) {
           try {
             addIdsToSet(
               skippedMessageIds,
@@ -1795,7 +1799,8 @@ var EmailProcessor = class EmailProcessor {
     if (looksDailyQuota && !this._isGmailDailyQuotaError_(raw)) {
       const limiter = this.geminiService && this.geminiService.rateLimiter;
       if (limiter && typeof limiter._getNextResetTime === 'function') {
-        const resetMs = Date.parse(limiter._getNextResetTime());
+        const rawReset = limiter._getNextResetTime();
+        const resetMs = typeof rawReset === 'number' ? rawReset : new Date(rawReset).getTime();
         if (Number.isFinite(resetMs) && resetMs > Date.now()) return resetMs - Date.now() + 60000;
       }
     }
@@ -3230,12 +3235,18 @@ var EmailProcessor = class EmailProcessor {
       const day = parseInt(textualMatch[1], 10);
       const month = monthMap[textualMatch[2].toLowerCase()];
       const year = textualMatch[3] ? parseInt(textualMatch[3], 10) : defaultYear;
-      const date = this._makeValidDateOnly_(year, month, day);
+      let date = this._makeValidDateOnly_(year, month, day);
+      let leapYearAdjusted = false;
+      if (!date && !textualMatch[3] && month === 2 && day === 29) {
+        date = this._resolveNearestValidLeapDate_(year);
+        leapYearAdjusted = Boolean(date);
+      }
       if (date) {
         return {
           date: date,
           source: 'explicit:textual',
-          hasExplicitYear: Boolean(textualMatch[3])
+          hasExplicitYear: Boolean(textualMatch[3]),
+          leapYearAdjusted: leapYearAdjusted
         };
       }
     }
@@ -3262,16 +3273,30 @@ var EmailProcessor = class EmailProcessor {
       const month = parseInt(numericMatch[3], 10);
       let year = numericMatch[4] ? parseInt(numericMatch[4], 10) : defaultYear;
       if (year < 100) year += (year < 50 ? 2000 : 1900);
-      const date = this._makeValidDateOnly_(year, month, day);
+      let date = this._makeValidDateOnly_(year, month, day);
+      let leapYearAdjusted = false;
+      if (!date && !numericMatch[4] && month === 2 && day === 29) {
+        date = this._resolveNearestValidLeapDate_(year);
+        leapYearAdjusted = Boolean(date);
+      }
       if (date) {
         return {
           date: date,
           source: 'explicit:numeric',
-          hasExplicitYear: Boolean(numericMatch[4])
+          hasExplicitYear: Boolean(numericMatch[4]),
+          leapYearAdjusted: leapYearAdjusted
         };
       }
     }
 
+    return null;
+  }
+
+  _resolveNearestValidLeapDate_(referenceYear) {
+    for (let offset = 1; offset <= 8; offset++) {
+      const candidate = this._makeValidDateOnly_(referenceYear + offset, 2, 29);
+      if (candidate) return candidate;
+    }
     return null;
   }
 
@@ -3297,6 +3322,15 @@ var EmailProcessor = class EmailProcessor {
       };
     }
 
+    if (explicitDate.leapYearAdjusted === true && temporalIntent === 'future') {
+      return {
+        date: date,
+        source: `${explicitDate.source}:year_inferred_next`,
+        originalInferredDate: date,
+        temporalIntent: temporalIntent,
+        yearInference: 'next_valid_year_from_future_intent'
+      };
+    }
     const current = this._coerceBusinessDateOnly_(currentDate) || new Date();
     const comparison = this._dateOnlyEpochDay_(date) - this._dateOnlyEpochDay_(current);
     if (comparison < 0 && temporalIntent === 'future') {
@@ -3353,12 +3387,16 @@ var EmailProcessor = class EmailProcessor {
     if (!text.trim()) return null;
 
     const lines = text.split(/\r?\n/);
-    const preferredLines = lines.filter(line => /periodo\s+estiv/i.test(line));
-    const candidates = preferredLines.length > 0 ? preferredLines : lines;
-
-    for (const line of candidates) {
-      const parsed = this._parseItalianDateRange_(line, year);
+    const summerCue = /(?:periodo|orari[oa]?|mess[ae])\s+estiv/i;
+    for (let i = 0; i < lines.length; i++) {
+      if (!summerCue.test(lines[i])) continue;
+      const windowText = [lines[i], lines[i + 1] || ''].join(' ');
+      const parsed = this._parseItalianDateRange_(windowText, year);
       if (parsed) return parsed;
+    }
+    for (const line of lines) {
+      const parsed = this._parseItalianDateRange_(line, year);
+      if (parsed && parsed.start.getMonth() >= 4 && parsed.start.getMonth() <= 7) return parsed;
     }
 
     return null;
@@ -3367,7 +3405,7 @@ var EmailProcessor = class EmailProcessor {
   _parseItalianDateRange_(text, year) {
     const monthMap = this._getItalianMonthMap_();
     const monthNames = Object.keys(monthMap).join('|');
-    const pattern = new RegExp(`\\b(?:dal|da)\\s+(\\d{1,2})\\s+(${monthNames})\\s+(?:al|a)\\s+(\\d{1,2})\\s+(${monthNames})\\b`, 'i');
+    const pattern = new RegExp(`\\b(?:dall['’]?|dal|da)\\s*(\\d{1,2})[°º]?\\s+(${monthNames})(?:\\s+\\d{4})?\\s+(?:fino\\s+)?(?:all['’]?|al|a)\\s*(\\d{1,2})[°º]?\\s+(${monthNames})(?:\\s+\\d{4})?\\b`, 'i');
     const match = String(text || '').toLowerCase().match(pattern);
     if (!match) return null;
 
@@ -3376,7 +3414,7 @@ var EmailProcessor = class EmailProcessor {
     const start = this._makeValidDateOnly_(year, startMonth, parseInt(match[1], 10));
     const endYear = endMonth < startMonth ? year + 1 : year;
     const end = this._makeValidDateOnly_(endYear, endMonth, parseInt(match[3], 10));
-    if (!start || !end) return null;
+    if (!start || !end || this._dateOnlyEpochDay_(end) < this._dateOnlyEpochDay_(start)) return null;
 
     return {
       start: start,
@@ -3785,7 +3823,8 @@ var EmailProcessor = class EmailProcessor {
       targetLogger.warn(`⚠️ Recuperati ${metadataUnread.length} messaggi UNREAD via metadata dopo cache GmailApp incoerente.`);
     }
 
-    return nativeUnread.concat(metadataUnread);
+    const unreadMessages = new Set(nativeUnread.concat(metadataUnread));
+    return sourceMessages.filter(message => unreadMessages.has(message));
   }
 
   // Supporto per skippedMessageIds.
@@ -4060,7 +4099,7 @@ var EmailProcessor = class EmailProcessor {
     return info;
   }
 
-  _isValidationReviewAlertThrottled_(signature, alertConfig) {
+  _isValidationReviewAlertThrottled_(signature, alertConfig = {}) {
     const cooldownSeconds = Math.max(60, parseInt(alertConfig.cooldownSeconds, 10) || 3600);
     const hash = this._hashValidationReviewSignature_(signature);
     const key = `validation_review_alert_${hash}`;
@@ -4124,15 +4163,19 @@ var EmailProcessor = class EmailProcessor {
   }
 
   _hashValidationReviewSignature_(signature) {
+    const source = String(signature || '');
     try {
       if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.computeDigest === 'function') {
-        return Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, signature)).substring(0, 16);
+        const charset = Utilities.Charset && Utilities.Charset.UTF_8;
+        const digest = charset
+          ? Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, source, charset)
+          : Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, source);
+        return Utilities.base64EncodeWebSafe(digest).substring(0, 16);
       }
     } catch (e) {
       // fallback deterministico sotto.
     }
     let hash = 0;
-    const source = String(signature || '');
     for (let i = 0; i < source.length; i++) {
       hash = ((hash << 5) - hash + source.charCodeAt(i)) | 0;
     }
@@ -4469,7 +4512,9 @@ var EmailProcessor = class EmailProcessor {
     const runtimeReminder = rawRuntimeReminder.length > 4000
       ? `${rawRuntimeReminder.substring(0, 4000)}\n[...contesto runtime abbreviato...]`
       : rawRuntimeReminder;
-    const physicalConstraint = runtimeContext && runtimeContext.physicalPresenceConstraint;
+    const physicalConstraint = (runtimeContext && runtimeContext.physicalPresenceConstraint) ||
+      (details.physicalPresenceConstraint && details.physicalPresenceConstraint.constraint) ||
+      null;
     const physicalReminder = flags.physical_presence && physicalConstraint
       ? `\n- Vincolo presenza: type=${physicalConstraint.type || 'other'}, visit_policy=${physicalConstraint.visit_policy || 'unknown'}.`
       : '';
@@ -4725,8 +4770,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     if (headingIndex < 0) return source;
     const contentStart = headingIndex + title.length;
     const nextHeadingCandidates = ['\n**', '\n### ']
-      .map(pattern => source.indexOf(pattern, contentStart + 1))
-      .filter(index => index > contentStart);
+      .map(pattern => source.indexOf(pattern, contentStart))
+      .filter(index => index >= contentStart);
     const contentEnd = nextHeadingCandidates.length > 0
       ? Math.min.apply(null, nextHeadingCandidates)
       : source.length;
@@ -4887,7 +4932,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
 
   _stripDanglingRetryPromptTagFragment_(text) {
     return (typeof text === 'string' ? text : '')
-      .replace(/<\/?[A-Za-z_][A-Za-z0-9_:-]*$/, '')
+      .replace(/<\/?(?:[A-Za-z_][A-Za-z0-9_:-]*)?$/, '')
       .trimEnd();
   }
 
@@ -4989,7 +5034,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       const truncated = summary.slice(-maxChars);
       const firstBreak = truncated.indexOf('\n');
       const firstSpace = truncated.indexOf(' ');
-      const cutIndex = firstBreak > 0 ? firstBreak : (firstSpace > 0 ? firstSpace : 0);
+      const cutIndex = firstBreak >= 0 ? firstBreak : (firstSpace > 0 ? firstSpace : 0);
       summary = '...' + truncated.slice(cutIndex).trim();
     }
 
@@ -5339,7 +5384,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     const source = text.replace(/\b\d{1,2}([./-])\d{1,2}\1\d{2,4}\b/g, ' ')
       .replace(/\b(?:il|del|dal|al|am|den)\s+(?:0?[1-9]|[12]\d|3[01])\.(?:0?[1-9]|1[0-2])(?![\p{L}\p{N}_]|[.:/-]\d)/giu, ' ')
       .replace(/\b(?:luca|matteo|marco|giovanni|luke|matthew|mark|john)\s+\d+:\d+(?:-\d+)?/gi, ' ');
-    const matches = source.match(/(?<![\p{L}\p{N}_]|\d[.:/-])\d{1,2}(?:[:.]\d{2}|\s*h\s*\d{2})(?:\s*(?:am|pm))?(?![\p{L}\p{N}_]|[.:/-]\d)|(?<![\p{L}\p{N}_]|\d[.:/-])\d{1,2}\s*(?:am|pm|h|uhr)(?![\p{L}\p{N}_])|(?<=(?:^|[^\p{L}\p{N}_])(?:ore|alle|dalle|a\s+las|às|à|um|at)\s+)\d{1,2}(?![\p{L}\p{N}_]|[.:/-]\d)/giu) || [];
+    const matches = source.match(/(?<![\p{L}\p{N}_]|\d[.:/-])\d{1,2}(?:[:.]\d{2}|\s*h\s*\d{2})(?:\s*(?:h|uhr))?(?:\s*(?:am|pm))?(?![\p{L}\p{N}_]|[.:/-]\d)|(?<![\p{L}\p{N}_]|\d[.:/-])\d{1,2}\s*(?:am|pm|h|uhr)(?![\p{L}\p{N}_])|(?<=(?:^|[^\p{L}\p{N}_])(?:ore|alle|dalle|a\s+las|às|à|um|at)\s+)\d{1,2}(?![\p{L}\p{N}_]|[.:/-]\d)/giu) || [];
     const normalized = matches.map((time) => {
       const parsed = time.trim().match(/^(\d{1,2})(?:(?:[:.]|\s*h\s*)(\d{2}))?\s*(?:h|uhr)?\s*(am|pm)?$/i);
       if (!parsed) return null;
@@ -5507,7 +5552,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       de: "\n\nHinweis: Wir informieren Sie, dass das Treffen zu einer anderen Zeit stattfinden wird, als von Ihnen angegeben."
     };
 
-    const lang = String(detectedLanguage || 'it').toLowerCase().split('-')[0];
+    const lang = this._normalizeLanguageCode_(detectedLanguage, 'it');
     const footer = notes[lang];
     if (!footer) return response;
 
@@ -5603,10 +5648,14 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     };
 
     const doubtText = bodyLower.replace(/\b(?:senza\s+dubbi[oa]?|nessun\s+dubbio|non\s+ho\s+(?:(?:alcun|nessun)\s+dubbio|dubbi))\b/g, '');
-    const matchedQuestioned = patterns.questioned.find(p => (p === 'dubbio' ? doubtText : bodyLower).includes(p));
-    const matchedExpansion = patterns.needs_expansion.find(p => bodyLower.includes(p));
+    const matchesPhrase = (source, phrase) => {
+      const escaped = String(phrase || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'iu').test(source);
+    };
+    const matchedQuestioned = patterns.questioned.find(p => matchesPhrase(p === 'dubbio' ? doubtText : bodyLower, p));
+    const matchedExpansion = patterns.needs_expansion.find(p => matchesPhrase(bodyLower, p));
     const negatedAck = /\b(?:non\s+(?:ho\s+)?ricevut\w*|non\s+[eè]\s+(?:tutto\s+)?chiar\w*|non\s+(?:ho\s+)?compreso|not\s+(?:received|understood|all\s+clear)|haven't\s+received|no\s+(?:he\s+)?recibid\w*)\b/i.test(bodyLower);
-    const matchedAcknowledged = !negatedAck && patterns.acknowledged.find(p => bodyLower.includes(p));
+    const matchedAcknowledged = !negatedAck && patterns.acknowledged.find(p => matchesPhrase(bodyLower, p));
     const acknowledgementIsPure = Boolean(
       matchedAcknowledged &&
       wordCount <= 16 &&
@@ -5665,7 +5714,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
         ? acknowledgementIsPure
         : (uniqueNormalizedTopics.length === 1 && wordCount <= 16);
       if (canUseLastTopicFallback) {
-        targetTopics = [normalizedTopics[normalizedTopics.length - 1]].filter(Boolean);
+        targetTopics = [uniqueNormalizedTopics[uniqueNormalizedTopics.length - 1]].filter(Boolean);
       }
     }
 
@@ -5977,7 +6026,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       set('other', 'active', 'legacy');
     }
     const assertions = this._presenceAssertionText_(body);
-    const localPresence = this._detectCurrentLocalPresence_('', assertions);
+    const subjectAssertions = this._presenceAssertionText_(subject);
+    const localPresence = this._detectCurrentLocalPresence_(subjectAssertions, assertions);
     // Ogni tipo si risolve separatamente. La disponibilità generica non prova
     // guarigione, fine di una restrizione legale o cessazione di assistenza.
     const resolutions = {
@@ -5999,7 +6049,6 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     // I segnali locali possono recuperare un secondo impedimento indipendente.
     const activeAssertions = assertions.split('\n').filter(clause =>
       !Object.values(resolutions).some(pattern => pattern.test(clause))).join('\n');
-    const subjectAssertions = this._presenceAssertionText_(subject);
     const localConstraints = this._detectPhysicalPresenceConstraint_(subjectAssertions, activeAssertions, true);
     // Una nuova affermazione di impedimento prevale su una risoluzione
     // contraddittoria nello stesso messaggio; la residenza non nega l'arrivo.
@@ -6019,6 +6068,15 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       // Registra anche la risoluzione geografica corrente, così il vecchio flag
       // non torna a prevalere nei chiamanti che hanno già uno stato tipizzato.
       if (entries.has(type) || type === 'geographic_distance') set(type, 'resolved', 'current_resolution');
+    }
+    if (entries.has('other') && resolvedTypes.size > 0) {
+      const otherEntry = entries.get('other');
+      const hasNewOtherConstraint = candidates.some(candidate => candidate && candidate.type === 'other' &&
+        candidate.has_constraint && Number(candidate.confidence) >= 0.65);
+      if (!hasNewOtherConstraint &&
+          (otherEntry.source === 'legacy' || resolvedTypes.has('temporary_unavailability') || resolvedTypes.has('remote_request'))) {
+        set('other', 'resolved', 'current_resolution');
+      }
     }
     const state = normalizePhysicalPresenceState_({version: 1, constraints: Array.from(entries.values())});
     const active = state ? state.constraints.filter(entry => entry.status === 'active') : [];
@@ -6065,6 +6123,17 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
 
     const fallback = this._detectPhysicalPresenceConstraint_(subject, body);
     if (fallback) {
+      if (currentLocalPresence && fallback.type === 'geographic_distance') {
+        return {
+          has_constraint: false,
+          type: 'none',
+          confidence: currentLocalPresence.confidence,
+          evidence: '',
+          reason: currentLocalPresence.reason,
+          visit_policy: 'visit_ok',
+          source: 'current_local_presence_override'
+        };
+      }
       if (scheduledPresence) fallback.scheduled_presence = scheduledPresence;
       return fallback;
     }
@@ -6149,8 +6218,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     for (const rule of rules) {
       if (rule.pattern.test(compact)) {
         if (collectAll) {
-          // Normalizza solo il corpo: l'oggetto non deve creare evidenze personali nella clausola.
-          const clauses = String(body || '').toLowerCase().normalize('NFD')
+          // Separa oggetto e corpo per non fondere evidenze di clausole distinte.
+          const clauses = `${subject || ''}\n${body || ''}`.toLowerCase().normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '').split(/[.!?;\n]+/);
           const personal = clauses.some(clause => {
             if (!rule.pattern.test(clause)) return false;

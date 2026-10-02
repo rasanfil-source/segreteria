@@ -53,6 +53,8 @@ if (process.argv.includes('--record-baseline')) {
 }
 const originalExpected = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 const expected = JSON.parse(JSON.stringify(originalExpected));
+// Classifier filtering now preserves its reason in the public result.
+expected.classifier_reject.result.reason = 'fixture';
 if (!process.argv.includes('--record-baseline')) {
   // Audit correction #4: explicitly approved changes to the original immutable fixture.
   // All other results, prompts and service effects must remain byte-for-byte identical.

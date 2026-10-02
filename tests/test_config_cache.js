@@ -166,6 +166,7 @@ assert(
 );
 
 backingProps.set('CUSTOM_STRUCTURED_LIST', 'uno@example.com\r\nDisplay, Name <due@example.com>;tre@example.com');
+_clearScriptPropertyCache('CUSTOM_STRUCTURED_LIST');
 assert(
   JSON.stringify(_getScriptPropertyStringArray('CUSTOM_STRUCTURED_LIST', [])) === JSON.stringify([
     'uno@example.com',
@@ -176,6 +177,7 @@ assert(
 );
 
 backingProps.set('CUSTOM_JSON_LIST', JSON.stringify([' Display, Name <json@example.com> ', '', 'altro@example.com']));
+_clearScriptPropertyCache('CUSTOM_JSON_LIST');
 assert(
   JSON.stringify(_getScriptPropertyStringArray('CUSTOM_JSON_LIST', [])) === JSON.stringify([
     'Display, Name <json@example.com>',

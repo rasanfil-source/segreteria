@@ -133,10 +133,10 @@ var Classifier = class Classifier {
       const lastGt = cut.lastIndexOf('>');
 
       // Evita di lasciare nel payload un tag HTML aperto/spezzato dal troncamento.
-      if (lastLt > lastGt) {
+      if (lastLt > lastGt && (cut.length - lastLt) <= 256 && /^<\/?[A-Za-z][^<>]*$/.test(cut.slice(lastLt))) {
         safeBody = cut.substring(0, lastLt);
       } else {
-        const boundary = Math.max(cut.lastIndexOf('>'), cut.lastIndexOf(' '), cut.lastIndexOf('\n'));
+        const boundary = Math.max(lastGt >= 0 ? lastGt + 1 : -1, cut.lastIndexOf(' '), cut.lastIndexOf('\n'));
         safeBody = boundary > 0 ? cut.substring(0, boundary) : cut;
       }
     }
@@ -322,7 +322,7 @@ var Classifier = class Classifier {
 
       // Mantieni righe vuote per separazione paragrafi
       if (stripped === '') {
-        if (inQuoteBlock && quoteMode === 'header') quoteMode = 'history';
+        if (inQuoteBlock && quoteMode === 'header') quoteMode = 'after_header';
         if (!inQuoteBlock) cleanLines.push(safeLine);
         continue;
       }
@@ -351,7 +351,7 @@ var Classifier = class Classifier {
           (/^(?:Da|From|De|Von|A|To|Para|An|Cc|Bcc|Ccn|Oggetto|Subject|Assunto|Asunto|Objet|Betreff|Data|Date|Fecha|Datum|Inviato|Sent|Enviado|Envoy[eé]|Gesendet):/iu.test(stripped.normalize('NFC')) ||
            /^[ \t]+\S/.test(safeLine))) continue;
       // Only prefixed quotations allow inline replies. A new header resets the mode.
-      if (inQuoteBlock && quoteMode === 'header') quoteMode = 'history';
+      if (inQuoteBlock && (quoteMode === 'header' || quoteMode === 'after_header')) quoteMode = 'history';
       if (inQuoteBlock && quoteMode === 'history') continue;
       if (inQuoteBlock &&
           /^[\p{L}\p{N}]/u.test(stripped) &&
@@ -414,7 +414,8 @@ var Classifier = class Classifier {
       if (tailLooksLikeSignature) signatureStartIndex = i;
     }
     if (signatureStartIndex !== -1) {
-      const sliceEnd = options.preserveGreetings ? signatureStartIndex + 1 : signatureStartIndex;
+      const isTechnicalSignatureDelimiter = /^--\s*$/.test(contentLines[signatureStartIndex].trim());
+      const sliceEnd = (options.preserveGreetings && !isTechnicalSignatureDelimiter) ? signatureStartIndex + 1 : signatureStartIndex;
       content = contentLines.slice(0, sliceEnd).join('\n').trim();
     }
 
@@ -461,11 +462,15 @@ var Classifier = class Classifier {
    * Rileva pattern espliciti di auto-risposta (OOO/ferie)
    */
   _isOutOfOfficeAutoReply(subject, body) {
-    const normalized = `${subject || ''} ${this._extractMainContent(String(body || ''), { preserveGreetings: true })}`.toLowerCase();
+    const rawSubject = String(subject || '');
+    const extractedBody = this._extractMainContent(String(body || ''), { preserveGreetings: true });
+    const normalized = `${rawSubject} ${extractedBody}`.toLowerCase();
     // Una descrizione personale dell'assenza non prova un autoresponder.
-    const explicitAutoReply = /\b(?:auto(?:matic)?\s*reply|risposta\s+automatica)\b/i;
-    if (explicitAutoReply.test(String(subject || ''))) return true;
-    if (/[?？]|\b(?:possiamo|vorrei|potete|chiedo|fissare|appuntamento)\b/i.test(normalized)) return false;
+    const explicitAutoReply = /\b(?:auto(?:matic)?\s*reply|risposta\s+automatica|out\s+of\s+(?:the\s+)?office)\b/i;
+    if (explicitAutoReply.test(rawSubject)) return true;
+    const isReplySubject = /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]/i.test(rawSubject.trim());
+    const textForRequestCheck = isReplySubject ? extractedBody.toLowerCase() : normalized;
+    if (/[?？]|\b(?:possiamo|vorrei|potete|chiedo|fissare|appuntamento)\b/i.test(textForRequestCheck)) return false;
     const oooPatterns = [
       /\bout\s+of\s+office\b/i,
       /\bout\s+of\s+the\s+office\b/i,
@@ -582,13 +587,12 @@ var Classifier = class Classifier {
   _matchesCategoryKeyword_(textLower, keyword, category) {
     const normalizedKeyword = String(keyword || '').toLowerCase().trim();
     if (!normalizedKeyword) return false;
-    if (category === 'sbattezzo' && normalizedKeyword === 'uscire dalla chiesa') {
-      return this._isSbattezzoFormalRequest_(textLower);
-    }
-
     const escaped = normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const keywordRegex = new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'iu');
     if (!keywordRegex.test(textLower)) return false;
+    if (category === 'sbattezzo' && normalizedKeyword === 'uscire dalla chiesa') {
+      return this._isSbattezzoFormalRequest_(textLower);
+    }
 
     if (category === 'document_submission' && normalizedKeyword === 'documento di') {
       return /\b(allego|in\s+allegato|invio|trasmetto|mando|inoltro|spedisco)\b/i.test(textLower);
@@ -660,8 +664,8 @@ var Classifier = class Classifier {
       /\bcontatto\s+telefonico\b/i,
       /\bcolloquio\s+telefonico\b/i,
       /\btelefonata\s+(?:intercorsa|avuta|di|del|della|con)\b/i,
-      /\b(?:ci\s+siamo\s+sentit[ie]|vi\s+siete\s+sentit[ie]|mi\s+sono\s+sentit[oa])\b/i,
-      /\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\b/i,
+      /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:ci\s+siamo\s+sentit[ie]|vi\s+siete\s+sentit[ie]|mi\s+sono\s+sentit[oa])\b/i,
+      /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\b/i,
       /\bcome\s+(?:gia\s+|già\s+)?(?:concordato|anticipato|accennato)\b/i,
       /\bcome\s+da\s+(?:accordi|telefonata|colloquio|incontro)\b/i,
       /\bcome\s+ci\s+siamo\s+detti\b/i,
@@ -687,7 +691,7 @@ var Classifier = class Classifier {
     return {
       detected: signals.length > 0,
       strength: strongSignals.length > 0 ? 'strong' : (weakSignals.length > 0 ? 'weak' : 'none'),
-      mentioned_contact: this._extractPriorCommunicationContact_(normalized),
+      mentioned_contact: signals.length > 0 ? this._extractPriorCommunicationContact_(normalized) : null,
       signals: signals.slice(0, 4)
     };
   }
@@ -706,9 +710,9 @@ var Classifier = class Classifier {
   _extractPriorCommunicationContact_(text) {
     const safeText = String(text || '').normalize('NFC');
     const contactPatterns = [
-      /\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\s+((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)\s+[\p{L}'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)(?=$|[^\p{L}\p{N}_])/iu,
-      /\b(?:mi\s+sono\s+sentit[oa]|ci\s+siamo\s+sentit[ie]|vi\s+siete\s+sentit[ie])\s+con\s+((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)\s+[\p{L}'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)(?=$|[^\p{L}\p{N}_])/iu,
-      /\b(?:referente|riferimento|contatto)\s*[:\-]\s*((?:don|padre|mons\.?|monsignore|sig\.?|sig\.ra|signor|signora)?\s*[\p{L}'’ -]{2,45})(?=$|[^\p{L}\p{N}_])/iu
+      /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\s+(?:(?:il|lo|la|l['’])\s*)?((?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)\s+[\p{L}'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)(?=$|[^\p{L}\p{N}_])/iu,
+      /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:mi\s+sono\s+sentit[oa]|ci\s+siamo\s+sentit[ie]|vi\s+siete\s+sentit[ie])\s+con\s+(?:(?:il|lo|la|l['’])\s*)?((?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)\s+[\p{L}'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)(?=$|[^\p{L}\p{N}_])/iu,
+      /\b(?:referente|riferimento|contatto)\s*[:\-]\s*(?:(?:il|lo|la|l['’])\s*)?((?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)?\s*[\p{L}'’ -]{2,45})(?=$|[^\p{L}\p{N}_])/iu
     ];
 
     for (const pattern of contactPatterns) {
