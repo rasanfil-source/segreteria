@@ -59,7 +59,8 @@ const greetings = {
 for (const [language, texts] of Object.entries(greetings)) for (let hour = 0; hour < 24; hour++) for (let slot = 0; slot < 3; slot++) row(`greeting ${language}/${hour}/${slot}`, () => {
   const noon = { en: 12, pt: 12 }[language] || 13;
   const evening = ['en', 'de'].includes(language) ? 18 : 19;
-  const expectedSlot = hour < 5 || hour >= evening ? 2 : hour < noon ? 0 : 1;
+  const expectedSlot = language === 'fr' ? (hour >= 5 && hour < 18 ? 0 : 2)
+    : hour < 5 || hour >= evening ? 2 : hour < noon ? 0 : 1;
   const appropriate = slot === expectedSlot || (language === 'de' && slot === 1);
   const result = v._checkTimeBasedGreeting(texts[slot] + ', grazie.', language, { currentTime: `${hour}:00` });
   assert.equal(result.score, appropriate ? 1 : 0.97);

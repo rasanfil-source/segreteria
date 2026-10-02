@@ -1998,8 +1998,10 @@ var EmailProcessor = class EmailProcessor {
       .map(k => String(k == null ? '' : k).trim().toLowerCase())
       .filter(Boolean);
 
-    if (ignoreKeywords.some(keyword => subject.includes(keyword) || body.includes(keyword))) {
-      console.log(`🚫 Ignorato: oggetto o corpo contiene keyword vietata`);
+    const headers = Object.fromEntries(Object.entries(messageDetails.headers || {}).map(([key,value]) => [key.toLowerCase(),String(value || '')]));
+    const hasMailingListHeaders = Boolean(headers['list-unsubscribe']) || /\b(?:bulk|list)\b/i.test(headers.precedence || '');
+    if (ignoreKeywords.some(keyword => subject.includes(keyword) || (hasMailingListHeaders && body.includes(keyword)))) {
+      console.log('🚫 Ignorato: keyword in oggetto o in corpo con header mailing list');
       return true;
     }
 
@@ -2701,6 +2703,16 @@ var EmailProcessor = class EmailProcessor {
 
     let deletionsCount = 0;
     const MAX_DELETIONS_PER_RUN = 20;
+
+    // Remove only redundant uncertainty markers with still-valid confirmed evidence.
+    // Age alone cannot establish whether an ambiguous send succeeded.
+    for (const key of Object.keys(allProps)) {
+      if (!key.startsWith('send_uncertain_') || deletionsCount >= MAX_DELETIONS_PER_RUN) continue;
+      const confirmed = this._parseSendIdempotencyBackupValue_(allProps['sent_backup_' + key.slice('send_uncertain_'.length)]);
+      if (confirmed && nowTs <= confirmed.expiresAt) {
+        try { props.deleteProperty(key); deletionsCount++; } catch (_) { }
+      }
+    }
 
     for (const key of Object.keys(allProps)) {
       if (!key || !key.startsWith('sent_backup_')) continue;

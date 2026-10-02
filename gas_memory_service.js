@@ -1129,6 +1129,7 @@ var MemoryService = class MemoryService {
         if (existingRow) {
           const existingData = this._rowToObject(existingRow.values);
           const existingTopics = this._normalizeProvidedTopics(existingData.providedInfo || []);
+          existingData.memorySummary = existingData._rawMemorySummary || existingData.memorySummary;
           const normalizedTopics = this._normalizeProvidedTopics(topics, new Date().toISOString());
           let mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
 
@@ -1277,6 +1278,7 @@ var MemoryService = class MemoryService {
         );
         existingData.lastUpdated = now;
         existingData.version = (existingData.version || 0) + 1;
+        existingData.memorySummary = existingData._rawMemorySummary || existingData.memorySummary;
 
         this._invalidateCache(`memory_${normalizedThreadId}`);
         this._withSheetWriteLock(() => {
@@ -1694,6 +1696,7 @@ var MemoryService = class MemoryService {
 
         const existingData = this._rowToObject(existingRow.values);
         const existingTopics = this._normalizeProvidedTopics(Array.isArray(existingData.providedInfo) ? existingData.providedInfo : []);
+        existingData.memorySummary = existingData._rawMemorySummary || existingData.memorySummary;
         const normalizedTopics = this._normalizeProvidedTopics(providedInfo);
         let mergedTopics = this._mergeProvidedTopics(existingTopics, normalizedTopics);
         mergedTopics = this._shrinkProvidedInfoToCaps(

@@ -311,6 +311,29 @@ var ThreadPolicy = {
     // Percorriamo una finestra degli ultimi MAX_THREAD_LENGTH messaggi a ritroso
     // per contare sequenze esterne e densità di risposte del bot.
     const startIndex = Math.max(0, messages.length - MAX_THREAD_LENGTH);
+    const senderOf = message => {
+      const from = message && typeof message.getFrom === 'function' ? message.getFrom() : '';
+      return deps._normalizeEmailAddress_(deps.gmailService && typeof deps.gmailService._extractEmailAddress === 'function'
+        ? deps.gmailService._extractEmailAddress(from) : from);
+    };
+    let rapidReplyPairs = 0;
+    const latestSender = senderOf(messages[messages.length - 1]);
+    for (let i = messages.length - 1; i > startIndex; i -= 2) {
+      const external = messages[i], previous = messages[i - 1];
+      if (!latestSender || ownAddresses.has(latestSender) || senderOf(external) !== latestSender || !ownAddresses.has(senderOf(previous))) break;
+      const externalTime = typeof external.getDate === 'function' ? Number(external.getDate()) : NaN;
+      const ownTime = typeof previous.getDate === 'function' ? Number(previous.getDate()) : NaN;
+      const gap = externalTime - ownTime;
+      if (!Number.isFinite(gap) || gap < 0 || gap > 10 * 60 * 1000) break;
+      rapidReplyPairs++;
+    }
+    if (rapidReplyPairs >= 3) {
+      messageState.markFailureForCurrentBurst('validation', {reason:'possible_email_loop', subject:messageDetails.subject}, false);
+      result.status = 'validation_failed';
+      result.validationFailed = true;
+      result.reason = 'possible_email_loop';
+      return {terminal:true};
+    }
     for (let i = messages.length - 1; i >= startIndex; i--) {
       const rawFrom = messages[i] && typeof messages[i].getFrom === 'function'
         ? messages[i].getFrom()
@@ -338,6 +361,7 @@ var ThreadPolicy = {
         console.log(`   ⊖ Saltato: prevenzione loop email attivata (ping-pong/thread ripetitivo: interventiBot=${totalBotRepliesInThread}, sogliaBot=${maxBotRepliesInLongThread}, consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
         messageState.markFailureForCurrentBurst('validation', { reason: 'possible_email_loop', subject: messageDetails.subject }, false);
         result.status = 'validation_failed';
+        result.validationFailed = true;
         result.reason = 'possible_email_loop';
         return { terminal: true };
       }
@@ -477,6 +501,13 @@ var ThreadPolicy = {
         quickIntentContext
       );
     } catch (quickError) {
+      if (quickError && quickError.code === 'TRUNCATED_OUTPUT') {
+        messageState.markFailureForCurrentBurst('validation', {reason:'quick_check_truncated_output'}, false);
+        result.status = 'validation_failed';
+        result.validationFailed = true;
+        result.reason = 'quick_check_truncated_output';
+        return {terminal:true};
+      }
       const quickErrorClass = deps._classifyError(quickError);
       const quickErrorMessage = quickError && quickError.message ? quickError.message : String(quickError);
       const isSystemic = quickErrorClass.type === 'SYSTEM_ERROR' || quickErrorClass.type === 'CONFIG_ERROR' || quickErrorClass.type === 'INVALID_API_KEY' || /\b(401|403|404)\b/.test(quickErrorMessage);

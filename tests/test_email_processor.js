@@ -1715,7 +1715,7 @@ console.log('--- Test processThread: alias interno interrompe la sequenza estern
   global.GLOBAL_CACHE.languageMode = originalLanguageMode;
 }
 
-console.log('--- Test processThread: ping-pong alternato non attiva anti-loop al 50% bot ---');
+console.log('--- Test processThread: alternanza lenta non attiva anti-loop al 50% bot ---');
 {
   const originalSession = global.Session;
   const originalGmailApp = global.GmailApp;
@@ -1766,7 +1766,7 @@ console.log('--- Test processThread: ping-pong alternato non attiva anti-loop al
       isBot ? 'Segreteria <segreteria@example.org>' : 'Utente <utente@example.org>',
       `Ping pong ${index}`,
       isBot ? 'Risposta della segreteria.' : 'Messaggio di follow-up esterno.',
-      new Date(baseDate.getTime() + index * 60000)
+      new Date(baseDate.getTime() + index * 20 * 60000)
     );
   });
 

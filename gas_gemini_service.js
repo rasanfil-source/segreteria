@@ -26,7 +26,7 @@ var GEMINI_TASK_PROFILES = {
     topP: 0.95
   },
   quick_check: {
-    defaultMaxOutputTokens: 1024,
+    defaultMaxOutputTokens: 2048,
     temperature: 0.1,
     topK: 40,
     topP: 0.95,
@@ -1857,7 +1857,7 @@ var GeminiService = class GeminiService {
    * @param {string|null} [apiKeyOverride] - Chiave coerente con il modelKey scelto dal RateLimiter
    * @returns {Object} Risultato controllo rapido
    */
-  _quickCheckWithModel(emailContent, emailSubject, modelName, precomputedDetection = null, intentContext = null, apiKeyOverride = null) {
+  _quickCheckWithModel(emailContent, emailSubject, modelName, precomputedDetection = null, intentContext = null, apiKeyOverride = null, maxOutputTokens = 2048) {
     const promptContext = EmailQuickCheckPolicy.buildPrompt(emailContent, emailSubject, intentContext);
     const detection = precomputedDetection || this.detectEmailLanguage(promptContext.safeContent, promptContext.safeSubject);
     const prompt = promptContext.prompt;
@@ -1875,6 +1875,7 @@ var GeminiService = class GeminiService {
     const builtPayload = client.buildGenerateContentPayload({
       taskType: 'quick_check',
       prompt: prompt,
+      generationConfigOverrides: {maxOutputTokens},
       modelName: modelName
     });
     const requestPayload = {
@@ -2809,6 +2810,16 @@ Testo:
    * Supporta Rate Limiter + alternativa originale
    */
   shouldRespondToEmail(emailContent, emailSubject, precomputedDetection = null, intentContext = null) {
+    try {
+      return this._shouldRespondToEmailAttempt_(emailContent, emailSubject, precomputedDetection, intentContext, 2048);
+    } catch (error) {
+      if (error.code !== 'TRUNCATED_OUTPUT') throw error;
+      // Re-enter the limiter: both attempts must be accounted for.
+      return this._shouldRespondToEmailAttempt_(emailContent, emailSubject, precomputedDetection, intentContext, 4096);
+    }
+  }
+
+  _shouldRespondToEmailAttempt_(emailContent, emailSubject, precomputedDetection = null, intentContext = null, maxOutputTokens = 2048) {
     const detection = precomputedDetection || this.detectEmailLanguage(emailContent, emailSubject);
 
     // PERCORSO LIMITATORE DI VELOCITÀ
@@ -2820,7 +2831,7 @@ Testo:
             const selectedApiKey = requestContext && requestContext.usesBackupKey && this.backupKey
               ? this.backupKey
               : this.primaryKey;
-            return this._quickCheckWithModel(emailContent, emailSubject, modelName, detection, intentContext, selectedApiKey);
+            return this._quickCheckWithModel(emailContent, emailSubject, modelName, detection, intentContext, selectedApiKey, maxOutputTokens);
           },
           {
             estimatedTokens: this._estimateTokens(EmailQuickCheckPolicy.buildPrompt(emailContent, emailSubject, intentContext).prompt)
@@ -2862,7 +2873,7 @@ Testo:
       console.log(`🔍 Gemini quick check per: ${safeSubject.substring(0, 40)}...`);
       return this._runConfiguredTask_('quick_check',
         (model, context) => this._quickCheckWithModel(emailContent, safeSubject, model, detection, intentContext,
-          context.usesBackupKey ? this.backupKey : this.primaryKey));
+          context.usesBackupKey ? this.backupKey : this.primaryKey, maxOutputTokens));
     } catch (error) {
       console.warn(`⚠️ Quick check fallito: ${error.message}. Interruzione per evitare skip silente.`);
       throw error;

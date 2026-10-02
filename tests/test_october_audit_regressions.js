@@ -64,6 +64,41 @@ const lifecycleResult = ctx.ThreadLifecycle.handleError({_classifyError:ctx.clas
   startTime: Date.now()
 });
 assert.equal(lifecycleResult.errorClass, 'SYSTEM_ERROR');
+assert.equal(lifecycleResult.error, '403 Forbidden');
+
+for (const confirmed of [false, true]) {
+  for (const [error, expectedText] of [
+    ['403 Forbidden', '403 Forbidden'],
+    [null, 'Errore non specificato'],
+    [undefined, 'Errore non specificato'],
+    [new Error('storage failed'), 'storage failed'],
+    [{status:403, detail:'denied'}, '{"status":403,"detail":"denied"}'],
+    [0, '0']
+  ]) {
+    const logs = [], marks = [];
+    const result = ctx.ThreadLifecycle.handleError({_classifyError:ctx.classifyError}, {
+      threadLogger: {error:(text)=>logs.push(text),warn:(text)=>logs.push(text)},
+      error, delivery:{confirmed}, result:{}, startTime:Date.now(),
+      messageState:{
+        markHandledUnreadOnce(){throw 'label unavailable';},
+        markFailureForCurrentBurst(){marks.push('error'); throw null;}
+      }
+    });
+    assert(logs[0].includes(expectedText));
+    if(confirmed) {
+      assert.equal(result.status,'replied');
+      assert.equal(result.warning,'post_send_error: '+expectedText);
+      assert.equal(marks.length,0);
+      assert(logs.some(text=>text.includes('label unavailable')));
+    } else {
+      assert.equal(result.error,expectedText);
+      if(expectedText.includes('403')) {
+        assert.equal(result.errorClass,'SYSTEM_ERROR');
+        assert.equal(marks.length,0);
+      }
+    }
+  }
+}
 
 // Test ThreadDelivery.send con responseContextMessages vuoto/non definito
 let txnRollbackCalled = false;
@@ -87,4 +122,22 @@ ctx.ThreadDelivery.send({
   usedLookbackAttachments: false
 });
 assert.equal(txnRollbackCalled, true);
+
+// Exercise the actual ambiguous-send branch, which must never roll back.
+for(const propsPresent of [true,false]) for(const messages of [null,undefined,[]]) {
+  const writes=[], marks=[], result={};
+  ctx.ThreadDelivery.send({config:{dryRun:false},_beginSendTransaction:()=>({ok:true}),
+    _rollbackSendTransaction(){assert.fail('uncertain send must not roll back');},
+    _classifyError:()=>({type:'NETWORK',retryable:true}),
+    props:propsPresent?{setProperty:(key)=>writes.push(key)}:null,
+    gmailService:{sendHtmlReply(){throw Error('timeout');},reconcileSendOperation:()=>false}
+  },{response:'test',result,startTime:Date.now(),threadLogger:{info(){},warn(){},error(){}},
+    messageState:{candidate:{getId:()=> 'candidate'},responseContextMessages:messages,
+      markFailureForCurrentBurst:(kind)=>marks.push(kind)},
+    messageDetails:{subject:'test'},delivery:{},threadId:'thread'});
+  assert.equal(result.reason,'gmail_send_uncertain');
+  assert.equal(result.status,'validation_failed');
+  assert.deepEqual(marks,['validation']);
+  assert.deepEqual(writes,propsPresent?['send_uncertain_candidate']:[]);
+}
 

@@ -5,35 +5,43 @@
 var ThreadLifecycle = {
   /** handleError: ingressi locali espliciti; restituisce i dati della fase. */
   handleError(deps, { threadLogger, error, delivery, messageState, result, startTime }) {
-    threadLogger.error(`Errore elaborazione thread: ${error.message}`, { stack: error && error.stack ? error.stack : undefined });
+    const errorText = (value) => {
+      if (value == null) return 'Errore non specificato';
+      if (value.message != null) return String(value.message);
+      if (typeof value === 'object') {
+        try { return JSON.stringify(value) || String(value); } catch (_) { }
+      }
+      return String(value);
+    };
+    const rawErrorMessage = errorText(error);
+    threadLogger.error(`Errore elaborazione thread: ${rawErrorMessage}`, { stack: error && error.stack ? error.stack : undefined });
 
     if (delivery.confirmed) {
       threadLogger.warn('Errore post-invio: thread non etichettato come errore perché la risposta è stata già inviata');
       try {
         messageState.markHandledUnreadOnce();
       } catch (markError) {
-        threadLogger.warn(`Errore label post-invio silenziato: ${markError.message}`);
+        threadLogger.warn(`Errore label post-invio silenziato: ${errorText(markError)}`);
       }
       result.status = 'replied';
-      result.warning = `post_send_error: ${error.message}`;
+      result.warning = `post_send_error: ${rawErrorMessage}`;
       result.durationMs = Date.now() - startTime;
       return result;
     }
 
     const unhandledErrorClass = deps._classifyError(error);
-    const rawErrorMessage = (error && error.message) ? error.message : String(error || '');
     const isSystemic = unhandledErrorClass.type === 'SYSTEM_ERROR' || unhandledErrorClass.type === 'CONFIG_ERROR' || unhandledErrorClass.type === 'INVALID_API_KEY' || /\b(401|403|404)\b/.test(rawErrorMessage);
     if (!unhandledErrorClass.retryable && !isSystemic) {
       try {
         messageState.markFailureForCurrentBurst('error');
       } catch (labelError) {
-        threadLogger.warn(`Errore aggiunta errorLabel silenziato: ${labelError.message}`);
+        threadLogger.warn(`Errore aggiunta errorLabel silenziato: ${errorText(labelError)}`);
       }
     } else {
       threadLogger.warn(`Errore retryable o sistemico (${unhandledErrorClass.type}): nessuna label permanente applicata.`);
     }
     result.status = 'error';
-    result.error = error.message;
+    result.error = rawErrorMessage;
     result.errorClass = isSystemic ? 'SYSTEM_ERROR' : unhandledErrorClass.type;
     return result;
   },

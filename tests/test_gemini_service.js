@@ -254,7 +254,7 @@ console.log('--- Test Gemini task profiles: generation e quick_check hanno confi
     'Gemini 3.5 Flash-Lite non deve ricevere parametri di sampling deprecati'
   );
   assert(legacyGenerationConfig.temperature === 0.25, 'i modelli legacy devono conservare il profilo di sampling compatibile');
-  assert(quickLiteConfig.maxOutputTokens === 1024, 'quick_check deve avere budget token dedicato');
+  assert(quickLiteConfig.maxOutputTokens === 2048, 'quick_check deve avere budget token dedicato');
   assert(!Object.prototype.hasOwnProperty.call(quickLiteConfig, 'responseMimeType'), 'quick_check lite non deve forzare JSON MIME');
   assert(quickFlashConfig.responseMimeType === 'application/json', 'quick_check non-lite deve richiedere JSON MIME');
 }

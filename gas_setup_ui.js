@@ -139,7 +139,7 @@ function setupControlloSheet(ss) {
   safeMerge(sheet.getRange('E1:F1'));
   applyFormulaWithLocaleFallback_(
     sheet.getRange('E1:F1'),
-    '=IF($B$2="Spento";"🔴 Spento";IF(SUMPRODUCT((TODAY()>=$B$5:$B$7)*(TODAY()<=$D$5:$D$7)*($B$5:$B$7<>""))>0;"🟢 Attiva (Ferie/H24)";IFERROR(IF(OR(AND(INDEX($B$10:$B$16;WEEKDAY(TODAY();2))<INDEX($D$10:$D$16;WEEKDAY(TODAY();2));HOUR(NOW())>=INDEX($B$10:$B$16;WEEKDAY(TODAY();2));HOUR(NOW())<INDEX($D$10:$D$16;WEEKDAY(TODAY();2)));AND(INDEX($B$10:$B$16;WEEKDAY(TODAY();2))>INDEX($D$10:$D$16;WEEKDAY(TODAY();2));OR(HOUR(NOW())>=INDEX($B$10:$B$16;WEEKDAY(TODAY();2));HOUR(NOW())<INDEX($D$10:$D$16;WEEKDAY(TODAY();2)))));"🟡 Sospesa (orari)";"🟢 Attiva");"🟢 Attiva")))'
+    '=IF($B$2="Spento";"🔴 Spento";IF(SUMPRODUCT((TODAY()>=IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7))*(TODAY()<=$D$5:$D$7)*(IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7)<>"")*($D$5:$D$7<>""))>0;"🟢 Attiva (Ferie/H24)";IFERROR(IF(OR(AND(INDEX($B$10:$B$16;WEEKDAY(TODAY();2))<INDEX($D$10:$D$16;WEEKDAY(TODAY();2));HOUR(NOW())>=INDEX($B$10:$B$16;WEEKDAY(TODAY();2));HOUR(NOW())<INDEX($D$10:$D$16;WEEKDAY(TODAY();2)));AND(INDEX($B$10:$B$16;WEEKDAY(TODAY();2))>INDEX($D$10:$D$16;WEEKDAY(TODAY();2));OR(HOUR(NOW())>=INDEX($B$10:$B$16;WEEKDAY(TODAY();2));HOUR(NOW())<INDEX($D$10:$D$16;WEEKDAY(TODAY();2)))));"🟡 Sospesa (orari)";"🟢 Attiva");"🟢 Attiva")))'
   );
   sheet.getRange('E1:F1')
     .setFontWeight('bold')
@@ -151,7 +151,7 @@ function setupControlloSheet(ss) {
 
   // ASSENZE compatte nel Controllo
   sheet.getRange('A4').setValue('🟢 Assenze segretario').setFontWeight('bold');
-  sheet.getRange('C4').setValue('dal').setFontWeight('bold');
+  sheet.getRange('C4').setValue('dal: colonna B').setFontWeight('bold');
   sheet.getRange('D4').setValue('al').setFontWeight('bold');
 
   sheet.getRange('A5:A7').setValues([['Ferie'], ['Permesso'], ['Malattia']]);
@@ -167,9 +167,9 @@ function setupControlloSheet(ss) {
   sheet.getRange('E9').setValue('Motivo:').setFontWeight('bold');
   sheet.getRange('E10').setValue('Fascia attuale:').setFontWeight('bold');
 
-  applyFormulaWithLocaleFallback_(sheet.getRange('F5'), '=IF($B$2="Spento";"🔴 Spento";IF(SUMPRODUCT((TODAY()>=$B$5:$B$7)*(TODAY()<=$D$5:$D$7)*($B$5:$B$7<>""))>0;"🟢 Attiva (Ferie/H24)";IFERROR(IF(OR(AND(INDEX($B$10:$B$16;WEEKDAY(TODAY();2))<INDEX($D$10:$D$16;WEEKDAY(TODAY();2));HOUR(NOW())>=INDEX($B$10:$B$16;WEEKDAY(TODAY();2));HOUR(NOW())<INDEX($D$10:$D$16;WEEKDAY(TODAY();2)));AND(INDEX($B$10:$B$16;WEEKDAY(TODAY();2))>INDEX($D$10:$D$16;WEEKDAY(TODAY();2));OR(HOUR(NOW())>=INDEX($B$10:$B$16;WEEKDAY(TODAY();2));HOUR(NOW())<INDEX($D$10:$D$16;WEEKDAY(TODAY();2)))));"🟡 Sospesa (orari)";"🟢 Attiva");"🟢 Attiva")))');
+  applyFormulaWithLocaleFallback_(sheet.getRange('F5'), '=IF($B$2="Spento";"🔴 Spento";IF(SUMPRODUCT((TODAY()>=IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7))*(TODAY()<=$D$5:$D$7)*(IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7)<>"")*($D$5:$D$7<>""))>0;"🟢 Attiva (Ferie/H24)";IFERROR(IF(OR(AND(INDEX($B$10:$B$16;WEEKDAY(TODAY();2))<INDEX($D$10:$D$16;WEEKDAY(TODAY();2));HOUR(NOW())>=INDEX($B$10:$B$16;WEEKDAY(TODAY();2));HOUR(NOW())<INDEX($D$10:$D$16;WEEKDAY(TODAY();2)));AND(INDEX($B$10:$B$16;WEEKDAY(TODAY();2))>INDEX($D$10:$D$16;WEEKDAY(TODAY();2));OR(HOUR(NOW())>=INDEX($B$10:$B$16;WEEKDAY(TODAY();2));HOUR(NOW())<INDEX($D$10:$D$16;WEEKDAY(TODAY();2)))));"🟡 Sospesa (orari)";"🟢 Attiva");"🟢 Attiva")))');
   // Formula aggiornata per B/D
-  applyFormulaWithLocaleFallback_(sheet.getRange('F6'), '=IF(COUNTIFS(B5:B7;"<="&TODAY();D5:D7;">="&TODAY())>0;"Assente";"In servizio")');
+  applyFormulaWithLocaleFallback_(sheet.getRange('F6'), '=IF(SUMPRODUCT((TODAY()>=IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7))*(TODAY()<=$D$5:$D$7)*(IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7)<>"")*($D$5:$D$7<>""))>0;"Assente";"In servizio")');
 
   applyFormulaWithLocaleFallback_(sheet.getRange('F7'), '=IF($B$2="Spento";"⏹️ Non rilevante (sistema spento)";IF($F$2="Solo straniere";"🇪🇺 Solo lingue straniere";"🌍 Tutte le lingue"))');
   applyFormulaWithLocaleFallback_(sheet.getRange('F8'), '=TODAY()');

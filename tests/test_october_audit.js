@@ -101,10 +101,12 @@ ctx.resetSheetLayout({ getRange: () => range });
 assert.equal(formats, 1);
 assert.equal(values.get('B4'), 'Europe/London');
 const beforeSetup = new Map(values);
+const setupFormulas = new Map();
 function sheetRange(a1) {
   const chain = new Proxy({}, { get(_, method) {
     if (method === 'getValue' || method === 'getDisplayValue') return () => values.get(a1) || '';
     if (method === 'setValue') return value => { values.set(a1, value); return chain; };
+    if (method === 'setFormula' || method === 'setFormulaLocal') return value => { setupFormulas.set(a1, value); return chain; };
     if (method === 'clear' || method === 'clearContent') return () => { throw Error('Data loss'); };
     return () => chain;
   } });
@@ -114,6 +116,11 @@ const sheet = new Proxy({ getRange: sheetRange, getProtections: () => [] }, { ge
 ctx.SpreadsheetApp = { newDataValidation: () => sheetRange('validation'), ProtectionType: { RANGE: 'range' } };
 ctx.setupControlloSheet({ getSheetByName: () => sheet });
 for (const [key, value] of beforeSetup) assert.equal(values.get(key), value, key);
+assert.equal(values.get('C4'),'dal: colonna B');
+for (const cell of ['E1:F1','F5','F6']) {
+  assert.match(setupFormulas.get(cell),/ISNUMBER\(\$B\$5:\$B\$7\)/);
+  assert.match(setupFormulas.get(cell),/\$C\$5:\$C\$7/);
+}
 
 const gmail = Object.create(ctx.GmailService.prototype);
 gmail._getMessageMetadataWithResilience = () => ({ payload: { headers: [] } });

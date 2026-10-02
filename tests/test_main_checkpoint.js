@@ -153,4 +153,45 @@ console.log('--- Test main: risorse non caricate falliscono senza auto-ripristin
   }
 }
 
+console.log('--- Test resume e main: confini temporali notBefore con clock simulato ---');
+for (const remaining of [5001, 5000, 2000, 0, -1000]) {
+  let now = 1800000000000;
+  const initialNow = now;
+  const events = [];
+  class FakeDate extends Date { static now() { return now; } }
+  const timing = vm.createContext({
+    console: {log(){},warn(){},error(message){throw new Error(message);}},
+    CONFIG: {}, Date: FakeDate, Math: Object.assign(Object.create(Math), {random:()=>0})
+  });
+  vm.runInContext(code, timing, {filename:gasMainPath});
+  const checkpoint = {runId:'timing', pendingThreadIds:['pending'],notBefore:new Date(now+remaining).toISOString()};
+  Object.assign(timing, {
+    _readBatchCheckpoint_:()=>checkpoint,
+    _acquireCheckpointResumeLock_:()=>{events.push('resume-lock');return true;},
+    Utilities:{sleep(ms){if(ms) events.push(['sleep',ms]);now+=ms;}},
+    Gmail:{Users:{getProfile:()=>({})}},
+    LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock(){}})},
+    validateConfigOrThrow(){}, withSheetsRetry:fn=>fn(),loadResources(){},
+    isInSuspensionTime:()=>false,
+    GLOBAL_CACHE:{loaded:true,systemEnabled:true},
+    EmailProcessor:class {processUnreadEmails(kb,db,a,b,options){
+      events.push('processed');
+      assert(now >= initialNow + remaining,'non processare prima di notBefore');
+      assert(options.threadIds[0]==='pending','riprendere il thread del checkpoint');
+      return {};
+    }}
+  });
+  timing.resumeEmailBatchFromCheckpoint();
+  if(remaining>5000) {
+    assert(events.length===0,'resume troppo anticipato non acquisisce lock né avvia main');
+    timing.main();
+    assert(events.length===0,'anche main deve rispettare notBefore oltre tolleranza');
+  } else {
+    assert(events[0]==='resume-lock','acquisire lock prima della ripresa');
+    assert(events.at(-1)==='processed','completare la ripresa entro tolleranza');
+    const sleeps=events.filter(Array.isArray);
+    assert(sleeps.length===(remaining>0?1:0),'attesa solo se necessaria');
+    if(remaining>0) assert(sleeps[0][1]===remaining,'attendere esattamente il tempo mancante');
+  }
+}
 console.log('OK main checkpoint tests passed');

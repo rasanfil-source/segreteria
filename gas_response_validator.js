@@ -1564,6 +1564,7 @@ var ResponseValidator = class ResponseValidator {
    * Rileva se il saluto nella risposta è appropriato per l'orario corrente
    */
   _greetingTimeSlot_(hour, language) {
+    if (language === 'fr') return hour >= 5 && hour < 18 ? 'morning' : 'evening';
     const noon = ["en", "pt"].includes(language) ? 12 : 13;
     const evening = ["en", "de"].includes(language) ? 18 : 19;
     return hour >= 5 && hour < noon ? "morning" : hour >= noon && hour < evening ? "afternoon" : "evening";
@@ -3622,7 +3623,7 @@ var ResponseValidator = class ResponseValidator {
       return text;
     }
 
-    const capitalizationExceptions = ['Dio', 'Gesù', 'Maria', 'Santo', 'Padre', 'Lei', 'La', 'Ella'];
+    const capitalizationExceptions = ['Dio', 'Gesù', 'Maria', 'Santo', 'Padre', 'Lei', 'Le', 'La', 'Ella'];
     let result = text;
 
     // Per ogni parola vietata, cerca ", Parola" e sostituisci con ", parola"
@@ -3632,8 +3633,8 @@ var ResponseValidator = class ResponseValidator {
       const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const apostropheAgnosticWord = escapedWord.replace(/'/g, "['\u2019]");
       const regex = new RegExp(`,([ \\t]+)(${apostropheAgnosticWord})(?!['\\u2019])(?![\\wÀ-ÖØ-öø-ÿ])(?![ \\t]+[A-ZÀÈÉÌÒÙ])`, 'g');
-      result = result.replace(regex, (fullMatch, sep, p1) => {
-        if (capitalizationExceptions.includes(p1)) {
+      result = result.replace(regex, (fullMatch, sep, p1, offset, source) => {
+        if (capitalizationExceptions.includes(p1) || (p1.length === 1 && source[offset + fullMatch.length] === '.')) {
           return fullMatch;
         }
         return `,${sep}${p1.toLowerCase()}`;

@@ -3738,7 +3738,10 @@ var GmailService = class GmailService {
         for (const [bad, good] of Object.entries(replacements)) {
             if (!bad) continue;
 
-            const regex = new RegExp(bad.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            const escaped = bad.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const left = /^[\p{L}\p{N}_]/u.test(bad) ? '(?<![\\p{L}\\p{N}_])' : '';
+            const right = /[\p{L}\p{N}_]$/u.test(bad) ? '(?![\\p{L}\\p{N}_])' : '';
+            const regex = new RegExp(left + escaped + right, 'gu');
             const before = result;
             // Usa callback per evitare l'interpretazione dei pattern speciali ($1, $&, $', $`).
             result = result.replace(regex, () => good);
@@ -3757,9 +3760,8 @@ var GmailService = class GmailService {
 
     _sanitizeHeaders(text) {
         if (!text) return '';
-        return text
-            .replace(/\r\n|\r/g, '\n')
-            .replace(/(^|\n)(To|Cc|Bcc|From|Subject|Reply-To):/gi, '$1[$2]:');
+        // This is MIME body content; actual headers are sanitized separately.
+        return String(text).replace(/\r\n|\r/g, '\n');
     }
 
     _sanitizeSubjectForHeader(subject) {

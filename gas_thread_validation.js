@@ -88,6 +88,7 @@ var ThreadValidation = {
         if (parsedRetryResponse.incomplete) {
           markFailureForCurrentBurst('validation', { reason: 'truncated_output' });
           result.status = 'validation_failed';
+          result.validationFailed = true;
           result.reason = 'truncated_output';
           return { terminal: true };
         }
