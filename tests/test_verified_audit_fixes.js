@@ -57,7 +57,7 @@ p._storeBatchCheckpointAndScheduleContinuation_([],0,5000);
 assert.equal(values.has('EMAIL_BATCH_CHECKPOINT'),false);assert.equal(deleted,1);assert.equal(created,0);
 values.set('EMAIL_BATCH_CHECKPOINT',JSON.stringify({depth:5,pendingThreadIds:['a'],pendingCount:1}));
 p._storeBatchCheckpointAndScheduleContinuation_([{getId:()=> 'a'}],0,5000);
-// depth è diagnostico: solo il lettore applica il limite configurato su retryCount.
+// depth è diagnostico: il limite condiviso da writer e lettore riguarda retryCount.
 assert.equal(values.has('EMAIL_BATCH_CHECKPOINT'),true);
 assert.equal(JSON.parse(values.get('EMAIL_BATCH_CHECKPOINT')).depth,6);
 assert.equal(deleted,1); // trigger preesistente preservato se la creazione fallisce

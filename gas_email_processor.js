@@ -672,13 +672,6 @@ var EmailProcessor = class EmailProcessor {
       ? LockService.getScriptLock()
       : null;
 
-    if (shouldAcquirePhysicalLock && !scriptLock && !skipLock) {
-      if (threadLogger && typeof threadLogger.warn === 'function') {
-        threadLogger.warn('LockService globale non disponibile, impossibile garantire atomicità');
-      }
-      return { ok: false, reason: 'global_lock_unavailable' };
-    }
-
     let scriptLockAcquired = false;
     const isStaleLock = (lockValue) => {
       if (!lockValue) return false;
@@ -1884,13 +1877,21 @@ var EmailProcessor = class EmailProcessor {
       const retryCount = isSameCheckpoint && Number.isFinite(previousRetryCount)
         ? previousRetryCount + 1
         : 1;
+      const maxCheckpointRetries = (typeof CONFIG !== 'undefined' && Number(CONFIG.BATCH_CHECKPOINT_MAX_RETRIES) > 0)
+        ? Math.max(1, Math.floor(Number(CONFIG.BATCH_CHECKPOINT_MAX_RETRIES)))
+        : 3;
+      // Stessa soglia del lettore: non creare un trigger per un checkpoint già abbandonabile.
+      if (retryCount >= maxCheckpointRetries) {
+        console.warn(`Limite retry checkpoint raggiunto (${retryCount}/${maxCheckpointRetries}): ripresa non pianificata.`);
+        this._clearBatchCheckpoint_('max_checkpoint_retries_exceeded');
+        return;
+      }
       // `depth` misura solo le riprese bloccate sullo stesso identico insieme di
       // thread pendenti. Se il checkpoint cambia, il batch sta avanzando e la
       // guardia anti-loop deve ripartire per non scartare code sane ma lunghe.
       const nextDepth = isSameCheckpoint ? currentDepth + 1 : 1;
 
-      // Unica guardia: _readBatchCheckpoint_ applica retryCount >= limite
-      // prima della ripresa. depth resta diagnostico; non impone un secondo tetto.
+      // depth resta diagnostico; non impone un secondo tetto.
 
       const configuredCheckpointTtlMs = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.BATCH_CHECKPOINT_TTL_MS)))
         ? Math.max(60000, Number(CONFIG.BATCH_CHECKPOINT_TTL_MS))
@@ -1998,10 +1999,16 @@ var EmailProcessor = class EmailProcessor {
     const localPart = atIndex >= 0 ? email.substring(0, atIndex) : '';
     const senderDomain = atIndex >= 0 ? email.substring(atIndex + 1) : '';
 
+    // I token senza dominio sono limitati a username bot espliciti.
+    const BOT_USERNAMES = new Set(['noreply', 'no-reply', 'donotreply', 'mailer-daemon',
+      'postmaster', 'bounce', 'notifications', 'newsletter', 'promo',
+      'ads', 'bot', 'crm']);
+
     if (ignoreDomains.some(domain => {
       const blacklistDomain = domain.startsWith('@') ? domain.substring(1) : domain;
       const isExactMatch = email === domain;
-      const isConfiguredUsername = !domain.includes('@') && !domain.includes('.') && localPart === domain;
+      const isConfiguredUsername = !domain.includes('@') && !domain.includes('.') &&
+        BOT_USERNAMES.has(domain) && localPart === domain;
       const isDomainMatch = (domain.startsWith('@') || !domain.includes('@')) && senderDomain === blacklistDomain;
       const isSubdomainMatch = !domain.startsWith('@') && !domain.includes('@') &&
         senderDomain.endsWith('.' + blacklistDomain);
@@ -2013,9 +2020,6 @@ var EmailProcessor = class EmailProcessor {
 
     // Match username ristretto a pattern bot/notifica espliciti per evitare falsi positivi
     // su username legittimi (es. marketing@..., info@...).
-    const BOT_USERNAMES = new Set(['noreply', 'no-reply', 'donotreply', 'mailer-daemon',
-      'postmaster', 'bounce', 'notifications', 'newsletter', 'promo',
-      'ads', 'bot', 'crm']);
     if (BOT_USERNAMES.has(localPart)) {
       console.log(`🚫 Ignorato: username di sistema/bot rilevato (${email})`);
       return true;
@@ -2737,12 +2741,15 @@ var EmailProcessor = class EmailProcessor {
     let deletionsCount = 0;
     const MAX_DELETIONS_PER_RUN = 20;
 
-    // Remove only redundant uncertainty markers with still-valid confirmed evidence.
-    // Age alone cannot establish whether an ambiguous send succeeded.
+    // Retention limitata: almeno sette giorni e mai meno del backup confermato.
+    const uncertainMaxAgeMs = Math.max(this._getSendIdempotencyBackupTtlMs_(), 7 * 24 * 60 * 60 * 1000);
     for (const key of Object.keys(allProps)) {
       if (!key.startsWith('send_uncertain_') || deletionsCount >= MAX_DELETIONS_PER_RUN) continue;
       const confirmed = this._parseSendIdempotencyBackupValue_(allProps['sent_backup_' + key.slice('send_uncertain_'.length)]);
-      if (confirmed && nowTs <= confirmed.expiresAt) {
+      const uncertainTs = Number(allProps[key]);
+      const isExpiredOrInvalid = !Number.isFinite(uncertainTs) || uncertainTs <= 0 ||
+        (nowTs - uncertainTs) > uncertainMaxAgeMs;
+      if ((confirmed && nowTs <= confirmed.expiresAt) || isExpiredOrInvalid) {
         try { props.deleteProperty(key); deletionsCount++; } catch (_) { }
       }
     }
@@ -3418,16 +3425,12 @@ var EmailProcessor = class EmailProcessor {
     if (!text.trim()) return null;
 
     const lines = text.split(/\r?\n/);
-    const summerCue = /(?:periodo|orari[oa]?|mess[ae])\s+estiv/i;
+    const summerCue = /(?:(?:periodo|orari[oa]?|mess[ae])\b[^\n]{0,40}\bestiv|\bestiv[oaie]\b[^\n]{0,40}\b(?:orari[oa]?|mess[ae]))/i;
     for (let i = 0; i < lines.length; i++) {
       if (!summerCue.test(lines[i])) continue;
-      const windowText = [lines[i], lines[i + 1] || ''].join(' ');
+      const windowText = [lines[i], lines[i + 1] || '', lines[i + 2] || ''].join(' ');
       const parsed = this._parseItalianDateRange_(windowText, year, {preferSummerMonths: true});
       if (parsed) return parsed;
-    }
-    for (const line of lines) {
-      const parsed = this._parseItalianDateRange_(line, year, {preferSummerMonths: true});
-      if (parsed && parsed.start.getMonth() >= 4 && parsed.start.getMonth() <= 7) return parsed;
     }
 
     return null;
@@ -5041,8 +5044,14 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       .map(line => line.replace(/\s+/g, ' ').trim())
       .filter(line => line && !/^(?:(?:gentile|caro|cara)\s+[^,]{1,40},|(?:ciao|buongiorno|buonasera|salve|grazie|cordiali saluti|saluti)[,! .]*)$/i.test(line))
       .join('\n');
-    // Conserva punti fra cifre (orari, date e decimali) e la punteggiatura finale.
-    const sentenceMatches = plainText.match(/(?:\d[.]\d|[^.!?\n]|(?<=\d)[.](?=\d))+(?:[.!?]+|$)|[^\n]+$/gm) || [];
+    // Protegge abbreviazioni e iniziali senza cambiare il testo memorizzato.
+    const abbreviationDot = '\uE000';
+    const protectedText = plainText
+      .replace(/\b(?:Sig\.ra|Sig\.ri|S|SS|San|Sant|Santa|Don|Padre|Mons|Sig|Dott|Prof|tel|cell|uff|n|civ|int)\./gi,
+        abbreviation => abbreviation.replace(/\./g, abbreviationDot))
+      .replace(/\b([A-ZÀ-ÖØ-Þ])\.(?=\s+[A-ZÀ-ÖØ-Þ])/g, `$1${abbreviationDot}`);
+    const sentenceMatches = (protectedText.match(/(?:\d[.]\d|[^.!?\n]|(?<=\d)[.](?=\d))+(?:[.!?]+|$)|[^\n]+$/gm) || [])
+      .map(sentence => sentence.replace(/\uE000/g, '.'));
     const candidateSentences = sentenceMatches
       .map(sentence => sentence.replace(/^(?:gentile|caro|cara|buongiorno|buonasera|salve|ciao)\b[^,\n]{0,40},\s*/i, '').trim())
       .filter(sentence => sentence.length > 20)

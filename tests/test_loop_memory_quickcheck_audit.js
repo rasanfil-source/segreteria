@@ -86,7 +86,7 @@ for(const [hour,greeting] of [[13,'Bonjour'],[17,'Bonjour'],[18,'Bonsoir']]) {
 const props=new Map([['send_uncertain_old','1'],['send_uncertain_confirmed','1'],
   ['sent_backup_confirmed',JSON.stringify({ts:Date.now(),expiresAt:Date.now()+60000})]]);
 p._pruneExpiredSendIdempotencyBackups_({getProperties:()=>Object.fromEntries(props),deleteProperty:k=>props.delete(k)});
-assert(props.has('send_uncertain_old'));assert(!props.has('send_uncertain_confirmed'));
+assert(!props.has('send_uncertain_old'));assert(!props.has('send_uncertain_confirmed'));
 
 ctx.CONFIG.INTELLIGENT_RETRY={enabled:true,maxRetries:1};
 const result={};

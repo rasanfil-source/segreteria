@@ -183,7 +183,7 @@ function store() {
   assert.equal(reads, 1, 'cache persistente riutilizzata senza FORCE_RELOAD');
 }
 
-// Il lettore è l'unica guardia; soglie alte e avanzamento restano supportati.
+// Writer e lettore condividono la soglia; soglie alte e avanzamento restano supportati.
 for (const limit of [1, 3, 6, 10, 20]) {
   const props = store();
   const ctx = context(['gas_main.js', 'gas_email_processor.js'], {
@@ -193,9 +193,14 @@ for (const limit of [1, 3, 6, 10, 20]) {
   const processor = Object.create(ctx.EmailProcessor.prototype);
   for (let attempt = 1; attempt <= limit; attempt++) {
     processor._storeBatchCheckpointAndScheduleContinuation_([{ getId: () => 'same' }], 0, 1000);
-    assert(props.getProperty('EMAIL_BATCH_CHECKPOINT'), 'writer non deve imporre un tetto diverso');
     const read = ctx._readBatchCheckpoint_();
-    assert.equal(Boolean(read.abandoned), attempt === limit);
+    if (attempt === limit) {
+      assert.equal(props.getProperty('EMAIL_BATCH_CHECKPOINT'), null, 'writer deve fermarsi alla stessa soglia del lettore');
+      assert.equal(read, null);
+    } else {
+      assert(props.getProperty('EMAIL_BATCH_CHECKPOINT'), 'checkpoint sotto soglia conservato');
+      assert.equal(Boolean(read.abandoned), false);
+    }
   }
   assert.equal(props.getProperty('EMAIL_BATCH_CHECKPOINT'), null);
   if (limit > 1) {

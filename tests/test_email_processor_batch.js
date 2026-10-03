@@ -885,7 +885,7 @@ console.log('--- Test thread lock: senza backend storage fallisce chiuso ---');
   }
 }
 
-console.log('--- Test thread lock: senza LockService fallisce chiuso se non coperto ---');
+console.log('--- Test thread lock: senza LockService usa il lock logico di compatibilità ---');
 {
   const originalLockService = global.LockService;
   global.LockService = undefined;
@@ -894,8 +894,8 @@ console.log('--- Test thread lock: senza LockService fallisce chiuso se non cope
   try {
     const processor = new EmailProcessor({ gmailService: {} });
     const res = processor._acquireThreadLock('t-no-lock-service', false, global.createLogger());
-    assert(res.ok === false && res.reason === 'global_lock_unavailable', 'senza LockService e senza skipLock deve fallire chiuso');
-    assert(!cacheStore.has('thread_lock_t-no-lock-service'), 'non deve scrivere token senza mutex globale');
+    assert(res.ok === true && res.acquired === true, 'senza LockService deve usare la modalità compatibilità');
+    assert(cacheStore.has('thread_lock_t-no-lock-service'), 'deve conservare il lock logico in cache');
   } finally {
     global.LockService = originalLockService;
     cacheStore.clear();

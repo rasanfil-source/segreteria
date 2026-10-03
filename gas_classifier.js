@@ -109,16 +109,17 @@ var Classifier = class Classifier {
   /**
    * Classifica email - filtro minimale
    */
-  classifyEmail(subject, body, isReply = false, senderEmail = null) {
+  classifyEmail(subject, body, isReply = undefined, senderEmail = null) {
     const safeSubject = typeof subject === 'string' ? subject : '';
     let safeBody = typeof body === 'string' ? body : '';
 
+    const replySubjectPattern = /^(?:re|rif|r|ris|risp|aw|sv)\s*[:\-]/i;
     // Supporto firma alternativa: il 3° parametro può essere senderEmail anziché booleano.
     if (typeof isReply === 'string' && senderEmail === null) {
       senderEmail = isReply;
-      isReply = /^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]/i.test(safeSubject.trim());
-    } else if (arguments.length < 3 && /^(?:re|rif|r|ris|risp|aw|sv)\s*[:\-]/i.test(safeSubject.trim())) {
-      isReply = true;
+      isReply = replySubjectPattern.test(safeSubject.trim());
+    } else if (typeof isReply !== 'boolean') {
+      isReply = replySubjectPattern.test(safeSubject.trim());
     }
     // Sicurezza null e limite lunghezza
     if (safeSubject.trim() === '' && safeBody.trim() === '') {
@@ -291,6 +292,12 @@ var Classifier = class Classifier {
     if (processedBody.length > MAX_LENGTH) {
       processedBody = processedBody.substring(0, MAX_LENGTH);
     }
+
+    // Unfold limitato agli header di citazione, anche quando il verbo è su una terza riga.
+    processedBody = processedBody.replace(
+      /^((?:On|Il giorno|Il|Le)\b[^\n]{1,200})(?:\r?\n[ \t]*(?!>)[^\n]{1,200}){0,2}\r?\n[ \t]*(?!>)(?:[^\n]{0,200}?[ \t])?(?:wrote|ha scritto|a écrit|a ècrit):[ \t]*\r?$/gm,
+      header => header.replace(/\r?\n[ \t]*/g, ' ')
+    );
 
     // Marcatori citazione per vari client email
     const quoteMarkers = [
