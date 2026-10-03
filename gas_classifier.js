@@ -25,9 +25,8 @@ var Classifier = class Classifier {
       /^in\s+fede\.?\s*$/i,
       /^(?:best|kind|warm)\s+regards\.?\s*$/i,
       /^sincerely\.?\s*$/i,
-      /^(?:sent\s+from\s+my\s+iphone|inviato\s+da\s+(?:mio\s+)?(?:iphone|samsung|smartphone|dispositivo|ipad|telefono))\.?\s*$/i
+      /^(?:sent\s+from\s+my\s+(?:iphone|ipad|galaxy|smartphone|device)|get\s+outlook\s+for\s+(?:ios|android)|inviato\s+da(?:l)?\s+(?:mio\s+)?(?:iphone|samsung|smartphone|dispositivo|ipad|telefono|galaxy)|inviato\s+da\s+outlook(?:\s+per\s+(?:android|ios))?)\.?\s*$/i
     ];
-
     // Categorie per suggerimenti a Gemini
     this.categories = {
       'appointment': [
@@ -118,8 +117,9 @@ var Classifier = class Classifier {
     if (typeof isReply === 'string' && senderEmail === null) {
       senderEmail = isReply;
       isReply = /^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]/i.test(safeSubject.trim());
+    } else if (arguments.length < 3 && /^(?:re|rif|r|ris|risp|aw|sv)\s*[:\-]/i.test(safeSubject.trim())) {
+      isReply = true;
     }
-
     // Sicurezza null e limite lunghezza
     if (safeSubject.trim() === '' && safeBody.trim() === '') {
       console.error('  ❌ Contenuto email vuoto');
@@ -206,12 +206,13 @@ var Classifier = class Classifier {
     const subjectHasRequest = Boolean(subjectForChecks) &&
       !/^(?:messaggio|saluti|nessun oggetto|\(no subject\))$/i.test(subjectForChecks) &&
       !this._isGreetingOnly(subjectForChecks) && !this._isUltraSimpleAcknowledgment(subjectForChecks);
-    if (!mainContent && greetingLines.length && greetingLines.every(line => this._isGreetingOnly(line)) && !subjectHasRequest) {
-      return { shouldReply: false, reason: 'greeting_only', category: null, subIntents: {}, confidence: 0.95 };
+    if (!mainContent.trim() && !subjectHasRequest && greetingLines.every(line => line === '--' || this._isGreetingOnly(line))) {
+      const reason = greetingLines.some(line => line !== '--') || /^saluti$/i.test(subjectForChecks) ? 'greeting_only' : 'empty_email';
+      return { shouldReply: false, reason, category: null, subIntents: {}, confidence: 0.95 };
     }
     // Corpo vuoto + soggetto generico (es. "Re: Orari messe") → passa a Gemini
     if ((!mainContent || !mainContent.trim()) && isReply) {
-      if (subjectForChecks.length > 3 && subjectForChecks.length < 50 && !this._isGreetingOnly(subjectForChecks) && !this._isUltraSimpleAcknowledgment(subjectForChecks)) {
+      if (subjectHasRequest && subjectForChecks.length > 3 && subjectForChecks.length < 50) {
         console.log('      ✓ Body vuoto ma subject ragionevole -> Passa a Gemini');
         return {
           shouldReply: true,
@@ -354,7 +355,7 @@ var Classifier = class Classifier {
       if (inQuoteBlock && (quoteMode === 'header' || quoteMode === 'after_header')) quoteMode = 'history';
       if (inQuoteBlock && quoteMode === 'history') continue;
       if (inQuoteBlock &&
-          /^[\p{L}\p{N}]/u.test(stripped) &&
+          /^(?:[¿¡]\s*)?[\p{L}\p{N}]/u.test(stripped) &&
           !stripped.startsWith('>') &&
           !stripped.startsWith('|')) {
         inQuoteBlock = false;
@@ -388,9 +389,8 @@ var Classifier = class Classifier {
       /^(?:best|kind|warm)\s+regards[\s,!.-]*$/i,
       /^sincerely[\s,!.-]*$/i,
       /^sent\s+from\s+my\s+iphone[\s,!.-]*$/i,
-      /^inviato\s+da\s+(?:mio\s+)?(?:iphone|samsung|smartphone|dispositivo|ipad|telefono)[\s,!.-]*$/i
+      /^(?:sent\s+from\s+my\s+(?:iphone|ipad|galaxy|smartphone|device)|get\s+outlook\s+for\s+(?:ios|android)|inviato\s+da(?:l)?\s+(?:mio\s+)?(?:iphone|samsung|smartphone|dispositivo|ipad|telefono|galaxy)|inviato\s+da\s+outlook(?:\s+per\s+(?:android|ios))?)[\s,!.-]*$/i
     ];
-
     const contentLines = content.split('\n');
     let signatureStartIndex = -1;
     for (let i = contentLines.length - 1; i >= 0; i--) {
@@ -400,7 +400,7 @@ var Classifier = class Classifier {
         .map(line => (line || '').trim())
         .filter(line => line && !signatureLineMarkers.some(marker => marker.test(line)));
       const remainingText = remainingLines.join(' ').trim();
-      const containsUserContentAfterSignature = /[?!]|\b(?:ah\s+dimenticavo|dimenticavo|vorrei|posso|potrei|chiedo|sapere|informazioni|prenotare|allego|inoltre)\b/i.test(remainingText);
+      const containsUserContentAfterSignature = /[?!]|\b(?:ah\s+dimenticavo|dimenticavo|vorrei|vorremmo|posso|possiamo|potrei|potremmo|chiedo|chiediamo|sapere|informazioni|prenotare|allego|inoltre|vengo|veniamo|passo|passiamo|arrivo|arriviamo|porto|portiamo|ritirare|consegnare|domani|oggi|dopodomani|stamattina|stasera|pomeriggio)\b/i.test(remainingText);
       const tailLooksLikeSignature = remainingLines.length === 0 || (
         remainingLines.length <= 3 &&
         !containsUserContentAfterSignature &&
@@ -414,11 +414,16 @@ var Classifier = class Classifier {
       if (tailLooksLikeSignature) signatureStartIndex = i;
     }
     if (signatureStartIndex !== -1) {
-      const isTechnicalSignatureDelimiter = /^--\s*$/.test(contentLines[signatureStartIndex].trim());
-      const sliceEnd = (options.preserveGreetings && !isTechnicalSignatureDelimiter) ? signatureStartIndex + 1 : signatureStartIndex;
-      content = contentLines.slice(0, sliceEnd).join('\n').trim();
+      if (options.preserveGreetings) {
+        const preservedClosings = contentLines
+          .slice(signatureStartIndex)
+          .map(line => (line || '').trim())
+          .filter(line => line && !/^--\s*$/.test(line) && signatureLineMarkers.some(marker => marker.test(line)));
+        content = contentLines.slice(0, signatureStartIndex).concat(preservedClosings).join('\n').trim();
+      } else {
+        content = contentLines.slice(0, signatureStartIndex).join('\n').trim();
+      }
     }
-
     return content;
   }
 
@@ -467,8 +472,8 @@ var Classifier = class Classifier {
     const normalized = `${rawSubject} ${extractedBody}`.toLowerCase();
     // Una descrizione personale dell'assenza non prova un autoresponder.
     const explicitAutoReply = /\b(?:auto(?:matic)?\s*reply|risposta\s+automatica|out\s+of\s+(?:the\s+)?office)\b/i;
-    if (explicitAutoReply.test(rawSubject)) return true;
     const isReplySubject = /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]/i.test(rawSubject.trim());
+    if (!isReplySubject && explicitAutoReply.test(rawSubject)) return true;
     const textForRequestCheck = isReplySubject ? extractedBody.toLowerCase() : normalized;
     if (/[?？]|\b(?:possiamo|vorrei|potete|chiedo|fissare|appuntamento)\b/i.test(textForRequestCheck)) return false;
     const oooPatterns = [
@@ -523,7 +528,7 @@ var Classifier = class Classifier {
    */
   _isTrivialReplyBody(text) {
     if (!text) return true;
-
+    if (/[?¿？]/.test(text)) return false;
     const normalized = text.toLowerCase().trim();
     let cleaned;
     try {
@@ -712,9 +717,8 @@ var Classifier = class Classifier {
     const contactPatterns = [
       /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\s+(?:(?:il|lo|la|l['’])\s*)?((?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)\s+[\p{L}'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)(?=$|[^\p{L}\p{N}_])/iu,
       /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:mi\s+sono\s+sentit[oa]|ci\s+siamo\s+sentit[ie]|vi\s+siete\s+sentit[ie])\s+con\s+(?:(?:il|lo|la|l['’])\s*)?((?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)\s+[\p{L}'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)(?=$|[^\p{L}\p{N}_])/iu,
-      /\b(?:referente|riferimento|contatto)\s*[:\-]\s*(?:(?:il|lo|la|l['’])\s*)?((?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)?\s*[\p{L}'’ -]{2,45})(?=$|[^\p{L}\p{N}_])/iu
+      /\b(?:referente|riferimento|contatto)\s*[:\-]\s*(?:(?:il|lo|la|l['’])\s*)?(il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria|(?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)\s+[\p{L}'’ -]{2,45})(?=$|[^\p{L}\p{N}_])/iu
     ];
-
     for (const pattern of contactPatterns) {
       const match = safeText.match(pattern);
       if (match && match[1]) {
@@ -728,7 +732,9 @@ var Classifier = class Classifier {
       }
     }
 
-    return null;
+    // Preserve explicit names without a title, without accepting generic contact instructions.
+    const namedContact = safeText.match(/\b(?:[Rr]eferente|[Rr]iferimento|[Cc]ontatto)\s*[:\-]\s*(\p{Lu}[\p{L}'’]+(?:\s+\p{Lu}[\p{L}'’]+){1,3})(?=$|[^\p{L}\p{N}_])/u);
+    return namedContact ? namedContact[1] : null;
   }
 
   /**

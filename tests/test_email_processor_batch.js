@@ -153,6 +153,7 @@ global.MemoryService = class {};
 global.TerritoryValidator = class {};
 
 global.CONFIG = {
+  VALIDATION_ENABLED: false, // Batch tests use an empty validator stub unless explicitly testing validation.
   LABEL_NAME: 'IA',
   ERROR_LABEL_NAME: 'Errore',
   VALIDATION_ERROR_LABEL: 'Verifica',
@@ -6123,7 +6124,7 @@ console.log('--- Test processUnreadEmails: stop su errore config usa backoff lun
   }
 }
 
-console.log('--- Test processUnreadEmails: checkpoint dopo rilascio lock batch ---');
+console.log('--- Test processUnreadEmails: checkpoint protetto dal lock batch ---');
 {
   const originalLockService = global.LockService;
   let released = false;
@@ -6153,7 +6154,8 @@ console.log('--- Test processUnreadEmails: checkpoint dopo rilascio lock batch -
 
     const stats = processor.processUnreadEmails('kb', '', false);
     assert(stats.total === 1, 'deve fermarsi dopo il primo errore retryable');
-    assert(checkpointAfterRelease === true, 'deve salvare/pianificare il checkpoint dopo releaseLock');
+    assert(checkpointAfterRelease === false, 'deve salvare/pianificare il checkpoint prima di releaseLock');
+    assert(released === true, 'il lock deve essere rilasciato dopo il checkpoint');
   } finally {
     global.LockService = originalLockService;
   }
@@ -6486,8 +6488,9 @@ console.log('--- Test processUnreadEmails: dilata salva checkpoint e rispetta MA
     assert(stats.dilata === 1, `stats.dilata deve essere 1, ottenuto ${stats.dilata}`);
     assert(stats.filtered === 0, 'dilata non deve essere conteggiato come filtered');
     assert(checkpoint.startIndex === 0, `checkpoint deve ripartire dal thread dilatato, ottenuto ${checkpoint.startIndex}`);
-    assert(checkpoint.pendingThreadIds[0] === 't-dilata-retry', 'checkpoint deve includere come primo residuo il thread dilatato');
-    assert(checkpoint.remainingTimeMs === 7000, `delay dilata deve essere finestra + 5s, ottenuto ${checkpoint.remainingTimeMs}`);
+    assert(checkpoint.pendingThreadIds[0] === 't-after-dilata', 'i thread non tentati devono precedere quello dilatato');
+    assert(checkpoint.pendingThreadIds[1] === 't-dilata-retry', 'il thread dilatato deve restare nella coda');
+    assert(checkpoint.remainingTimeMs === 5000, `la coda non tentata deve ripartire senza attendere il throttle, ottenuto ${checkpoint.remainingTimeMs}`);
     global.CONFIG.MAX_EMAILS_PER_RUN = 2;
     calls.length = 0;
     props.clear();
