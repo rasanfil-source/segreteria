@@ -192,7 +192,7 @@ var EmailProcessor = class EmailProcessor {
     let exists = false;
     let lastMessageDate = null;
     safeMessages.forEach((message, idx) => {
-      if (!message || (candidateId && typeof message.getId === 'function' && message.getId() === candidateId)) return;
+      if (!message || message === candidate || (candidateId && typeof message.getId === 'function' && message.getId() === candidateId)) return;
       const rawFrom = typeof message.getFrom === 'function' ? (message.getFrom() || '') : '';
       const extracted = this.gmailService && typeof this.gmailService._extractEmailAddress === 'function'
         ? this.gmailService._extractEmailAddress(rawFrom)
@@ -5437,6 +5437,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     // Boundary Unicode: evita match dentro parole; distingue "ore 10" dalla durata "10 ore".
     // Strip full numeric dates and explicit chapter:verse references before time parsing.
     const source = text.replace(/\b\d{1,2}[.,]\d{2}\s*(?:€|(?:eur|euro|dollari|usd|chf|gbp)\b)/gi, ' ')
+      .replace(/(?:€|\$|\b(?:eur|euro|dollari|usd|chf|gbp)\b)\s*\d{1,2}[.,]\d{2}\b/gi, ' ')
       .replace(/\b(?:entro|per|dura(?:ta)?|in|dopo|ogni)\s+\d{1,2}\s*h\b/gi, ' ')
       .replace(/\b\d{1,2}([./-])\d{1,2}\1\d{2,4}\b/g, ' ')
       .replace(/\b(?:il|del|dal|al|am|den)\s+(?:0?[1-9]|[12]\d|3[01])\.(?:0?[1-9]|1[0-2])(?![\p{L}\p{N}_]|[.:/-]\d)/giu, ' ')
@@ -6100,9 +6101,9 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     // guarigione, fine di una restrizione legale o cessazione di assistenza.
     const resolutions = {
       health: /\b(?:sono guarito|sono guarita|siamo guariti|i have recovered|i am recovered|je suis gueri|je suis guerie|estoy recuperado|estoy recuperada|estou recuperado|estou recuperada|ich bin wieder gesund)\b/,
-      mobility: /\b(?:non ho piu difficolta a (?:muovermi|camminare)|i no longer have (?:mobility problems|difficulty walking)|je n'ai plus de difficulte a marcher|ya no tengo dificultades para caminar|ja nao tenho dificuldade para andar|ich habe keine gehprobleme mehr)\b/,
+      mobility: /\b(?:non ho piu difficolta a (?:muovermi|camminare)|i no longer have (?:mobility problems|difficulty walking)|je n['’]ai plus de difficulte a marcher|ya no tengo dificultades para caminar|ja nao tenho dificuldade para andar|ich habe keine gehprobleme mehr)\b/,
       legal_restriction: /\b(?:non sono piu agli arresti domiciliari|i am no longer under house arrest|je ne suis plus assigne a residence|ya no estoy bajo arresto domiciliario|ja nao estou em prisao domiciliar|ich stehe nicht mehr unter hausarrest)\b/,
-      caregiving: /\b(?:non devo piu assistere|i no longer need to care for|je ne dois plus m'occuper de|ya no tengo que cuidar|ja nao preciso cuidar|ich muss mich nicht mehr um .{1,40} kummern)\b/,
+      caregiving: /\b(?:non devo piu assistere|i no longer need to care for|je ne dois plus m['’]occuper de|ya no tengo que cuidar|ja nao preciso cuidar|ich muss mich nicht mehr um .{1,40} kummern)\b/,
       temporary_unavailability: /\b(?:ora posso venire|adesso posso venire|i can now come|je peux maintenant venir|ahora puedo ir|agora posso ir|ich kann jetzt kommen)\b/,
       remote_request: /\b(?:preferisco (?:ora |adesso )?(?:venire|incontrarvi) di persona|i now prefer to come in person|je prefere maintenant venir en personne|ahora prefiero ir en persona|agora prefiro ir pessoalmente|ich mochte jetzt personlich kommen)\b/
     };

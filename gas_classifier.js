@@ -662,6 +662,7 @@ var Classifier = class Classifier {
   _detectPriorOralCommunication(text) {
     const source = String(text || '');
     const normalized = source.replace(/\s+/g, ' ').trim();
+    const linePreserved = source.replace(/[^\S\r\n]+/g, ' ').trim();
     if (!normalized) {
       return {
         detected: false,
@@ -703,7 +704,7 @@ var Classifier = class Classifier {
     return {
       detected: signals.length > 0,
       strength: strongSignals.length > 0 ? 'strong' : (weakSignals.length > 0 ? 'weak' : 'none'),
-      mentioned_contact: signals.length > 0 ? this._extractPriorCommunicationContact_(normalized) : null,
+      mentioned_contact: signals.length > 0 ? this._extractPriorCommunicationContact_(linePreserved) : null,
       signals: signals.slice(0, 4)
     };
   }
@@ -722,8 +723,8 @@ var Classifier = class Classifier {
   _extractPriorCommunicationContact_(text) {
     const safeText = String(text || '').normalize('NFC');
     const contactPatterns = [
-      /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\s+(?:(?:il|lo|la|l['’])\s*)?((?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)\s+[\p{L}'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)(?=$|[^\p{L}\p{N}_])/iu,
-      /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:mi\s+sono\s+sentit[oa]|ci\s+siamo\s+sentit[ie]|vi\s+siete\s+sentit[ie])\s+con\s+(?:(?:il|lo|la|l['’])\s*)?((?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)\s+[\p{L}'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)(?=$|[^\p{L}\p{N}_])/iu,
+      /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\s+(?:(?:il|lo|la|l['’])\s*)?((?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)[ \t]+[\p{L}'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)(?=$|[^\p{L}\p{N}_])/iu,
+      /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:mi\s+sono\s+sentit[oa]|ci\s+siamo\s+sentit[ie]|vi\s+siete\s+sentit[ie])\s+con\s+(?:(?:il|lo|la|l['’])\s*)?((?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)[ \t]+[\p{L}'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)(?=$|[^\p{L}\p{N}_])/iu,
       /\b(?:referente|riferimento|contatto)\s*[:\-]\s*(?:(?:il|lo|la|l['’])\s*)?(il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria|(?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)\s+[\p{L}'’ -]{2,45})(?=$|[^\p{L}\p{N}_])/iu
     ];
     for (const pattern of contactPatterns) {
@@ -731,7 +732,7 @@ var Classifier = class Classifier {
       if (match && match[1]) {
         return match[1]
           // Stop before narrative complements, while preserving names such as De Luca.
-          .split(/\s+(?:ieri|oggi|domani|stamattina|stasera|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|questa|questo|scorsa|scorso|per|con|che|e|ed|alle|alla|al|sul|sulla|durante|dopo|prima|in|telefonicamente|abbiamo|avevamo)(?=$|[^\p{L}\p{N}_])/iu)[0]
+          .split(/\s+(?:ieri|oggi|domani|stamattina|stasera|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|questa|questo|scorsa|scorso|per|con|che|e|ed|alle|alla|al|sul|sulla|durante|dopo|prima|in|telefonicamente|abbiamo|avevamo|vorrei|vorremmo|chiedo|chiediamo|scrivo|invio|allego|confermo|grazie|saluti|buongiorno|buonasera)(?=$|[^\p{L}\p{N}_])/iu)[0]
           .replace(/\s+/g, ' ')
           .replace(/[.,;:!?]+$/g, '')
           .trim()
@@ -740,7 +741,7 @@ var Classifier = class Classifier {
     }
 
     // Preserve explicit names without a title, without accepting generic contact instructions.
-    const namedContact = safeText.match(/\b(?:[Rr]eferente|[Rr]iferimento|[Cc]ontatto)\s*[:\-]\s*(\p{Lu}[\p{L}'’]+(?:\s+\p{Lu}[\p{L}'’]+){1,3})(?=$|[^\p{L}\p{N}_])/u);
+    const namedContact = safeText.match(/\b(?:[Rr]eferente|[Rr]iferimento|[Cc]ontatto)\s*[:\-][ \t]*(\p{Lu}[\p{L}'’]+(?:[ \t]+\p{Lu}[\p{L}'’]+){1,3})(?=$|[^\p{L}\p{N}_])/u);
     return namedContact ? namedContact[1] : null;
   }
 
