@@ -103,8 +103,8 @@ function runScenario(root, scenario = {}, instrumentation = {}) {
       getThreadHistory: (...args) => { record('history', [args[0].map(m => m.getId()), ...args.slice(1)]); return 'Precedente risposta della segreteria'; },
       getProcessableAttachments: (message, options) => { record('attachments.process', [message.getId(), options]);
         if (scenario.attachmentProcessError) fail('extraction failure'); return {
-        blobs: [], textContext: scenario.ocr || 'Modulo compilato per il catechismo',
-        items: [{ name: 'documento.pdf', mimeType: 'application/pdf' }], skipped: [], processedCount: 1
+        blobs: scenario.attachmentBlobs || [], textContext: scenario.ocr ?? 'Modulo compilato per il catechismo',
+        items: [{ name: 'documento.pdf', mimeType: 'application/pdf' }], skipped: scenario.attachmentSkipped || [], processedCount: 1
       }; },
       sendHtmlReply: (message, response, details) => { record('send', [message.getId(), response, details]); if (scenario.sendError) fail(scenario.sendError); },
       reconcileSendOperation: id => { record('send.reconcile', id); return !!scenario.reconciled; },
@@ -127,6 +127,13 @@ function runScenario(root, scenario = {}, instrumentation = {}) {
       }; },
       getAdaptiveGreeting: (...args) => { record('greeting', args); return { greeting: 'Gentile Mario,', closing: 'Cordiali saluti' }; },
       generateResponse: (...args) => { record('generate', args); generations++;
+        if (typeof args[0] === 'string' && args[0].startsWith('Rispondi SOLO con un oggetto JSON valido. Analizza')) {
+          record('attachment.analysis');
+          if (scenario.analysisError) fail('Network error');
+          return JSON.stringify(scenario.attachmentAnalysis ?? { consistent: !scenario.mismatch, reason: 'fixture consistency',
+            requestPurpose: 'status_update', confidence: 0.95, category: 'document_submission',
+            documents: Array.from({length: JSON.parse(args[0].split('\n').pop()).documentCount}, (_, index) => ({index, role: 'delivery', request: ''})) });
+        }
         if (typeof args[0] === 'string' && args[0].startsWith('Rispondi SOLO con un oggetto JSON')) {
           record('semantic.check');
           return JSON.stringify({ consistent: !scenario.mismatch, reason: 'fixture consistency' });

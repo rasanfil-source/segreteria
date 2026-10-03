@@ -14,7 +14,7 @@ for (const attachment of [false, true]) {
             delivery_channel: attachment ? 'attachment' : 'body', requires_file_attachment: attachment } } });
       assert.equal(output.result.status, 'replied');
       const receipt = ['status_update', 'acknowledgment'].includes(purpose) && confidence >= 0.65;
-      assert.equal(output.effects.some(([event]) => event === 'generate'), !receipt, `${attachment}/${purpose}/${confidence}: generation`);
+      assert.equal(output.effects.some(([event, args]) => event === 'generate' && typeof args[0] !== 'string'), !receipt, `${attachment}/${purpose}/${confidence}: generation`);
       assert.equal(output.effects.some(([event]) => event === 'validate'), !receipt, `${attachment}/${purpose}/${confidence}: validation`);
       assert.equal(output.effects.filter(([event]) => event === 'send').length, 1);
       const response = output.effects.find(([event]) => event === 'send')[1][1];

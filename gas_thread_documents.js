@@ -9,12 +9,15 @@ var ThreadDocuments = {
     messageDetails, quickDocumentDelivery, quickAttachmentIntent, physicalAttachmentsDetected,
     attachmentItems, textFromAttachments, forceReceiptOnlyForSubmission, attachmentIntentContext,
     categoryHintSource, classification, requestType, attachmentPreCheckFailed, requestTypeName,
-    quickCheck, attachmentSkipped
+    quickCheck, attachmentSkipped, attachmentAnalysis, messageBodyForSemanticAnalysis
   }) {
-    const certRequestText = `${messageDetails.subject || ''} ${messageDetails.body || ''}`;
+    const documentRequestSummary = attachmentIntentContext?.intent === 'attachment_request'
+      ? attachmentIntentContext.requestSummary : '';
+    const certRequestBody = [messageDetails.body, documentRequestSummary].filter(Boolean).join('\n');
+    const certRequestText = `${messageDetails.subject || ''} ${certRequestBody}`;
     const documentRequestWithSupportingData = deps._detectDocumentRequestWithSupportingData_(
       messageDetails.subject,
-      messageDetails.body
+      certRequestBody
     );
     const hasCertificateSacramentalReference = /\bcertificat[ioa]\b[\s\S]{0,80}\b(battesim[oa]|cresim[ao]|matrimoni[oa]|morte)\b|\b(battesim[oa]|cresim[ao]|matrimoni[oa]|morte)\b[\s\S]{0,80}\bcertificat[ioa]\b/i.test(certRequestText);
     const hasCertificateRequestCue = /\b(richiesta|richied(?:o|ere|iamo|erei|erebbe|ete)|vorrei|desidero|serve|servirebbe|bisogno|ottenere|rilasci(?:o|are|ate)|prepar(?:are|ate|arlo|i|o)|stamp(?:are|arlo|ate|i|o)|mandar(?:mi|ci)|inviar(?:mi|ci))\b/i.test(certRequestText);
@@ -89,11 +92,23 @@ var ThreadDocuments = {
     if (isCertRequest && categoryHintSource !== 'document_submission') {
       categoryHintSource = 'document_request';
     }
-    const requestPurpose = deps._resolveRequestPurpose_(
+    let requestPurpose = deps._resolveRequestPurpose_(
       quickCheck,
       messageDetails.subject,
       messageDetails.body
     );
+    if (attachmentIntentContext && (attachmentIntentContext.intent === 'attachment_request' || attachmentIntentContext.requestPurpose)) {
+      const attachmentPurpose = attachmentIntentContext.requestPurpose;
+      requestPurpose = {
+        type: ['information_request', 'operational_request', 'mixed'].includes(attachmentPurpose) ? attachmentPurpose : 'operational_request',
+        confidence: attachmentIntentContext.confidence, source: 'attachment_analysis'
+      };
+      forceReceiptOnlyForSubmission = false;
+      if (attachmentIntentContext.requestSummary) {
+        messageBodyForSemanticAnalysis = [messageBodyForSemanticAnalysis || messageDetails.body,
+          'Richiesta nel documento allegato: ' + attachmentIntentContext.requestSummary].join('\n\n');
+      }
+    }
     quickCheck.request_purpose = requestPurpose.type;
     quickCheck.request_purpose_confidence = requestPurpose.confidence;
     quickCheck.request_purpose_source = requestPurpose.source;
@@ -125,7 +140,8 @@ var ThreadDocuments = {
     return {
       isCertRequest, documentDeliveryModel, bodyContainsUsableDocumentContent, expectsDocument,
       hasDocumentContentAvailable, hasExpectedDocumentMissing, receiptOnlyDeliveryChannel, requestPurpose,
-      attachmentIntentContext, categoryHintSource, forceReceiptOnlyForSubmission
+      attachmentIntentContext, categoryHintSource, forceReceiptOnlyForSubmission,
+      ...(messageBodyForSemanticAnalysis !== undefined ? { messageBodyForSemanticAnalysis } : {})
     };
   },
   /** consistency: ingressi locali espliciti; restituisce i dati della fase. */
@@ -134,7 +150,7 @@ var ThreadDocuments = {
     physicalAttachmentsDetected, attachmentIntentContext, quickDocumentDelivery, attachmentBlobs,
     quickAttachmentIntent, hasExpectedDocumentMissing, forceReceiptOnlyForSubmission, systemDirectives,
     promptOptions, expectsDocument, bodyContainsUsableDocumentContent, hasDocumentContentAvailable,
-    receiptOnlyDeliveryChannel, runtimeContext, requestPurpose
+    receiptOnlyDeliveryChannel, runtimeContext, requestPurpose, attachmentAnalysis
   }) {
     // Una menzione di documenti ancora attesi non descrive necessariamente
     // l'allegato presente: la coerenza si valuta solo su una consegna
@@ -142,7 +158,7 @@ var ThreadDocuments = {
     const assessConsistencyData = ThreadDocuments.assessConsistency(deps, {
       documentDeliveryModel, messageDetails, attachmentItems, textFromAttachments,
       physicalAttachmentsDetected, attachmentIntentContext, quickDocumentDelivery, attachmentBlobs,
-      quickAttachmentIntent
+      quickAttachmentIntent, attachmentAnalysis
     });
     let { documentConsistency, semanticConsistency, hasTaxonomyMismatch, hasSemanticMismatch, hasDocumentMismatch, documentMismatchReason, hasRiskyUnknownReceived } = assessConsistencyData;
     const hasDocumentDeliveryIncongruent = documentDeliveryModel.status === 'incongruent';
@@ -162,6 +178,7 @@ var ThreadDocuments = {
       ['status_update', 'acknowledgment'].includes(requestPurpose.type)
     );
     const shouldUseReceiptOnly = !hasDocumentDeliveryBlockingIssue &&
+      (!attachmentAnalysis || (attachmentIntentContext && attachmentIntentContext.pureDelivery === true)) &&
       ['it', 'en', 'es', 'fr', 'pt', 'de'].includes(String(promptOptions.detectedLanguage || 'it').toLowerCase().split(/[-_]/)[0]) &&
       forceReceiptOnlyForSubmission && aiConfirmsPureDelivery;
     const shouldSkipValidationForReceiptOnly = shouldUseReceiptOnly;
@@ -280,8 +297,33 @@ var ThreadDocuments = {
   assessConsistency(deps, {
     documentDeliveryModel, messageDetails, attachmentItems, textFromAttachments,
     physicalAttachmentsDetected, attachmentIntentContext, quickDocumentDelivery, attachmentBlobs,
-    quickAttachmentIntent
+    quickAttachmentIntent, attachmentAnalysis
   }) {
+    if (attachmentAnalysis) {
+      // Riutilizza la lettura precedente al routing; non confrontare tassonomie
+      // ricavate dal nome file, né ripetere la chiamata se il servizio non risponde.
+      const mismatch = Boolean(deps.config.documentConsistencyCheckEnabled && documentDeliveryModel.expectsDocument &&
+        attachmentAnalysis.consistent === false && !attachmentAnalysis.partial);
+      const reason = mismatch ? attachmentAnalysis.reason || 'document_mismatch' : null;
+      const uncertain = attachmentAnalysis.status !== 'analyzed' || attachmentAnalysis.confidence < 0.75 ||
+        attachmentAnalysis.partial || attachmentAnalysis.consistent === null ||
+        (attachmentAnalysis.documents || []).some(doc => doc.role === 'unknown');
+      if (mismatch) {
+        documentDeliveryModel.status = 'incongruent';
+        documentDeliveryModel.isCoherent = false;
+        documentDeliveryModel.blocksReceiptOnly = true;
+        documentDeliveryModel.blockReason = reason;
+      } else if (uncertain && documentDeliveryModel.expectsDocument && physicalAttachmentsDetected &&
+          documentDeliveryModel.status !== 'unverified_attachment') {
+        documentDeliveryModel.status = 'unverified_attachment';
+        documentDeliveryModel.isCoherent = false;
+        documentDeliveryModel.blocksReceiptOnly = true;
+        documentDeliveryModel.blockReason = 'expected_document_with_unknown_attachment';
+      }
+      return { documentConsistency: null, semanticConsistency: attachmentAnalysis,
+        hasTaxonomyMismatch: false, hasSemanticMismatch: mismatch,
+        hasDocumentMismatch: mismatch, documentMismatchReason: reason, hasRiskyUnknownReceived: false };
+    }
     const inspectionSkippedForSize = documentDeliveryModel.blockReason === 'attachment_inspection_skipped_for_size';
     const documentConsistency = !inspectionSkippedForSize && deps.config.documentConsistencyCheckEnabled && documentDeliveryModel.expectsDocument
       ? deps._evaluateDocumentConsistency_(

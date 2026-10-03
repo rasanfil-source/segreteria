@@ -2772,7 +2772,11 @@ console.log('--- Test processThread: submission receipt-only non chiama Gemini g
       generateResponse: () => {
         generationCalls++;
         throw new Error('generateResponse non deve essere chiamata per receipt-only submission');
-      }
+      },
+      generateForTask: () => JSON.stringify({ consistent: true, reason: '',
+        requestPurpose: 'status_update', confidence: 0.95, category: 'document_submission',
+        documents: [{index: 0, role: 'delivery', request: ''}]
+      })
     },
     requestClassifier: {
       classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
@@ -3021,7 +3025,10 @@ function runExpectedDocumentDeliveryScenario({
       generateResponse: (prompt) => {
         if (String(prompt || '').includes('Rispondi SOLO con un oggetto JSON valido')) {
           semanticCalls++;
-          return semanticResponse;
+          try {
+            return JSON.stringify(Object.assign({requestPurpose: 'status_update', confidence: 0.95, category: 'document_submission',
+              documents: attachments.map((_, index) => ({index, role: 'delivery', request: ''}))}, JSON.parse(semanticResponse)));
+          } catch (_) { return semanticResponse; }
         }
         generationCalls++;
         return { success: true, text: generatedText };
@@ -3097,7 +3104,7 @@ console.log('--- Test allegato distinto da documenti futuri: nessun falso mismat
   assert(scenario.capturedPromptOptions.documentDelivery.expectsDocument === false, 'i certificati ancora attesi non devono essere associati al file presente');
   assert(scenario.capturedPromptOptions.documentDelivery.status === 'unannounced_attachment', `il modulo deve restare un allegato autonomo, ottenuto ${scenario.capturedPromptOptions.documentDelivery.status}`);
   assert(scenario.capturedPromptOptions.documentConsistency === null, 'senza consegna annunciata non va eseguito il confronto tassonomico atteso/ricevuto');
-  assert(scenario.semanticCalls === 0, 'la descrizione probabilistica dei certificati non deve attivare il confronto semantico');
+  assert(scenario.semanticCalls === 1, 'il file viene interpretato una volta, senza confonderlo con i certificati futuri');
   assert(!scenario.directives.some((item) => /ALLEGATO NON COERENTE|ALLEGATO NON VERIFICABILE/.test(item)), 'non deve essere iniettato alcun avviso di incongruenza');
   assert(scenario.generationCalls === 1, 'la domanda dell utente deve passare alla generazione ordinaria');
 }
@@ -3319,7 +3326,10 @@ function runAttachmentConsistencyFlowScenario({
       generateResponse: (prompt) => {
         if (String(prompt || '').includes('Rispondi SOLO con un oggetto JSON valido')) {
           semanticCalls++;
-          return semanticResponse;
+          try {
+            return JSON.stringify(Object.assign({requestPurpose: 'status_update', confidence: 0.95, category: 'document_submission',
+              documents: [{index: 0, role: 'delivery', request: ''}]}, JSON.parse(semanticResponse)));
+          } catch (_) { return semanticResponse; }
         }
         generationCalls++;
         return { success: true, text: generatedText };
@@ -3395,7 +3405,7 @@ console.log('--- Test document consistency flow: Perillo coerente resta receipt-
   assert(scenario.semanticCalls === 1, 'Perillo coerente deve usare il controllo semantico');
   assert(scenario.generationCalls === 1, 'coerenza allegato senza intento AI non autorizza receipt-only');
   assert(scenario.validationCalls === 1, 'la risposta generata deve essere validata');
-  assert(scenario.promptOptions.documentConsistency.mode === 'unknown_expected', 'documentConsistency deve essere osservabile nel promptOptions');
+  assert(scenario.promptOptions.documentConsistency === null, 'analisi contenuto sostituisce la tassonomia locale');
 }
 
 console.log('--- Test document consistency flow: Perillo incongruo con domanda genera risposta completa ---');
@@ -3456,7 +3466,7 @@ console.log('--- Test document consistency flow: fallimento semantic check resta
   assert(scenario.semanticCalls === 1, 'fallimento semantico deve aver tentato il controllo');
   assert(scenario.generationCalls === 1, 'assenza di mismatch senza intento AI richiede generazione');
   assert(scenario.validationCalls === 1, 'la risposta generata deve essere validata anche dopo fail-open');
-  assert(scenario.directives.length === 0, 'fail-open non deve iniettare direttive mismatch');
+  assert(!scenario.directives.some(text => text.includes('AVVISO ALLEGATO NON COERENTE')), 'fail-open non deve iniettare direttive mismatch');
 }
 
 console.log('--- Test document consistency flow: mismatch tassonomico classico non usa receipt-only ---');
@@ -3468,15 +3478,15 @@ console.log('--- Test document consistency flow: mismatch tassonomico classico n
     attachmentName: 'certificato_battesimo.pdf',
     ocrText: 'CERTIFICATO DI BATTESIMO - battezzato il 10 maggio',
     hasQuestions: false,
-    semanticResponse: '{"consistent": true, "reason": "non usato"}',
+    semanticResponse: '{"consistent": false, "reason": "certificato di battesimo al posto di cresima"}',
     generatedText: 'L allegato sembra non corrispondere al certificato richiesto.'
   });
   assert(scenario.result.status === 'replied', 'mismatch tassonomico deve completarsi');
-  assert(scenario.semanticCalls === 0, 'mismatch tassonomico non deve chiamare controllo semantico');
+  assert(scenario.semanticCalls === 1, 'il contenuto ricevuto deve essere verificato prima di dichiarare un mismatch');
   assert(scenario.generationCalls === 1, 'mismatch tassonomico non deve usare receipt-only');
   assert(scenario.validationCalls === 1, 'mismatch tassonomico deve passare in validazione');
-  assert(scenario.promptOptions.documentConsistency.mode === 'mismatch', 'documentConsistency mismatch deve essere esposto nel promptOptions');
-  assert(scenario.validationRuntimeContexts[0].validationContext.documentMismatch.mode === 'taxonomy', 'mismatch tassonomico deve dichiarare mode taxonomy');
+  assert(scenario.promptOptions.documentDelivery.status === 'incongruent', 'incongruenza da contenuto esposta nel promptOptions');
+  assert(scenario.validationRuntimeContexts[0].validationContext.documentMismatch.mode === 'semantic', 'mismatch ora deriva dal contenuto');
   assert((scenario.directives[0] || '').includes('Per una consegna senza domande'), 'mismatch tassonomico senza domande deve usare direttiva di sola verifica allegato');
 }
 
@@ -5379,7 +5389,9 @@ console.log('--- Test context routing: OCR sacramentale riattiva dottrina dopo c
       detectEmailLanguage: () => ({ lang: 'it' }),
       getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
-      generateResponse: () => ({ success: true, text: 'Risposta Cresima' })
+      generateResponse: () => ({ success: true, text: 'Risposta Cresima' }),
+      generateForTask: () => JSON.stringify({consistent: true, reason: '', requestPurpose: 'information_request',
+        confidence: 0.95, category: 'sacrament', documents: [{index: 0, role: 'supporting', request: ''}]})
     },
     requestClassifier: {
       classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
@@ -5485,7 +5497,9 @@ console.log('--- Test PromptContext: categoria OCR post-allegati governa profilo
       detectEmailLanguage: () => ({ lang: 'it' }),
       getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',
-      generateResponse: () => ({ success: true, text: 'Risposta formale' })
+      generateResponse: () => ({ success: true, text: 'Risposta formale' }),
+      generateForTask: () => JSON.stringify({consistent: true, reason: '', requestPurpose: 'operational_request',
+        confidence: 0.95, category: 'formal', documents: [{index: 0, role: 'request', request: 'Richiesta di sbattezzo.'}]})
     },
     requestClassifier: {
       classify: () => ({ type: 'technical', dimensions: { pastoral: 0.0 } })
@@ -6671,7 +6685,7 @@ console.log('--- Test modulo corso con domanda sul luogo: richiesta conservata d
   assert(scenario.capturedPromptOptions.attachmentIntentContext.hasQuestions === true, 'domanda sul luogo mantenuta dopo OCR');
   assert(!scenario.capturedPromptOptions.attachmentIntentContext.categoryHintSource, 'nome effettivo non cambia categoria');
   assert(scenario.capturedPromptOptions.emailContent.includes('Dove si terrà il corso?'), 'domanda corrente arriva al prompt');
-  assert(scenario.capturedPromptOptions.documentConsistency.mode === 'unknown_received', 'riproduce tassonomia locale del log');
+  assert(scenario.capturedPromptOptions.documentConsistency === null, 'soli metadati non autorizzano classificazione del contenuto');
   assert(scenario.semanticCalls === 0, 'descrizione tecnica del PDF non deve essere scambiata per contenuto leggibile');
   assert(scenario.capturedPromptOptions.documentDelivery.status === 'unverified_attachment', 'coerenza tematica non certifica validità');
   assert(scenario.directives.some(d => d.includes('non imporre verifica o reinvio')), 'incertezza non impone reinvio');

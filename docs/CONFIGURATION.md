@@ -52,6 +52,6 @@ Generation strategy: `flash-3.7` → `flash-3.7-backup` → `flash-lite` → `fl
 
 Enabled defaults: 3 files, 3 MiB each, 25 MiB message precheck, 3000 extracted characters per file and 9000 total. PDF, image and Office extraction/conversion paths depend on file type, intent, time and service availability. The 2-page PDF setting is estimated using 1800 characters per page, not an exact physical page cut.
 
-Relevant older attachments may be recovered from the thread. Historical attachment presence does not prove a new submission. Missing or incomplete OCR is not verified document content.
+Relevant older attachments may be recovered from the thread; they do not prove a new submission. The main path reads PDFs and images directly through the model and never treats a filename as proof of content. Present documents are examined within configured budgets even without body keywords. Legacy OCR keyword, language, confidence and page settings do not constrain visual reading. One structured analysis precedes routing and replaces the later separate semantic check; some simple deliveries therefore require an additional call. Failed or partial reads cannot authorize a fixed receipt or certify document content.
 
 See [architecture](ARCHITECTURE.md), [deployment](DEPLOYMENT.md) and [tests](validator_testing.md).

@@ -17,6 +17,7 @@ var ThreadAttachments = {
     let physicalAttachmentsDetected = false;
     let attachmentPreCheckFailed = false;
     let usedLookbackAttachments = false;
+    let attachmentAnalysis;
 
     if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
       if (deps._isNearDeadline(deps.config.maxExecutionTimeMs)) {
@@ -81,37 +82,8 @@ var ThreadAttachments = {
             console.log('   📎 Elaborazione allegati saltata: nessun allegato nel messaggio candidato');
           }
         } else {
-          const bodyIsVeryShort = (messageDetails.body || '').trim().length < 50;
-          const quickCheckRequiresAttachmentReading = Boolean(
-            hasAttachments &&
-            (
-              (quickAttachmentIntent && quickAttachmentIntent.requires_attachment_reading === true) ||
-              (quickDocumentDelivery && quickDocumentDelivery.expected_document === true && (
-                quickDocumentDelivery.requires_file_attachment === true ||
-                quickDocumentDelivery.delivery_channel === 'attachment' ||
-                quickDocumentDelivery.delivery_channel === 'both' ||
-                quickDocumentDelivery.delivery_channel === 'unclear'
-              ))
-            )
-          );
-          const localOcrFallback = deps._shouldTryOcr(messageDetails.body, messageDetails.subject, hasAttachments);
-          if (
-            bodyIsVeryShort ||
-            attachmentPreCheckFailed ||
-            quickCheckRequiresAttachmentReading ||
-            localOcrFallback
-          ) {
-            // Body molto corto (<50 char) → l'allegato è probabilmente il contenuto principale
-            if (bodyIsVeryShort) {
-              console.log('   📎 Body corto: elaborazione allegati forzata');
-            } else if (quickCheckRequiresAttachmentReading) {
-              const expectedFromQuickCheck = (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
-                (quickAttachmentIntent && quickAttachmentIntent.expected_attachment_description) ||
-                (quickDocumentDelivery && quickDocumentDelivery.reason) ||
-                (quickAttachmentIntent && quickAttachmentIntent.reason) ||
-                'documento allegato';
-              console.log(`   📎 QuickCheck document_delivery: elaborazione allegati forzata (${expectedFromQuickCheck})`);
-            }
+          // Un documento può contenere l'intera richiesta: le parole nel corpo
+          // non ne decidono la leggibilità. Restano i filtri decorativi e i budget.
             console.log('   📎 Elaborazione allegati multimodale (Vision)...');
             const collectData = ThreadAttachments.collect(deps, {
               attachmentSettings, attachmentSourceMessages, threadLogger, maxAttachmentMessageBytes
@@ -127,10 +99,25 @@ var ThreadAttachments = {
               attachmentBlobs.length > 0 ||
               attachmentItems.length > 0
             );
+            // Una sola lettura semantica prima del routing: include richiesta e coerenza.
+            // Errori, limiti e file non letti non autorizzano una ricevuta automatica.
+            attachmentAnalysis = { status: 'unknown', consistent: null };
+            if (!deps._isNearDeadline(deps.config.maxExecutionTimeMs) &&
+                typeof deps._analyzeAttachmentRequest_ === 'function') {
+              attachmentAnalysis = deps._analyzeAttachmentRequest_({
+                subject: messageDetails.subject, body: messageDetails.body,
+                attachmentItems, ocrText: textFromAttachments, attachmentBlobs,
+                documentCount: countProcessedAttachments(), historicalReference: usedLookbackAttachments,
+                expectedAttachmentDescription: (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) || ''
+              });
+            }
+            attachmentAnalysis = Object.assign({ status: 'unknown', consistent: null }, attachmentAnalysis, {
+              partial: textFromAttachments.length > 9000 || attachmentSkipped.some(item => !['micro_image_ignored', 'no_attachments'].includes(item.reason))
+            });
             const interpretOcrData = ThreadAttachments.interpretOcr(deps, {
               messageDetails, attachmentItems, textFromAttachments, attachmentIntentContext,
               preQuickAttachmentIntentContext, categoryHintSource, quickCheck, detectedLanguage,
-              forceReceiptOnlyForSubmission, buildRuleContext, result
+              forceReceiptOnlyForSubmission, buildRuleContext, result, attachmentAnalysis, usedLookbackAttachments
             });
             ({ attachmentIntentContext, categoryHintSource, forceReceiptOnlyForSubmission } = interpretOcrData);
             if (attachmentBlobs.length > 0) {
@@ -142,11 +129,6 @@ var ThreadAttachments = {
               const skippedNames = attachmentSkipped.map((s) => s.name || s.reason).join(', ');
               console.log(`   📎 Allegati ignorati/non supportati: ${attachmentSkipped.length} (${skippedNames})`);
             }
-          } else {
-            attachmentSkipped.push({ reason: 'precheck_no_ocr' });
-            textFromAttachments = '[Avviso di sistema: sono presenti allegati nel thread, ma sono stati esclusi dall\'analisi automatica perché il pre-check non ha rilevato trigger OCR/multimodali rilevanti.]';
-            console.log('   📎 Elaborazione allegati saltata: keyword trigger non rilevate');
-          }
         }
 
       }
@@ -155,7 +137,7 @@ var ThreadAttachments = {
     return {
       attachmentBlobs, textFromAttachments, attachmentItems, physicalAttachmentsDetected,
       attachmentPreCheckFailed, attachmentIntentContext, categoryHintSource, forceReceiptOnlyForSubmission,
-      attachmentSkipped, usedLookbackAttachments
+      attachmentSkipped, usedLookbackAttachments, attachmentAnalysis
     };
   },
   /** collect: returns attachmentData, countProcessedAttachments; preserves the caller's service-effect order. */
@@ -180,7 +162,10 @@ var ThreadAttachments = {
     for (let i = attachmentSourceMessages.length - 1; i >= 0; i--) {
       try {
         const remainingFiles = maxAttachmentFiles - countProcessedAttachments();
-        if (remainingFiles <= 0) break;
+        if (remainingFiles <= 0) {
+          attachmentData.skipped.push({ reason: 'max_files' });
+          break;
+        }
 
         const sizeEstimate = deps._getMessageSizeEstimateForAttachmentDownload_(attachmentSourceMessages[i], threadLogger);
         if (Number.isFinite(sizeEstimate) && sizeEstimate > maxAttachmentMessageBytes) {
@@ -232,7 +217,10 @@ var ThreadAttachments = {
         attachmentData.processedCount += reportedCount !== null
           ? reportedCount
           : inferProcessedAttachmentCount(msgData);
-        if (countProcessedAttachments() >= maxAttachmentFiles) break;
+        if (countProcessedAttachments() >= maxAttachmentFiles && i > 0) {
+          attachmentData.skipped.push({ reason: 'max_files' });
+          break;
+        }
       } catch (attError) {
         let messageId = 'unknown';
         try {
@@ -250,7 +238,7 @@ var ThreadAttachments = {
   interpretOcr(deps, {
     messageDetails, attachmentItems, textFromAttachments, attachmentIntentContext,
     preQuickAttachmentIntentContext, categoryHintSource, quickCheck, detectedLanguage,
-    forceReceiptOnlyForSubmission, buildRuleContext, result
+    forceReceiptOnlyForSubmission, buildRuleContext, result, attachmentAnalysis, usedLookbackAttachments
   }) {
     const postOcrAttachmentIntentContext = deps._deriveAttachmentIntentContext_(
       messageDetails.body,
@@ -260,6 +248,36 @@ var ThreadAttachments = {
       'post_ocr'
     );
     attachmentIntentContext = postOcrAttachmentIntentContext || preQuickAttachmentIntentContext;
+
+    if (attachmentAnalysis) {
+      const reliable = attachmentAnalysis.status === 'analyzed' && attachmentAnalysis.confidence >= 0.75;
+      const docs = reliable ? attachmentAnalysis.documents : [];
+      // I file storici sono contesto, non nuove istanze da riaprire.
+      const requests = usedLookbackAttachments ? [] : docs.filter(doc => doc.role === 'request');
+      const hasDocumentRequest = requests.length > 0;
+      const hasBodyQuestions = Boolean(attachmentIntentContext && attachmentIntentContext.hasQuestions);
+      const hasActionPurpose = reliable && !usedLookbackAttachments &&
+        ['information_request', 'operational_request', 'mixed'].includes(attachmentAnalysis.requestPurpose);
+      const pureDelivery = reliable && attachmentAnalysis.consistent === true && !attachmentAnalysis.partial && !usedLookbackAttachments &&
+        docs.length > 0 && docs.every(doc => ['delivery', 'supporting'].includes(doc.role)) &&
+        ['status_update', 'acknowledgment'].includes(attachmentAnalysis.requestPurpose);
+      attachmentIntentContext = {
+        intent: hasDocumentRequest ? 'attachment_request' : pureDelivery ? 'document_submission' : 'attachment_context',
+        phase: 'document_analysis', confidence: reliable ? attachmentAnalysis.confidence : 0,
+        hasQuestions: hasBodyQuestions || hasDocumentRequest || hasActionPurpose,
+        requestPurpose: hasActionPurpose ? attachmentAnalysis.requestPurpose : null,
+        requestSummary: requests.map(doc => doc.request).join(' ').slice(0, 400),
+        responseDirective: '',
+        categoryHintSource: (hasDocumentRequest || hasActionPurpose) && attachmentAnalysis.category !== 'unknown'
+          ? attachmentAnalysis.category : null,
+        analysisStatus: reliable ? 'analyzed' : 'unknown', pureDelivery
+      };
+      forceReceiptOnlyForSubmission = pureDelivery && !hasBodyQuestions;
+      // Nomi dei file e metadati non determinano più il routing post-lettura.
+      if (!hasDocumentRequest && /submission/i.test(String(categoryHintSource || ''))) {
+        categoryHintSource = pureDelivery ? 'document_submission' : (quickCheck.classification?.category || 'information');
+      }
+    }
 
     // Se post-OCR cambia la categoria (es. rilevato modulo sbattezzo), aggiorniamo il routing
     if (attachmentIntentContext && attachmentIntentContext.categoryHintSource) {

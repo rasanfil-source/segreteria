@@ -2129,6 +2129,7 @@ var GmailService = class GmailService {
                     if (convertedPdf) {
                         convertedPdf.setName(`${name}.pdf`);
                         result.blobs.push(convertedPdf);
+                        result.items.push({ name: name });
                         processedCount++;
                     } else {
                         result.skipped.push({ name: name, reason: 'conversion_failed' });

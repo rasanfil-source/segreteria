@@ -372,7 +372,7 @@ ${addressLines.join('\n\n')}
     categoryHintSource, classification, safeSubject, messageDetails, isReplyBySubject,
     hasPriorOwnMessage, detectedLanguage, requestType, memoryContext, memoryProvidedInfo, memoryTopics,
     memoryContextualFlags, memoryMessageCount, territoryResult, enrichedKnowledgeBase,
-    messageBodyForSemanticAnalysis, salutationMode, physicalPresenceConstraint, quickCheck,
+    messageBodyForSemanticAnalysis, salutationMode, physicalPresenceConstraint, quickCheck, attachmentIntentContext,
     requestPurpose, promptProfile, activeConcerns, responseRegister, crisisCritical,
     effectiveSalutationMode, concernSynthesis, continuityCase, responseMode, operationalConstraints,
     continuityPolicy, threadLogger, threadId, messageState, result, startTime
@@ -385,7 +385,7 @@ ${addressLines.join('\n\n')}
       const promptContext = createPromptContext({
         email: {
           subject: safeSubject,
-          body: messageDetails.body,
+          body: attachmentIntentContext?.intent === 'attachment_request' ? messageBodyForSemanticAnalysis : messageDetails.body,
           isReply: isReplyBySubject || hasPriorOwnMessage,
           detectedLanguage: detectedLanguage
         },

@@ -228,7 +228,7 @@ var CONFIG = {
     ocrConfidenceWarningThreshold: 0.8, // Soglia warning leggibilità OCR in risposta
     pdfMaxPages: 2,                  // Limite pagine PDF (stima via OCR)
     pdfCharsPerPage: 1800,           // Stima caratteri per pagina PDF
-    ocrTriggerKeywords: [            // Attiva OCR solo se il contenuto è rilevante
+    ocrTriggerKeywords: [            // Compatibilità helper legacy; non filtra i documenti nel percorso visivo
       'iban', 'bonifico', 'ricevuta', 'documento',
       'allego', 'in allegato', 'coordinate', 'modulo'
     ],

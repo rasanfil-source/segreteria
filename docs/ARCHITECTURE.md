@@ -36,7 +36,7 @@ Deploy every component with the coordinator. Tests also exercise reverse load or
 2. Select external messages, aggregate a recent burst, check internal speakers and duplicates.
 3. Apply local filters and [language mode](LANGUAGE_MODES.md). Italian is deferred with `·` in foreign-only mode; that label is not an exclusion in all-languages mode.
 4. Load memory and run Gemini quick-check for response need, language and conversation signals. Technical failure is not a valid no-response decision.
-5. Build knowledge/history/territory/attachment context and determine document intent. Simple submissions can use a local receipt; questions and operational/canonical intent use the appropriate response path. Critical crises can stop for review before generation.
+5. Build knowledge/history/territory/attachment context. Before routing, one structured analysis reads text and visual files, distinguishes requests, deliveries and supporting evidence, and supplies a reusable consistency result. Personal requests inside attachments inform purpose, profile and validation; printed form questions and historical requests do not become new requests. Local receipts require simple delivery confirmed by both quick check and complete document analysis. Partial reads, errors and uncertainty retain generation and validation. Critical crises can stop for review before generation.
 6. Generate under model/time/quota constraints, then validate deterministically and semantically where required. A high score cannot override a blocking check; a required semantic check must succeed.
 7. Send using an idempotent transaction, then complete labels and memory. Failures after confirmed delivery cannot permit another send.
 

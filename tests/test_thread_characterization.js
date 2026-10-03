@@ -44,6 +44,15 @@ const scenarios = {
   session_memory: { history: true, memory: { exists: true, lastUpdated: '2026-09-25T09:55:00.000Z', messageCount: 2, category: 'pastoral', memorySummary: 'Colloquio richiesto', providedInfo: ['contatti'] } }
 };
 const sourceRoot = process.argv.includes('--record-baseline') ? path.join(root, 'outputs', 'process-thread-baseline') : root;
+// Explicit model output for document requests: the old harness supplied OCR text
+// directly, whereas production PDFs now receive one structured visual analysis.
+if (!process.argv.includes('--record-baseline')) {
+  for (const name of ['ocr_formal', 'ocr_formal_routing']) {
+    scenarios[name].attachmentAnalysis = {consistent: true, reason: '', requestPurpose: 'operational_request',
+      confidence: 0.95, category: 'formal', documents: [{index: 0, role: 'request',
+        request: 'Richiesta di sbattezzo e cancellazione dal registro battesimo.'}]};
+  }
+}
 const actual = Object.fromEntries(Object.entries(scenarios).map(([name, scenario]) => [name, runScenario(sourceRoot, scenario, { componentCalls })]));
 const fixturePath = path.join(__dirname, 'fixtures', 'thread_baseline.json');
 if (process.argv.includes('--record-baseline')) {
@@ -204,7 +213,28 @@ for (const [name, output] of Object.entries(actual)) {
     event === 'props.set' && String(value[0]).startsWith('generation_progress_') ||
     event === 'props.delete' && String(value).startsWith('generation_progress_')
   ));
-  assert.deepStrictEqual(output, expected[name], `${name}: return value and ordered effects must match the workspace baseline`);
+  const newDocumentProcessing = output.effects.some(([event, value]) => event === 'prompt' && value.attachmentIntentContext?.phase === 'document_analysis');
+  if (newDocumentProcessing) {
+    // The pre-routing analysis intentionally replaces the old document decisions.
+    // Preserve the original delivery transaction and result, while the new suite
+    // tests analysis, routing, prompt, validation context and failure paths directly.
+    const deliveryEvents = new Set(['send', 'send.reconcile', 'lock.acquire', 'lock.release',
+      'cache.put', 'cache.remove', 'props.set', 'props.delete', 'label.processed',
+      'label.review', 'label.error', 'label.cleanMessage']);
+    if (name === 'ocr_formal') {
+      // Positive content analysis replaces the old taxonomy false mismatch.
+      expected[name].effects = expected[name].effects.map(([event, value]) => event === 'label.review' &&
+        value[1].reason === 'document_consistency_prudent_response'
+        ? ['label.cleanMessage', [value[0], 'Verifica']] : [event, value]);
+    }
+    assert.deepStrictEqual(output.result, expected[name].result, `${name}: outcome unchanged`);
+    assert.deepStrictEqual(output.effects.filter(([event]) => deliveryEvents.has(event)),
+      expected[name].effects.filter(([event]) => deliveryEvents.has(event)), `${name}: delivery transaction unchanged`);
+    assert.equal(output.effects.filter(([event]) => event === 'attachment.analysis').length, name === 'attachment_crash' ? 0 : 1);
+    assert.equal(output.effects.filter(([event]) => event === 'semantic.check').length, 0);
+  } else {
+    assert.deepStrictEqual(output, expected[name], `${name}: return value and ordered effects must match the workspace baseline`);
+  }
   assert(output.restored, `${name}: restore service loggers`);
 }
 const events = name => actual[name].effects.map(([event]) => event);
@@ -230,7 +260,7 @@ assert.equal(actual.crisis.result.reason, 'pastoral_crisis_human_review');
 assert(!events('crisis').includes('generate'));
 assert.equal(events('repeat_confirmed').filter(name => name === 'send').length, 1);
 assert.equal(actual.same_date_reversed.effects.find(([name]) => name === 'extract')[1], 'm2');
-assert(events('semantic_mismatch').includes('semantic.check'));
+assert(events('semantic_mismatch').includes('attachment.analysis'));
 assert.equal(actual.semantic_mismatch.effects.find(([name]) => name === 'validate')[1][7].validationContext.documentMismatch.mode, 'semantic');
 assert.equal(actual.ocr_formal_routing.effects.find(([name]) => name === 'prompt')[1].category, 'formal');
 assert.equal(events('receipt_only').filter(name => name === 'validate').length, 1);

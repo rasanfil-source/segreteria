@@ -1063,8 +1063,7 @@ const attachmentPrompt = engine.buildPrompt({
 });
 
 assert(
-  attachmentPrompt.includes('STOP') &&
-  attachmentPrompt.includes('ALLEGATO = DOCUMENTAZIONE CONSEGNATA') &&
+  attachmentPrompt.includes('CONSEGNA DOCUMENTALE') &&
   attachmentPrompt.includes('Risposta predefinita: ringrazia e conferma la ricezione'),
   'il prompt deve indicare una risposta predefinita di ricezione'
 );
