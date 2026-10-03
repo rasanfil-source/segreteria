@@ -1,0 +1,8 @@
+{
+  "name": "Parish Email Secretary AI (Google Apps Script)",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "user": "node",
+  "install": "node --version && npm --version && clasp --version"
+}

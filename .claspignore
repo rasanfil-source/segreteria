@@ -2,6 +2,9 @@
 .git/
 .gitignore
 
+# Ignora la configurazione dell'ambiente Cloud Agent
+.cursor/**
+
 # Ignora documentazione (opzionale, ma risparmia spazio su GAS)
 # README.md
 # README_IT.md
