@@ -1,4 +1,4 @@
-// Offline migration helper. Never connects to Apps Script or prints addresses.
+// Esportatore locale degli indirizzi personali, senza connessioni ad Apps Script o indirizzi nei log.
 // Esporta gli indirizzi di esclusione: node maintenance/export_legacy_blacklist.js [git-ref]
 const fs = require('fs');
 const path = require('path');

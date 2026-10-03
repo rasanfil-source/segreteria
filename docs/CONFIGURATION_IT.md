@@ -1,6 +1,6 @@
 # Configurazione
 
-Codice locale verificato il 29 settembre 2026. [English](CONFIGURATION.md)
+Codice locale verificato il 3 ottobre 2026. [English](CONFIGURATION.md)
 
 ## Dove configurare
 
@@ -17,7 +17,7 @@ Codice locale verificato il 29 settembre 2026. [English](CONFIGURATION.md)
 | `VALIDATION_REVIEW_EMAIL` | Destinatario delle notifiche di revisione. |
 | `METRICS_SHEET_ID` | Spreadsheet opzionale per `DailyMetrics`. |
 
-La migrazione degli indirizzi personali dai vecchi sorgenti è descritta nel [rapporto affidabilità](RELIABILITY_AUDIT_2026-09-22.md). Una proprietà assente non ricostruisce la vecchia blacklist.
+Le esclusioni personali sono configurate per ambiente in `PERSONAL_IGNORE_SENDERS`. Una proprietà assente equivale a una lista personale vuota. Vedi i [contratti funzionali](CONTRATTI_FUNZIONALI_IT.md).
 
 ## Foglio Controllo
 
@@ -34,7 +34,7 @@ Le fasce sospendono l'automatismo durante la presenza della segreteria. Le assen
 
 In **Tutte le lingue** italiano e altre lingue sono ammissibili. In **Solo straniere** l'italiano riconosciuto viene rinviato con `·`, senza risposta e mantenendo lo stato non letto. Tornando a tutte le lingue può rientrare tra i candidati, se ancora lavorabile. F2 vuota/non riconosciuta ripiega su tutte le lingue. Vedi [rilevamento e cambio modalità](LANGUAGE_MODES_IT.md).
 
-`setupConfigurationSheets()` prepara il layout usando lo spreadsheet attivo e può cancellare il contenuto di `Controllo!A1:Z300`: usarlo per il setup, dopo aver salvato i dati necessari. `applyValidationOnly()` applica i vincoli senza ricreare l'intero layout. Un cambio F2 non richiede di ripetere il setup.
+`setupConfigurationSheets()` prepara il layout usando lo spreadsheet attivo, ricreando formattazione e unioni nell'intervallo configurato e conservando i valori esistenti. `applyValidationOnly()` applica i vincoli senza ricreare l'intero layout. Un cambio F2 non richiede di ripetere il setup.
 
 ## Parametri effettivi
 
@@ -49,11 +49,13 @@ In **Tutte le lingue** italiano e altre lingue sono ammissibili. In **Solo stran
 | `MESSAGE_DISCOVERY_MODE` | `metadata` |
 | `BATCH_CHECKPOINT_TTL_MS` | 600000 |
 | `BATCH_CHECKPOINT_MAX_RETRIES` | 3 |
+| `BATCH_CHECKPOINT_MAX_THREADS` | 150 |
+| `SEMANTIC_VALIDATION.activationThreshold` | 0.82 |
 | `VALIDATION_MIN_SCORE` | 0.6 |
 | `VALIDATION_WARNING_THRESHOLD` | 0.9 |
 | `CRISIS_HUMAN_REVIEW` | true |
 | `INTELLIGENT_RETRY.maxRetries` | 1 |
-| `MAX_SAFE_TOKENS` / `MAX_SAFE_PROMPT_CHARS` | 100000 / 100000 |
+| `MAX_SAFE_TOKENS` / `MAX_SAFE_PROMPT_CHARS` | 120000 / 120000 |
 | `MAX_OUTPUT_TOKENS` | 6000 |
 | `MAX_PROVIDED_TOPICS` | 50 |
 | `MEMORY_MAX_SUMMARY_BULLETS` | 5 |
@@ -61,6 +63,10 @@ In **Tutte le lingue** italiano e altre lingue sono ammissibili. In **Solo stran
 | `DRY_RUN` / `USE_RATE_LIMITER` | false / true |
 
 Le soglie non sono una garanzia di qualità: alcuni errori bloccano a prescindere dallo score. Diagnosticare la causa di `Verifica` prima di modificare la validazione. Il dry-run blocca l'invio della risposta ma può accedere ai servizi, consumare chiamate Gemini, modificare stato tecnico e produrre log.
+
+Il limite dei checkpoint è inclusivo e conta le riprese pianificate dello stesso insieme di thread: il valore 1 consente la prima ripresa, il valore 3 ne consente tre. Un insieme diverso reimposta il conteggio; oltre la soglia vengono cancellati checkpoint e trigger di ripresa pertinenti. La lettura rispetta anche `notBefore` e `expiresAt`.
+
+La modalità compatibilità senza `LockService` usa lock logici e marcatori persistenti senza garanzia di atomicità fisica. Gli invii incerti conservano i marcatori per almeno sette giorni. Vedi [concorrenza e transazioni](CONTRATTI_FUNZIONALI_IT.md#concorrenza-e-transazioni-di-invio).
 
 ## Modelli
 
@@ -72,6 +78,6 @@ Questi sono identificativi e budget configurati localmente: disponibilità, quot
 
 `ATTACHMENT_CONTEXT` è abilitato: massimo 3 file, 3 MiB per file, precontrollo messaggio 25 MiB, 3000 caratteri per file e 9000 totali. L'elaborazione supporta PDF, immagini e formati Office tramite percorsi di estrazione/conversione; dipende da tipo, intento, tempo e servizi disponibili. La stima PDF usa 2 pagine e 1800 caratteri per pagina, non un parser che garantisce un taglio fisico esatto.
 
-Il codice può recuperare allegati precedenti pertinenti nel thread: la presenza di un allegato storico non prova una nuova consegna. Nel percorso principale PDF e immagini vengono letti direttamente dal modello; il nome del file non prova il contenuto. I documenti presenti vengono esaminati entro i budget configurati anche senza parole chiave nel corpo. `ocrTriggerKeywords`, lingua, confidenza e limiti di pagine OCR riguardano gli helper testuali precedenti, non limitano la lettura visiva. Una sola analisi strutturata precede il routing e sostituisce il successivo controllo semantico separato: per alcune semplici consegne ciò comporta una chiamata prima non necessaria. In caso di lettura incompleta/non disponibile non si deve documentare l'allegato come certamente verificato né usare la ricevuta automatica.
+Il codice può recuperare allegati precedenti pertinenti nel thread: la presenza di un allegato storico non prova una nuova consegna. Nel percorso principale PDF e immagini vengono letti direttamente dal modello; il nome del file non prova il contenuto. I documenti presenti vengono esaminati entro i budget configurati anche senza parole chiave nel corpo. `ocrTriggerKeywords`, lingua, confidenza e limiti di pagine OCR riguardano gli helper testuali compatibili; la lettura visiva segue i propri budget. Una sola analisi strutturata precede il routing e fornisce un risultato di coerenza riutilizzabile. In caso di lettura incompleta o non disponibile, il documento resta non verificato e la richiesta segue generazione e validazione.
 
 Vedi [architettura](ARCHITECTURE_IT.md), [deploy](DEPLOYMENT_IT.md) e [test](validator_testing.md).

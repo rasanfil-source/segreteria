@@ -1,6 +1,6 @@
 # Operational troubleshooting
 
-Local source reference: 29 September 2026. [Italiano](TROUBLESHOOTING_IT.md)
+Local source reference: 3 October 2026. [Italiano](TROUBLESHOOTING_IT.md)
 
 ## No replies
 
@@ -20,7 +20,7 @@ For `gmail_send_uncertain`, inspect the thread and sent mail. The RAW path uses 
 - If still uncertain, retain `Verifica` and `send_uncertain_<ID>`.
 - Only after establishing non-delivery may an administrator remove the uncertain marker and the relevant message label. Check every burst ID and wait at least 15 minutes after the attempt for temporary `sending_`/`sendstarted_` markers.
 
-Uncertain markers do not expire automatically. Never clear all Script Properties or labels to retry. A memory failure after confirmed delivery does not warrant another reply.
+Uncertain markers are retained for at least seven days and can then be removed by pruning. Always check sent mail during review. Never clear all Script Properties or labels to retry. A memory failure after confirmed delivery does not warrant another reply.
 
 ## Quotas, attachments and memory
 

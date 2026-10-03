@@ -1,6 +1,6 @@
 # 🔐 Sicurezza e Conformità GDPR
 
-> Nota tecnica al 29 settembre 2026: dry-run può ancora chiamare servizi e produrre log; Tutte le lingue / Solo straniere controlla l'ammissibilità, non è una garanzia che un dato non venga elaborato. Vedi [modalità lingua](LANGUAGE_MODES_IT.md) e [configurazione](CONFIGURATION_IT.md). Questa nota descrive il codice, senza aggiornare o certificare le valutazioni legali e i termini esterni citati sotto.
+> Nota tecnica al 3 ottobre 2026: dry-run può ancora chiamare servizi e produrre log; Tutte le lingue / Solo straniere controlla l'ammissibilità, non è una garanzia che un dato non venga elaborato. Vedi [modalità lingua](LANGUAGE_MODES_IT.md) e [configurazione](CONFIGURATION_IT.md). Questa nota descrive il codice, senza aggiornare o certificare le valutazioni legali e i termini esterni citati sotto.
 
 [![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](SECURITY.md)
 
@@ -71,7 +71,7 @@ Il foglio di calcolo funge da database e Knowledge Base.
 
 ### 3. Log e Monitoraggio
 
--   **Log**: Alcuni percorsi registrano mittenti, oggetti, motivi di validazione, contesto documentale o anteprime della risposta, anche in dry run. Non esiste una redazione universale. Limitare accesso e conservazione. Le notifiche possono includere oggetto, identificativi e motivi; vedi [comportamento operativo](RELIABILITY_AUDIT_2026-09-22.md).
+-   **Log**: Alcuni percorsi registrano mittenti, oggetti, motivi di validazione, contesto documentale o anteprime della risposta, anche in dry run. Non esiste una redazione universale. Limitare accesso e conservazione. Le notifiche possono includere oggetto, identificativi e motivi; vedi [comportamento operativo](CONTRATTI_FUNZIONALI_IT.md).
 -   **Audit Trail**: Mantenere traccia di chi ha accesso allo script e al foglio di calcolo.
 
 ---

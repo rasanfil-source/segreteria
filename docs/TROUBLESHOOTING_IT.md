@@ -1,6 +1,6 @@
 # Diagnosi operativa
 
-Riferimento al codice locale: 29 settembre 2026. [English](TROUBLESHOOTING.md)
+Riferimento al codice locale: 3 ottobre 2026. [English](TROUBLESHOOTING.md)
 
 ## Nessuna risposta
 
@@ -29,7 +29,7 @@ Per `gmail_send_uncertain`, controllare thread e posta inviata. Nel percorso RAW
 - Esito ancora dubbio: conservare `Verifica` e `send_uncertain_<ID>`.
 - Mancato invio accertato: un amministratore può rimuovere il marker incerto e la label del messaggio da riprocessare, verificando tutti gli ID del burst. Attendere almeno 15 minuti dal tentativo per i marker temporanei `sending_`/`sendstarted_`.
 
-Il marker incerto non scade automaticamente. Non cancellare tutte le Script Properties o tutte le etichette: contengono anche configurazione, contatori e protezioni dai duplicati. Un errore di memoria dopo consegna confermata non giustifica una nuova risposta.
+Il marcatore incerto viene conservato per almeno sette giorni e può essere eliminato dalla pulizia al termine della durata prevista. Durante la revisione controllare sempre la posta inviata. Non cancellare tutte le Script Properties o tutte le etichette: contengono anche configurazione, contatori e protezioni dai duplicati. Un errore di memoria dopo consegna confermata non giustifica una nuova risposta.
 
 ## Quote e checkpoint
 

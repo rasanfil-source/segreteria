@@ -7,7 +7,7 @@
  * - Costruttore cronologia conversazione
  * - Rimozione citazioni/firme
  * - Threading corretto (In-Reply-To, References)
- * - Markdown to HTML
+ * - Conversione da Markdown a HTML
  */
 
 var GmailService = class GmailService {
@@ -759,7 +759,7 @@ var GmailService = class GmailService {
      * Modalità supportate:
      * - 'metadata': default operativo, message-level (list INBOX/UNREAD + blacklist ID in RAM,
      *               con get minimal solo come fallback se la blacklist non è stata fornita)
-     * - 'query'   : compatibilità legacy basata su GmailApp.search a livello thread
+     * - 'query'   : compatibilità compatibile basata su GmailApp.search a livello thread
      *
      * @param {string} labelName            - Label applicata ai messaggi già elaborati (es. 'IA')
      * @param {string} errorLabel           - Label dei thread in errore (es. 'Errore')
@@ -1557,7 +1557,7 @@ var GmailService = class GmailService {
         let effectiveSender;
         let hasReplyTo = false;
 
-        // Cross-domain Reply-To requires an explicitly trusted form sender.
+        // Reply-To su un dominio diverso richiede un mittente di modulo esplicitamente autorizzato.
         // Agli altri mittenti si applica la regola del dominio comune.
         const fromAddress = this._extractEmailAddress(sender) || '';
         const replyToAddress = replyTo ? (this._extractEmailAddress(replyTo) || '') : '';
@@ -1945,7 +1945,7 @@ var GmailService = class GmailService {
             const rawMimeType = (attachment.getContentType() || '').toLowerCase();
             let mimeType = rawMimeType.split(';')[0].trim();
 
-            // Correzione MIME basata su estensione — specchio di extractAttachmentContext.
+            // Determina il tipo MIME dall’estensione, come in extractAttachmentContext.
             // Client come Outlook o moduli web inviano file Office come application/octet-stream.
             const officeMimeMap = this._officeMimeMap || {};
             if (!officeMimeMap[mimeType] &&

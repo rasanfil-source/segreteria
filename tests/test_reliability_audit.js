@@ -1,4 +1,4 @@
-// Offline regressions: all Google services are in-memory mocks.
+// Verifica locale con tutti i servizi Google simulati in memoria.
 const fs = require('fs'), path = require('path'), vm = require('vm'), assert = require('assert');
 const props = new Map(), cache = new Map(), notifications = [], labels = [];
 const propertyService = {
@@ -189,7 +189,7 @@ run(`var own={getId:()=> 'own',getFrom:()=> 'bot@example.org',getDate:()=>new Da
 assert.strictEqual(run('anchor.lastMessageDate instanceof Date'),true);
 assert.strictEqual(run(`computeSalutationMode({isReply:true,memoryExists:true,lastUpdated:anchor.lastMessageDate})`),'session');
 
-// A mandatory semantic check cannot be skipped just because lexical confidence is high.
+// Il controllo semantico obbligatorio si applica anche con confidenza lessicale elevata.
 run(`var checks=0, forced=false;var validator=new ResponseValidator();
  validator.semanticValidator={shouldRun:()=>false,validateHallucinations:(r,k,l,e,o)=>{checks++;forced=o.forceRelevanceReview;return {isValid:false,confidence:0,reason:'offline mandatory review',fallback:true}},
  validateThinkingLeak:()=>({isValid:true,confidence:1})};
@@ -198,7 +198,7 @@ assert.strictEqual(run('checks'),1);
 assert.strictEqual(run('forced'),true);
 assert.strictEqual(run('checked.isValid'),false);
 
-// Unknown transport failures are ambiguous too: no native retry is allowed.
+// Gli errori di trasporto indeterminati mantengono lo stato incerto e impediscono il reinvio nativo.
 run(`var nativeAttempts=0;g._incrementGmailCallCounterOrThrow_=()=>{};
  var outgoing={getFrom:()=> 'user@example.org',getReplyTo:()=> '',reply:()=>{nativeAttempts++;throw new Error('unclassified transport failure')}};`);
 assert.throws(()=>run(`g.sendHtmlReply(outgoing,'Test',{senderEmail:'user@example.org'})`), /ambiguo/);

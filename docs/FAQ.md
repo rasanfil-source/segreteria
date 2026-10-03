@@ -1,6 +1,6 @@
 # FAQ
 
-Updated 29 September 2026.
+Updated 3 October 2026.
 
 ## Does it handle Italian?
 

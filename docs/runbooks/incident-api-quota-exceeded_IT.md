@@ -1,6 +1,6 @@
 # Quote API esaurite
 
-Procedura aggiornata al codice del 29 settembre 2026.
+Procedura aggiornata al codice del 3 ottobre 2026.
 
 Identificare servizio, errore e finestra interessata. Il 429 non implica sempre esaurimento giornaliero. Attendere il rinvio previsto, controllare quota effettiva e budget locali; non cancellare contatori per forzare chiamate. Il contatore giornaliero locale Gemini usa America/Los_Angeles. Il backup non garantisce una quota indipendente.
 

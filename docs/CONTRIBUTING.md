@@ -1,5 +1,7 @@
 # Contributing to SPA (Segreteria Parrocchiale Automatica)
 
+Source comments are written in Italian and describe responsibilities, conditions and results. API identifiers, JSDoc tags and multilingual examples retain their required form. Documentation describes operational behaviour. Run `node --expose-internals maintenance/verify_source_docs.cjs` to inspect JavaScript comment indicators and local documentation links; language review complements this lexical check.
+
 [![Language: IT](https://img.shields.io/badge/Language-Italian-green?style=flat-square)](CONTRIBUTING_IT.md)
 
 Thank you for your interest in contributing to SPA! We welcome contributions from developers, pastoral workers, and anyone interested in the intersection of faith and technology.

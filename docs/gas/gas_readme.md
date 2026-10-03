@@ -1,6 +1,6 @@
 # Riferimento tecnico GAS
 
-Aggiornato al 29 settembre 2026.
+Aggiornato al 3 ottobre 2026.
 
 Il codice usa file `gas_*.js` globali GAS V8. Non esiste un modulo runtime `KnowledgeBaseService.gs`: il caricamento KB avviene in `gas_main.js`. L'orchestratore dipende dagli undici componenti `gas_thread_*.js`.
 

@@ -58,20 +58,18 @@ Una percentuale alta non sostituisce gli oracoli: i rami residui sono visibili n
 rapporto e le matrici esaustive valgono per le dimensioni elencate, non per il
 prodotto cartesiano di tutto il validatore.
 
-## Difetto trovato dalla matrice
+## Riscontro degli orari e dei versetti
 
-Il filtro dei versetti biblici riconosceva `re` anche alla fine di `ore`,
-scartando `Ore 10:00` dagli orari da verificare. Il confine di parola evita sia
-il falso positivo su un orario legittimamente presente nelle fonti sia la mancata
-segnalazione di un orario inventato. Restano escluse le vere citazioni `Re`,
-`2Re`, `Gv` e `Gen.`; i casi sono verificati nella matrice di grounding.
+Il filtro dei versetti usa confini di parola per distinguere `Re`, `2Re`, `Gv` e
+`Gen.` dalle espressioni orarie come `Ore 10:00`. La matrice verifica sia gli
+orari presenti nelle fonti sia quelli privi di riscontro.
 
-## Verifica del 29 settembre 2026
+## Verifica del 3 ottobre 2026
 
-Runner completo terminato con codice 0: 114/114 smoke, suite unitaria senza fallimenti, 52/52 suite modulari. Copertura response validator: 99.11% funzioni e 81.93% blocchi V8; territory validator: 100% e 87.61%. Si tratta di risultati offline sul codice locale, non di un collaudo dei servizi reali o del deploy.
+Il runner comprende smoke test, test unitari e 81 suite modulari con servizi esterni simulati. La copertura di riferimento è 97.83% delle funzioni e 81.65% dei blocchi V8 per il validatore delle risposte, 100% e 87.39% per quello territoriale. Gli esiti attestano il codice locale; disponibilità dei servizi e distribuzione richiedono verifiche nell'ambiente operativo.
 
 Il runner ricrea outputs/coverage dopo la pulizia; i profili sono artefatti generati e non prerequisiti. Le fixture versionate restano in tests/fixtures. Il confronto opzionale `node tests/test_thread_characterization.js --compare-workspace-baseline` richiede la copia locale conservata in outputs/process-thread-baseline; la suite ordinaria non la richiede.
 
 Le modalità lingua sono coperte da configurazione avanzata, processor, Gmail, caratterizzazione e unitari: italiano/estero/unknown, oggetto italiano con corpo estero, etichetta ·, mantenimento non letto e cambio modalità. Vedi [contratto operativo](LANGUAGE_MODES_IT.md).
 
-La suite `test_audit_helper_contracts.js` copre le correzioni del 29 settembre: null nella lista allegati, normalizzazione del corpo per i vincoli di presenza, prefissi concatenati nell'oggetto e formattazione della notifica. I test dei difetti fallivano prima delle patch e passano dopo; servizi esterni simulati.
+La suite `test_audit_helper_contracts.js` verifica liste allegati con elementi nulli, normalizzazione del corpo per i vincoli di presenza, prefissi concatenati nell'oggetto e formattazione della notifica. `test_micro_edge_regressions.js` verifica i confini di riga dei contatti, le valute, gli apostrofi, le negazioni personali e gli intervalli estivi. `test_seven_report_regressions.js` copre lock, invii, conservazione dei marcatori e soglie dei checkpoint. I nomi dei file identificano suite permanenti dei [contratti funzionali](CONTRATTI_FUNZIONALI_IT.md).

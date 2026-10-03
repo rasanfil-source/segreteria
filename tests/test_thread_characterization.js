@@ -217,7 +217,7 @@ for (const [name, output] of Object.entries(actual)) {
   if (newDocumentProcessing) {
     // L’analisi documentale determina le decisioni prima del routing.
     // La verifica conserva la transazione di consegna e il risultato; la suite dedicata
-    // tests analysis, routing, prompt, validation context and failure paths directly.
+    // verifica direttamente analisi, routing, prompt, contesto di validazione e percorsi di errore.
     const deliveryEvents = new Set(['send', 'send.reconcile', 'lock.acquire', 'lock.release',
       'cache.put', 'cache.remove', 'props.set', 'props.delete', 'label.processed',
       'label.review', 'label.error', 'label.cleanMessage']);

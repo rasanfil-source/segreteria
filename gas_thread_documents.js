@@ -171,7 +171,7 @@ var ThreadDocuments = {
     );
     const effectiveDocumentMismatchReason = documentMismatchReason || documentDeliveryModel.blockReason || null;
     // L’euristica locale di consegna rispetta l’intento comunicativo rilevato dal controllo rapido.
-    // Missing/uncertain AI intent goes through normal generation and validation.
+    // L’intento AI assente o incerto richiede generazione e validazione ordinarie.
     const aiConfirmsPureDelivery = Boolean(
       requestPurpose && requestPurpose.source === 'quick_check_model' &&
       requestPurpose.confidence >= 0.65 &&
@@ -267,7 +267,7 @@ var ThreadDocuments = {
     const quickCheckCategory = quickCheck && quickCheck.classification && quickCheck.classification.category
       ? String(quickCheck.classification.category).toLowerCase()
       : '';
-    // Request dimension (technical/pastoral/...) and operational category are distinct axes.
+    // La dimensione della richiesta (tecnica, pastorale, ecc.) e la categoria operativa sono assi distinti.
     const localCategory = String(classification.category || '').toLowerCase();
     const specificCategories = ['sacrament', 'complaint', 'quotation', 'appointment', 'information', 'collaboration', 'document_request', 'document_submission'];
     let categoryHintSource = (quickCheckCategory === 'formal' || specificCategories.includes(quickCheckCategory)) ? quickCheckCategory

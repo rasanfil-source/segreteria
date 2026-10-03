@@ -692,7 +692,7 @@ Vincoli:
     }));
     const resolvedScheduleContext = this._normalizeScheduleContext_(scheduleContext, currentSeason, safeCurrentDate);
 
-    // Compatibilità input: alcuni flussi legacy passano i concern come array di chiavi.
+    // Accetta le esigenze anche come array di chiavi.
     const normalizedConcerns = Array.isArray(activeConcerns)
       ? activeConcerns.reduce((acc, concern) => {
           if (typeof concern === 'string' && concern) {

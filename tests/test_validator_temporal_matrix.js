@@ -10,7 +10,7 @@ let cases = 0;
 function row(label, fn) {
   try { fn(); cases++; } catch (error) { throw new Error(label, { cause: error }); }
 }
-// Gregorian leap boundaries, every month, invalid day and month boundaries.
+// Calendario gregoriano: anni bisestili, mesi, giorni invalidi ed estremi dei mesi.
 for (const year of [1900, 2000, 2024, 2025, 2026, 2100]) for (let month = 0; month <= 13; month++) for (const day of [0, 1, 28, 29, 30, 31, 32]) row(`calendar ${year}-${month}-${day}`, () => {
   const leap = year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0);
   const lengths = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];

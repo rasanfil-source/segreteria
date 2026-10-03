@@ -2202,7 +2202,7 @@ var MemoryService = class MemoryService {
       if (!Array.isArray(cacheData.providedInfo)) cacheData.providedInfo = [];
       if (!cacheData.contextualFlags || typeof cacheData.contextualFlags !== 'object') cacheData.contextualFlags = {};
       // La cache deve contenere la stessa forma restituita da _rowToObject:
-      // memorySummary = testo legacy, conversationState = oggetto parsato.
+      // memorySummary = testo compatibile, conversationState = oggetto parsato.
       // I chiamanti di updateMemory/updateMemoryAtomic passano invece la forma
       // "da foglio" (memorySummary = envelope JSON, conversationState stale).
       const rawSummary = typeof cacheData.memorySummary === 'string' ? cacheData.memorySummary : '';
@@ -2386,7 +2386,7 @@ var MemoryService = class MemoryService {
   }
 
   /**
-   * Alias retrocompatibile usato in alcuni runbook legacy.
+   * Alias retrocompatibile usato in alcuni runbook compatibile.
    * @returns {{removed:number, remaining:number}}
    */
   cleanupOldEntries(daysOld = 30) {
@@ -2533,7 +2533,7 @@ function setupWeeklyMemoryCleanupTrigger() {
 
 /**
  * Alias per compatibilità: alcuni trigger storici puntano a weeklyMemoryCleanup.
- * Wrapper mantenuto per retrocompatibilità con chiamate legacy.
+ * Wrapper mantenuto per retrocompatibilità con chiamate compatibile.
  */
 function weeklyMemoryCleanup() {
   return cleanupOldMemory();

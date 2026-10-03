@@ -1,6 +1,6 @@
 # Secretariat setup and operating guide
 
-Updated 29 September 2026. [Italiano](Guida_Setup_Completa_Per_non_tecnici.md)
+Updated 3 October 2026. [Italiano](Guida_Setup_Completa_Per_non_tecnici.md)
 
 An administrator prepares Gmail, Apps Script, Gemini access and the Google spreadsheet using the [deployment guide](DEPLOYMENT.md). All runtime modules, including the eleven thread components, are required. Keep parish facts in the knowledge sheets; sample contacts and schedules in guides are not production data.
 
@@ -21,7 +21,7 @@ Switching back to all languages allows still-unread deferred messages to be reco
 
 Rows 10–16 define **suspension while office staff are present**: day in A, start in B, end in D. Vacation periods in rows 5–7 and holidays handled by the program keep automation active unless switched off. A backlog check can allow requests older than 12 hours during suspension.
 
-Triggers, quotas and service availability also affect processing; immediate replies are not guaranteed. Do not rerun sheet creation to change a setting: it can clear Controllo data.
+Triggers, quotas and service availability also affect processing; immediate replies are not guaranteed. Change settings directly in the control sheet. Layout setup preserves existing values; it is not needed to change a setting.
 
 ## Gmail checks
 

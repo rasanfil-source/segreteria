@@ -1,6 +1,6 @@
 # Segreteria Email Parrocchiale AI
 
-[English](README.md) · Documentazione allineata al codice locale il 29 settembre 2026.
+[English](README.md) · Documentazione allineata al codice locale il 3 ottobre 2026.
 
 Il sistema esegue un autoresponditore su Google Apps Script V8: seleziona i messaggi Gmail non letti ancora lavorabili, applica filtri e controlli, consulta la base di conoscenza su Google Sheets e prepara una risposta con Gemini o con un modello locale di ricevuta. La risposta viene validata prima dell'invio. I casi critici, gli errori e gli invii incerti seguono percorsi distinti di revisione o rinvio.
 
@@ -42,6 +42,7 @@ Le marcature operative sono a livello di messaggio dove previsto; la vista Gmail
 - [Avvio e configurazione per la segreteria](docs/Guida_Setup_Completa_Per_non_tecnici.md)
 - [Configurazione e valori attuali](docs/CONFIGURATION_IT.md)
 - [Architettura e componenti del thread](docs/ARCHITECTURE_IT.md)
+- [Contratti funzionali](docs/CONTRATTI_FUNZIONALI_IT.md)
 - [Diagrammi](docs/ARCHITECTURE_DIAGRAMS_IT.md)
 - [Deploy](docs/DEPLOYMENT_IT.md)
 - [Problemi operativi](docs/TROUBLESHOOTING_IT.md) e [runbook](docs/runbooks/README.md)
@@ -60,6 +61,6 @@ Su Windows usare PowerShell 7:
 pwsh.exe -NoLogo -NoProfile -Command "node scripts/run_ci_test_suite.js"
 ```
 
-La suite usa servizi simulati e produce risultati in `outputs/coverage/`. Il collaudo del 29 settembre 2026 ha completato 52 suite modulari senza fallimenti. `DRY_RUN` su GAS impedisce la risposta email ma può ancora leggere servizi, chiamare Gemini e produrre log: non sostituisce i test offline.
+La suite usa servizi simulati e produce risultati in `outputs/coverage/`. Il collaudo del 3 ottobre 2026 comprende 81 suite modulari, smoke test e test unitari. `DRY_RUN` su GAS impedisce la risposta email ma può ancora leggere servizi, chiamare Gemini e produrre log: non sostituisce i test offline.
 
 Modelli e quote in configurazione sono scelte locali; non certificano disponibilità del fornitore, costi nulli o capacità giornaliera. Questa documentazione descrive il workspace, non attesta il codice effettivamente distribuito nei due progetti GAS.

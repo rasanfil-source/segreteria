@@ -367,7 +367,7 @@ function isInSuspensionTime(checkDate = new Date()) {
   if (isInVacationPeriod(now, businessTimeZone)) return false;
 
   // 2. ORARI UFFICIO (Sistema SOSPESO)
-  // Utilizza i dati caricati dal foglio Controllo in A10:D16 (compatibile anche con legacy B10:D16) durante il loadResources.
+  // Utilizza i dati caricati dal foglio Controllo in A10:D16; durante loadResources supporta anche il layout B10:D16.
   // Se il foglio Controllo è assente, usa il fallback definito via codice in SUSPENSION_HOURS.
   // Se il foglio è presente ma invalido, _loadAdvancedConfig fallisce: niente default silenziosi.
   // loaded è il discriminante autoritativo: se la cache è caricata, prevalgono le regole da foglio.
@@ -1508,7 +1508,7 @@ function _extractSuspensionHoursFromRow(row) {
     };
   }
 
-  // Layout legacy:
+  // Layout compatibile:
   // A=vuoto, B=giorno, C=ora inizio, D=ora fine
   if (_isWeekdayCellLabel(cells[1])) {
     return {
@@ -1573,7 +1573,7 @@ function _loadAdvancedConfig(ss) {
         : '';
       languageModeRaw = String(languageModeDisplay || languageModeValue || '').trim().toLowerCase();
     } catch (e) {
-      // Retrocompatibilità: alcuni test/fogli legacy non espongono F2.
+      // Compatibilità con i fogli e i servizi simulati che non espongono F2.
       languageModeRaw = '';
     }
     if (languageModeRaw.includes('solo') && languageModeRaw.includes('straniere')) {
@@ -1584,7 +1584,7 @@ function _loadAdvancedConfig(ss) {
 
     // Ferie/assenze (layout corrente B5:E7): B=data inizio, D=data fine.
     // Supporta anche layout compatti/varianti in cui la data fine è in C o E.
-    // Fallback legacy A6:C10: A=riepilogo, B=data inizio, C=data fine.
+    // Fallback compatibile A6:C10: A=riepilogo, B=data inizio, C=data fine.
     let ferieRows = [];
     try {
       ferieRows = sheet.getRange('B5:E7').getValues().map(row => _extractVacationPeriodFromControlRow_(row));
@@ -1594,7 +1594,7 @@ function _loadAdvancedConfig(ss) {
 
     if (ferieRows.length === 0 || ferieRows.every(row => !row.start && !row.end)) {
       try {
-        // Fallback su layout legacy A6:C9 (evita riga 10 che è l'inizio della sospensione)
+        // Fallback su layout compatibile A6:C9 (evita riga 10 che è l'inizio della sospensione)
         ferieRows = sheet.getRange('A6:C9').getValues().map(row => ({
           start: row[1],
           end: row[2]
@@ -1630,13 +1630,13 @@ function _loadAdvancedConfig(ss) {
       config.vacationPeriods.push({ start: new Date(startDate), end: new Date(endDate) });
     });
 
-    // Sospensione: supporta sia il layout single-sheet corrente
-    // (A=giorno, B=inizio, D=fine) sia il legacy
+    // Sospensione: supporta sia il layout del foglio unico
+    // (A=giorno, B=inizio, D=fine) sia il layout alternativo
     // (B=giorno, C=inizio, D=fine).
     const susp = sheet.getRange('A10:D16').getValues();
     susp.forEach((r, i) => {
       const extracted = _extractSuspensionHoursFromRow(r);
-      // Preferisce l'etichetta del giorno presente nel foglio (layout corrente A o legacy B).
+      // Preferisce l'etichetta del giorno presente nel foglio (layout corrente A o compatibile B).
       // Fallback retrocompatibile: A10:D16 ordinato Lun..Dom => getDay JS 1..6,0.
       const labeledDay = _weekdayIndexFromLabel(r[0]);
       const legacyLabeledDay = _weekdayIndexFromLabel(r[1]);
@@ -1744,7 +1744,7 @@ function setupAllTriggers() {
 }
 
 /**
- * Alias retrocompatibile documentato nei runbook legacy.
+ * Alias per i chiamanti che usano il nome compatibile dell'handler.
  * Configura trigger principali + manutenzione.
  */
 function setupTrigger() {

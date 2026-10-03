@@ -1,6 +1,6 @@
 # No emails processed
 
-Procedure aligned with source on 29 September 2026.
+Procedure aligned with source on 3 October 2026.
 
 Check main trigger, authorisation, Controllo!B2, MAX_EMAILS_PER_RUN, suspension and unread state. Check F2: foreign-only defers Italian with `·`; all-languages does not exclude that marker. Then inspect filters, per-message terminal labels, locks, quota and checkpoints.
 

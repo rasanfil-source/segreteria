@@ -1,4 +1,4 @@
-// Native V8 function/block coverage: byte ranges, not Istanbul branch or MC/DC coverage.
+// Copertura nativa V8 di funzioni e blocchi tramite intervalli di byte; distinta dalle metriche Istanbul e MC/DC.
 const fs = require('node:fs');
 const path = require('node:path');
 const { fileURLToPath } = require('node:url');

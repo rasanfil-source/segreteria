@@ -4,15 +4,15 @@
 
 | Voce | Valore |
 |---|---|
-| Tipo di documento | Documento di progetto ricostruito sul sistema realizzato (*as built*) |
+| Tipo di documento | Specifica funzionale e architetturale |
 | Stato | Descrizione del codice locale; deploy remoto non verificato |
-| Data di riferimento | 29 settembre 2026 |
-| Revisione software di riferimento | Workspace locale; documentazione e correzioni helper/classifier del 29 settembre 2026 |
+| Data di riferimento | 3 ottobre 2026 |
+| Revisione software di riferimento | Codice locale e contratti funzionali verificati |
 | Piattaforma | Google Apps Script V8, Gmail, Google Sheets, Google Drive, Gemini API |
 | Destinazioni previste dal deploy | Parrocchia; donRaimondo |
 | Lingua del documento | Italiano |
 
-> Questo documento descrive il progetto che avrebbe dovuto precedere e guidare la realizzazione del sistema oggi presente. È stato ricostruito dal comportamento effettivo, dal codice, dai test e dalle procedure operative. Le informazioni gestionali contenute nei Fogli Google — orari, contatti, procedure, territorio, dottrina e istruzioni pastorali — restano dati configurabili e non sono replicate qui.
+> Questo documento descrive scopo, requisiti, architettura e procedure operative del sistema. Le informazioni gestionali contenute nei Fogli Google — orari, contatti, procedure, territorio, dottrina e istruzioni pastorali — sono dati configurabili. I [contratti funzionali](CONTRATTI_FUNZIONALI_IT.md) specificano classificazione, memoria, transazioni e riprese.
 
 ---
 
@@ -466,7 +466,7 @@ flowchart LR
 | `gas_setup_ui.js` | Creazione e validazione dell'interfaccia di configurazione su Sheets. |
 | `gas_unit_tests.js` | Suite unitaria compatibile con GAS/Node. |
 
-Per la mappa degli undici componenti e dei loro contratti vedere [ARCHITECTURE_IT.md](ARCHITECTURE_IT.md). Il rapporto di refactoring del 25 settembre resta una fotografia storica, non una garanzia di identità con la baseline dopo correzioni successive.
+Per la mappa degli undici componenti e dei loro contratti vedere [architettura](ARCHITECTURE_IT.md) e [componenti del thread](COMPONENTI_THREAD_IT.md).
 
 ### 8.2 Dipendenze esterne
 
@@ -687,7 +687,7 @@ Il retry non deve rigenerare “alla cieca”. Deve ricevere:
 - vincoli documentali e temporali;
 - istruzione chirurgica di rimuovere o correggere soltanto i punti contestati.
 
-Il numero di retry è limitato a uno nella baseline. Se Gemini è indisponibile durante la correzione, il messaggio resta riprocessabile senza essere trasformato in un falso errore di contenuto.
+Il numero di tentativi di correzione è limitato a uno nella configurazione corrente. Se Gemini è indisponibile durante la correzione, il messaggio resta riprocessabile senza essere trasformato in un falso errore di contenuto.
 
 ---
 
@@ -708,7 +708,7 @@ Il numero di retry è limitato a uno nella baseline. Se Gemini è indisponibile 
 
 Prima dell'invio viene registrato uno stato idempotente associato al messaggio. Gli esiti ambigui — per esempio timeout dopo una possibile spedizione — devono privilegiare la prevenzione del doppio invio. Lo stato post-invio deve essere promosso prima delle attività best-effort come l'aggiornamento della memoria.
 
-Il percorso RAW usa un Message-ID deterministico. Se timeout/rete lasciano dubbio, il codice tenta una riconciliazione; senza conferma mantiene `send_uncertain_<ID>` e Verifica, senza reinvio automatico. Il marker non scade automaticamente. `delivery.confirmed` impedisce rollback e doppio invio dopo consegna confermata. [Recupero operativo](TROUBLESHOOTING_IT.md).
+Il percorso RAW usa un Message-ID deterministico. Se timeout o rete lasciano dubbio, il codice tenta una riconciliazione; senza conferma mantiene `send_uncertain_<ID>` e Verifica. Il marcatore blocca il reinvio durante la propria conservazione, di almeno sette giorni; la pulizia può eliminarlo dopo la scadenza. `delivery.confirmed` impedisce rollback e doppio invio dopo consegna confermata. [Recupero operativo](TROUBLESHOOTING_IT.md).
 
 ### 12.3 Checkpoint
 
@@ -894,7 +894,7 @@ Durante le fasce di presenza della segreteria, il sistema si sospende per evitar
 Una modifica è completata quando:
 
 1. il comportamento richiesto è implementato;
-2. esiste un test che falliva prima della correzione;
+2. i test verificano il risultato atteso nei casi pertinenti;
 3. la suite completa termina con codice zero;
 4. `git diff --check` non segnala errori;
 5. la documentazione interessata è coerente;
@@ -913,7 +913,7 @@ Il repository Git costituisce la sorgente autorevole del codice. Il branch di pr
 
 ### 17.2 Ambienti
 
-La stessa baseline viene distribuita a:
+La stessa versione del prodotto viene distribuita a:
 
 1. `PARROCCHIA`;
 2. `donRaimondo`.
@@ -1099,7 +1099,7 @@ Processo:
 | Memoria sensibile | Riapertura impropria o privacy | sintesi limitata, flag, cleanup, gating sul messaggio corrente |
 | OCR errato | Documento interpretato male | stato non verificabile, formula prudente, limiti |
 | Etichette a livello thread | Perdita di follow-up | preferenza message-level e metadata |
-| Documentazione non allineata | Configurazioni e diagnosi errate | baseline as-built e revisione a ogni release significativa |
+| Documentazione non allineata | Configurazioni e diagnosi errate | specifica funzionale e revisione a ogni rilascio significativo |
 | Due GAS divergenti | Comportamenti diversi | deploy unico e confronto remoto |
 
 ---
@@ -1118,7 +1118,7 @@ Processo:
 
 - `EmailProcessor` concentra ancora molte responsabilità e dovrebbe essere ulteriormente separato in orchestrazione, policy documentali, task AI e transazione Gmail.
 - La facade Gemini non ha ancora un contratto uniforme completo per tutti i task e fallback.
-- Alcuni documenti storici del repository riportano modelli, conteggi o comportamenti precedenti e devono essere allineati alla baseline corrente.
+- Le guide descrivono modelli e budget configurati localmente; disponibilità e quote effettive vengono verificate nell'ambiente del fornitore.
 - Le policy dichiarative coprono soltanto parte delle decisioni; l'estensione deve evitare di incorporare meccanica infrastrutturale nel rule layer.
 - La complessità del prompt richiede continua sottrazione e consolidamento, non semplice aggiunta di regole.
 - La conformità privacy dipende dal piano Gemini effettivamente usato e richiede una verifica esterna periodica.
@@ -1171,7 +1171,7 @@ Il progetto può essere considerato riuscito quando:
 
 ## 24. Approvazioni progettuali richieste
 
-Per trasformare questo documento ricostruito in baseline formale devono essere approvati:
+L'installazione richiede la definizione dei seguenti aspetti gestionali:
 
 1. perimetro delle risposte automatiche;
 2. ownership di ciascun foglio della KB;
@@ -1184,4 +1184,4 @@ Per trasformare questo documento ricostruito in baseline formale devono essere a
 9. KPI e frequenza della revisione operativa;
 10. responsabili di gestione degli incidenti.
 
-Una volta approvato, questo documento diventa il riferimento funzionale e architetturale rispetto al quale valutare nuove richieste, correzioni e regressioni.
+Questo documento costituisce il riferimento funzionale e architetturale per la gestione dell'installazione e la valutazione delle richieste evolutive.

@@ -1,4 +1,4 @@
-// Offline characterization harness: fixed clock, in-memory services and ordered effects.
+// Ambiente locale di verifica: orologio fisso, servizi in memoria ed effetti ordinati.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');

@@ -1039,7 +1039,7 @@ var EmailProcessor = class EmailProcessor {
     }
   }
 
-  /** Narrow dependencies for ThreadLifecycle; resolved per call so overrides remain effective. */
+  /** Dipendenze specifiche di ThreadLifecycle, risolte a ogni chiamata per rispettare le personalizzazioni. */
   _threadLifecycleServices_() {
     return {
       logger: this.logger,
@@ -1053,7 +1053,7 @@ var EmailProcessor = class EmailProcessor {
     };
   }
 
-  /** Narrow dependencies for ThreadMessageState; resolved per call so overrides remain effective. */
+  /** Dipendenze specifiche di ThreadMessageState, risolte a ogni chiamata per rispettare le personalizzazioni. */
   _threadMessageStateServices_() {
     return {
       _addErrorLabel: this._addErrorLabel.bind(this),
@@ -1062,7 +1062,7 @@ var EmailProcessor = class EmailProcessor {
     };
   }
 
-  /** Narrow dependencies for ThreadSelection; resolved per call so overrides remain effective. */
+  /** Dipendenze specifiche di ThreadSelection, risolte a ogni chiamata per rispettare le personalizzazioni. */
   _threadSelectionServices_() {
     return {
       gmailService: this.gmailService,
@@ -1077,7 +1077,7 @@ var EmailProcessor = class EmailProcessor {
     };
   }
 
-  /** Narrow dependencies for ThreadPolicy; resolved per call so overrides remain effective. */
+  /** Dipendenze specifiche di ThreadPolicy, risolte a ogni chiamata per rispettare le personalizzazioni. */
   _threadPolicyServices_() {
     return {
       _markMessagesAsSkipped: this._markMessagesAsSkipped.bind(this),
@@ -1104,7 +1104,7 @@ var EmailProcessor = class EmailProcessor {
     };
   }
 
-  /** Narrow dependencies for ThreadContext; resolved per call so overrides remain effective. */
+  /** Dipendenze specifiche di ThreadContext, risolte a ogni chiamata per rispettare le personalizzazioni. */
   _threadContextServices_() {
     return {
       config: this.config,
@@ -1126,7 +1126,7 @@ var EmailProcessor = class EmailProcessor {
     };
   }
 
-  /** Narrow dependencies for ThreadDocuments; resolved per call so overrides remain effective. */
+  /** Dipendenze specifiche di ThreadDocuments, risolte a ogni chiamata per rispettare le personalizzazioni. */
   _threadDocumentsServices_() {
     return {
       _detectDocumentRequestWithSupportingData_: this._detectDocumentRequestWithSupportingData_.bind(this),
@@ -1140,7 +1140,7 @@ var EmailProcessor = class EmailProcessor {
     };
   }
 
-  /** Narrow dependencies for ThreadAttachments; resolved per call so overrides remain effective. */
+  /** Dipendenze specifiche di ThreadAttachments, risolte a ogni chiamata per rispettare le personalizzazioni. */
   _threadAttachmentsServices_() {
     return {
       _hasPastAttachmentReference_: this._hasPastAttachmentReference_.bind(this),
@@ -1158,7 +1158,7 @@ var EmailProcessor = class EmailProcessor {
     };
   }
 
-  /** Narrow dependencies for ThreadGeneration; resolved per call so overrides remain effective. */
+  /** Dipendenze specifiche di ThreadGeneration, risolte a ogni chiamata per rispettare le personalizzazioni. */
   _threadGenerationServices_() {
     return {
       _getProperties_: this._getProperties_.bind(this),
@@ -1175,7 +1175,7 @@ var EmailProcessor = class EmailProcessor {
     };
   }
 
-  /** Narrow dependencies for ThreadValidation; resolved per call so overrides remain effective. */
+  /** Dipendenze specifiche di ThreadValidation, risolte a ogni chiamata per rispettare le personalizzazioni. */
   _threadValidationServices_() {
     return {
       _prepareOutboundResponse: this._prepareOutboundResponse.bind(this),
@@ -1192,7 +1192,7 @@ var EmailProcessor = class EmailProcessor {
     };
   }
 
-  /** Narrow dependencies for ThreadDelivery; resolved per call so overrides remain effective. */
+  /** Dipendenze specifiche di ThreadDelivery, risolte a ogni chiamata per rispettare le personalizzazioni. */
   _threadDeliveryServices_() {
     return {
       config: this.config,
@@ -1207,7 +1207,7 @@ var EmailProcessor = class EmailProcessor {
     };
   }
 
-  /** Narrow dependencies for ThreadCompletion; resolved per call so overrides remain effective. */
+  /** Dipendenze specifiche di ThreadCompletion, risolte a ogni chiamata per rispettare le personalizzazioni. */
   _threadCompletionServices_() {
     return {
       gmailService: this.gmailService,
@@ -3413,7 +3413,7 @@ var EmailProcessor = class EmailProcessor {
 
   _detectYearlessDateTemporalIntent_(text = '') {
     const normalized = String(text || '').normalize('NFC').toLowerCase();
-    // Unaccented forms need verbal context: "Sara" and "terra" can be a name/noun.
+    // Le forme senza accento richiedono un contesto verbale: «Sara» e «terra» possono essere nome e sostantivo.
     const unaccentedFuture = /(?<![\p{L}\p{N}_])(?:(?:quando|ci|si)\s+(?:sara|avra|terra)(?![\p{L}\p{N}_])|(?:sara|avra|terra)\s+(?:il|lo|la|un|una|luogo)(?![\p{L}\p{N}_]))/iu;
     if (unaccentedFuture.test(normalized)) return 'future';
     const futurePattern = /(?<![\p{L}\p{N}_])(sar(?:à|anno)|ci\s+sar(?:à|anno)|avr(?:à|anno)|farete|celebrerete|terr(?:à|anno)|quando\s+(?:sarà|avrà|terrà)|prossim[oaie]|ventura|futura|futuro|domani|dopodomani)(?![\p{L}\p{N}_])/iu;
@@ -5506,7 +5506,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   _extractEventScheduleTimesForDiscrepancy_(response) {
     if (!response || typeof response !== 'string') return [];
 
-    // A dot between digits belongs to a time/date, not a sentence boundary.
+    // Il punto tra cifre appartiene all’orario o alla data e mantiene unita la frase.
     const sentences = response.split(/[!?\n]+|(?<!\d)\.|\.(?!\d)/);
     const eventSchedulePatterns = [
       /(?:^|[^\p{L}\p{N}_])(?:inizia|iniziano|inizier[àa]|inizieranno|comincia|cominciano|comincer[àa]|cominceranno|parte|partono|partir[àa]|partiranno)(?=$|[^\p{L}\p{N}_])/iu,
@@ -6073,7 +6073,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       .replace(/\b(?:ma|but|mais|pero|mas|aber)\b/g, '\n')
       .split(/[.!?;\n]+/)
       .map(clause => {
-        // Duration alone does not prove current presence: require a present-tense assertion.
+        // La durata richiede un’affermazione al presente per provare la presenza attuale.
         if (!/\b(?:sono|siamo|sto|stiamo|trovo|troviamo|trova|trovano|abito|abitiamo|vivo|viviamo|am|are|is|suis|sommes|est|estoy|estamos|esta|estan|estao|estou|sou|bin|sind|ist|encontra|encontram|encuentra|encuentran|trouve|trouvent)\b|\be\s+(?:a|in|ricoverat[oa]|allettat[oa])\b/.test(clause)) return clause;
         return clause
           .replace(/\b(?:da ieri|since yesterday|depuis hier|desde ayer|desde ontem|seit gestern)\b/g, '')
@@ -6392,7 +6392,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     const lang = this._normalizeLanguageCode_(language, 'it');
     if (lang === 'en' && /(?<![\p{L}\p{N}_])(?:may\s+(?:\d{1,2}(?:st|nd|rd|th)?|\d{4})(?!\d)|(?:\d{1,2}(?:st|nd|rd|th)?|in|of|on|by|until|since|from|during|early|late|mid|next|last|this)\s+may)(?![\p{L}\p{N}_])/iu.test(text)) return true;
     const monthPatterns = {
-      // Nota: \b è ASCII-only; i lookaround Unicode evitano falsi negativi
+      // Nota: \b è limitato ad ASCII; i lookaround Unicode evitano falsi negativi
       // sulle parole con accento finale (lunedì, martedì, ecc.).
       'it': /(?<![a-zA-ZÀ-ÿ])(oggi|domani|dopodomani|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?![a-zA-ZÀ-ÿ])/i,
       'en': /(?<![a-zA-Z])(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|march|april|june|july|august|september|october|november|december)(?![a-zA-Z])/i,
@@ -6460,7 +6460,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
         phase: 'pre_ocr',
         suppressAttachmentIntentKeywords: true,
         // Contratto condiviso con la policy post-OCR e con il bypass receipt-only.
-        // `allowBodyQuestions` resta come alias descrittivo per i consumer legacy.
+        // `allowBodyQuestions` è un alias descrittivo per i chiamanti che usano la firma compatibile.
         hasQuestions: hasBodyQuestion,
         allowBodyQuestions: hasBodyQuestion,
         responseDirective: hasBodyQuestion
@@ -6675,7 +6675,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       { type: 'certificato_battesimo_uso_matrimonio', pattern: /\bbattesim[oa]\b[\s\S]{0,80}\buso\b[\s\S]{0,40}\bmatrimoni[oa]\b/i },
       { type: 'certificato_battesimo_uso_matrimonio', pattern: /\b(uso matrimoniale|per matrimonio)\b/i },
       // NOTA: \b dopo una vocale accentata (es. "idoneità") in JS non scatta mai, perché
-      // l'engine regex valuta \w in ASCII-only e tratta "à" come carattere non di parola:
+      // il motore delle espressioni regolari limita \w ad ASCII e tratta "à" come carattere non di parola:
       // non c'è transizione \w/\W tra "à" e lo spazio o la fine stringa che segue. Per questo
       // usiamo (?![a-zàèéìòù]) al posto del \b finale dove lo stem può terminare in vocale accentata.
       // Richiede un titolo documentale direttamente associato al ruolo e distingue i campi distanti del modulo.

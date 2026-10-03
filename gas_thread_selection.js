@@ -99,7 +99,7 @@ var ThreadSelection = {
       });
     }
 
-    // Build set of our own addresses (primary + aliases) per filtro early-stage
+    // Costruisce l’insieme degli indirizzi del bot (primario e alias) per il filtro iniziale
     const ownAddresses = new Set();
     if (myEmail) ownAddresses.add(deps._normalizeEmailAddress_(myEmail));
     gmailAliases.forEach(alias => {

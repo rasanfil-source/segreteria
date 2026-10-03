@@ -98,7 +98,7 @@ function normalizePhysicalPresenceState_(value) {
       policy: entry.policy === 'avoid_invitation' ? 'avoid_invitation' : 'conditional_only',
       source: ['current_message', 'legacy', 'current_resolution'].includes(entry.source) ? entry.source : 'legacy'});
   }
-  // Uno stato malformato non deve disattivare il fallback legacy.
+  // Uno stato malformato non deve disattivare il fallback compatibile.
   return entries.size ? {version: 1, constraints: Array.from(entries.values())} : null;
 }
 

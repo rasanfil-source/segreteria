@@ -1,6 +1,6 @@
 # Parish Email AI Assistant
 
-[Italiano](README_IT.md) · Aligned with local source on 29 September 2026.
+[Italiano](README_IT.md) · Aligned with local source on 3 October 2026.
 
 This Google Apps Script V8 application discovers eligible unread Gmail messages, applies filters, loads knowledge from Google Sheets, builds a Gemini response or a local receipt, validates it and handles delivery. Review, transient failures and uncertain delivery have separate outcomes.
 
@@ -49,6 +49,6 @@ On Windows use PowerShell 7:
 pwsh.exe -NoLogo -NoProfile -Command "node scripts/run_ci_test_suite.js"
 ```
 
-Tests mock external services and generate `outputs/coverage/`. The 29 September 2026 run passed 52 modular suites. GAS `DRY_RUN` prevents the reply send, but can still access Google services, call Gemini and write logs; use the Node suites for offline verification.
+Tests mock external services and generate `outputs/coverage/`. Verification on 3 October 2026 covers 81 modular suites, smoke tests and unit tests. GAS `DRY_RUN` prevents the reply send, but can still access Google services, call Gemini and write logs; use the Node suites for offline verification. Detailed [functional contracts](docs/CONTRATTI_FUNZIONALI_IT.md) describe message selection, documents, memory, concurrency and checkpoints.
 
 Configured model IDs and quotas are local settings, not provider availability or free-service guarantees. Documentation reflects this workspace; it does not verify deployment state.

@@ -80,7 +80,7 @@ const report = {};
   assert.equal(calls, before + 1);
 }
 
-// 2. Negated affirmative expressions are misread as positive territory claims.
+// 2. Le espressioni negate sono distinte dalle affermazioni positive sul territorio.
 {
   const ctx = validatorContext(false);
   const v = new ctx.ResponseValidator();
@@ -136,7 +136,7 @@ const report = {};
   assert.equal(properRejection.isValid, false);
   report.properSemanticRejection = { isValid: properRejection.isValid, errors: properRejection.errors };
   // Conserva le evidenze negative esplicite anche quando mancano verdetto o confidenza
-  // or malformed; throwing here could fall back to permissive optional checks.
+  // o non validi; conserva l’esito restrittivo anche nei controlli opzionali.
   for (const isValid of [undefined, 'false', true]) {
     const negative = v.semanticValidator._normalizeSemanticPayload({ isValid, hallucinations: { unsupportedClaims: ['Unsupported requirement'] } });
     assert.equal(negative.isValid, false);

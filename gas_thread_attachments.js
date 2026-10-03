@@ -36,7 +36,7 @@ var ThreadAttachments = {
         attachmentPreCheckFailed = false;
         try {
           // Controlla le dimensioni di ogni sorgente anche quando è già presente un allegato.
-          // Otherwise a file budget can hide an oversized second message.
+          // Il budget dei file include il controllo dei messaggi successivi di dimensioni eccessive.
           hasAttachments = attachmentSourceMessages.reduce((found, message) => {
             const sizeEstimate = deps._getMessageSizeEstimateForAttachmentDownload_(message, threadLogger);
             if (Number.isFinite(sizeEstimate) && sizeEstimate > maxAttachmentMessageBytes) {

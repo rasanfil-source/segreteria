@@ -1,6 +1,6 @@
 # Current system diagrams
 
-Aligned with local source on 29 September 2026.
+Aligned with local source on 3 October 2026.
 
 ## Components
 

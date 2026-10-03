@@ -1,6 +1,6 @@
 # Email in Verifica
 
-Procedura aggiornata al codice del 29 settembre 2026.
+Procedura aggiornata al codice del 3 ottobre 2026.
 
 Controllare prima la posta inviata: Verifica può accompagnare una consegna, un blocco o un invio incerto. Leggere il motivo nei log e distinguere crisi, validazione, documenti e problemi tecnici. Non abbassare automaticamente la soglia. Il sistema non crea una bozza da approvare. Le etichette dei thread possono sovrapporsi: sommarne i conteggi non misura email univoche.
 

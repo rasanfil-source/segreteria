@@ -1,6 +1,6 @@
 # Quick diagnosis
 
-Updated 29 September 2026.
+Updated 3 October 2026.
 
 ```mermaid
 flowchart TD

@@ -1,6 +1,6 @@
 # Diagnosi rapida
 
-Aggiornato al 29 September 2026.
+Aggiornato al 3 October 2026.
 
 ```mermaid
 flowchart TD

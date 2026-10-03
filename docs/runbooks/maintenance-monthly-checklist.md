@@ -1,6 +1,6 @@
 # Periodic maintenance
 
-Operational checklist as of 29 September 2026.
+Operational checklist as of 3 October 2026.
 
 - [ ] Check executions, main trigger, weekly cleanup and daily metrics.
 - [ ] Verify B2, F2, hours, absences, excluded senders and alert recipients for each environment.

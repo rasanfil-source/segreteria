@@ -210,7 +210,7 @@ var CONFIG = {
   // === DISCOVERY MODE ======================================================================
   // Modalità di scoperta messaggi non letti da elaborare.
   // - 'metadata': default message-level (list INBOX/UNREAD + get(minimal) per labelIds)
-  // - 'query'   : legacy GmailApp.search a livello thread
+  // - 'query'   : compatibile GmailApp.search a livello thread
   MESSAGE_DISCOVERY_MODE: 'metadata',
   // =========================================================================================
   MAX_EXECUTION_TIME_MS: 280000,    // Tempo massimo stimato per singola esecuzione GAS
@@ -227,7 +227,7 @@ var CONFIG = {
     ocrConfidenceWarningThreshold: 0.8, // Soglia warning leggibilità OCR in risposta
     pdfMaxPages: 2,                  // Limite pagine PDF (stima via OCR)
     pdfCharsPerPage: 1800,           // Stima caratteri per pagina PDF
-    ocrTriggerKeywords: [            // Compatibilità helper legacy; non filtra i documenti nel percorso visivo
+    ocrTriggerKeywords: [            // Compatibilità helper compatibile; non filtra i documenti nel percorso visivo
       'iban', 'bonifico', 'ricevuta', 'documento',
       'allego', 'in allegato', 'coordinate', 'modulo'
     ],
@@ -249,7 +249,7 @@ var CONFIG = {
   CACHE_LOCK_TTL: 310,                 // Secondi (>= MAX_EXECUTION_TIME_MS/1000 con margine)
   GMAIL_DAILY_CALL_LIMIT: 18000,       // Soft limit locale anti-burst prima del limite Gmail reale
   GMAIL_METADATA_FALLBACK_MAX_PER_THREAD: 25, // Max messages.get recenti per thread quando GmailApp.isUnread è incoerente
-  GMAIL_METADATA_DISCOVERY_MAX_GETS: 120, // Max messages.get per run di fallback discovery message-level
+  GMAIL_METADATA_DISCOVERY_MAX_GETS: 120, // Numero massimo di chiamate messages.get per ricerca alternativa dei messaggi.
   GMAIL_LIST_MAX_PAGES: 20,            // Limite pagine Gmail list per bootstrap label cache
   GMAIL_LIST_MAX_MESSAGES: 2000,       // Limite messaggi Gmail list per bootstrap label cache
   GMAIL_LIST_MAX_RUNTIME_MS: 50000,     // Budget tempo bootstrap label cache per evitare timeout GAS

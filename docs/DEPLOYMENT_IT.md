@@ -1,6 +1,6 @@
 # Installazione e deploy
 
-Allineato al codice locale il 29 settembre 2026. [English](DEPLOYMENT.md)
+Allineato al codice locale il 3 ottobre 2026. [English](DEPLOYMENT.md)
 
 ## Preparazione
 
@@ -8,7 +8,7 @@ Allineato al codice locale il 29 settembre 2026. [English](DEPLOYMENT.md)
 2. Caricare `appsscript.json` e i moduli runtime della radice, compresi **tutti gli undici `gas_thread_*.js`**. Non caricare `gas_config.example.js` al posto di `gas_config.js`.
 3. Verificare i servizi avanzati dichiarati nel manifest: Gmail v1 e Drive v3, fuso `Europe/Rome`, autorizzazioni richieste. Il manifest comprende accesso a Gmail, Drive, Docs, Slides, Sheets, richieste esterne, trigger e invio.
 4. Configurare almeno `GEMINI_API_KEY` e `SPREADSHEET_ID` nelle Script Properties; controllare identità, alias, destinatari alert ed eventuale chiave backup. Le impostazioni sono distinte per progetto.
-5. Preparare i fogli indicati nella [configurazione](CONFIGURATION_IT.md). Per il setup UI serve lo spreadsheet attivo: `setupConfigurationSheets()` ricrea il layout di Controllo e può cancellarne i valori. Salvare prima una copia; per soli vincoli usare `applyValidationOnly()`.
+5. Preparare i fogli indicati nella [configurazione](CONFIGURATION_IT.md). Per il setup UI serve lo spreadsheet attivo: `setupConfigurationSheets()` ricrea il layout di Controllo conservando i valori esistenti. Per soli vincoli usare `applyValidationOnly()`.
 6. Impostare B2 e F2 consapevolmente: **Tutte le lingue** o **Solo straniere**. Il cambio lingua non richiede un deploy; leggere [semantica di F2 e `·`](LANGUAGE_MODES_IT.md).
 
 ## Verifica locale

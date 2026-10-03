@@ -1,6 +1,6 @@
 # Esempi operativi GAS
 
-Aggiornati al 29 settembre 2026. Eseguire nell'editor GAS, selezionando la funzione prevista; non aggiungere chiamate globali che si attivino al caricamento degli script.
+Aggiornati al 3 ottobre 2026. Eseguire nell'editor GAS, selezionando la funzione prevista; non aggiungere chiamate globali che si attivino al caricamento degli script.
 
 | Operazione | Funzione disponibile | Effetto |
 |---|---|---|

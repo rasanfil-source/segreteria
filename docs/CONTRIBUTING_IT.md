@@ -18,6 +18,9 @@ Grazie per il tuo interesse nel contribuire a SPA! Accogliamo contributi da svil
 *   Usiamo JavaScript standard (ES6+ supportato da GAS V8 runtime).
 *   **JSDoc** è obbligatorio per tutte le funzioni pubbliche e classi.
 *   I nomi variabili devono essere descrittivi (camelCase).
+*   I commenti sono in italiano e descrivono responsabilità, condizioni e risultati. Identificatori API, tag JSDoc ed esempi multilingua conservano la forma tecnica richiesta. Le guide documentano il comportamento operativo senza riferimenti a patch o difetti precedenti.
+
+La verifica editoriale si esegue con `node --expose-internals maintenance/verify_source_docs.cjs`: analizza i commenti JavaScript separatamente da stringhe e prompt, segnala indicatori lessicali da rivedere e controlla i collegamenti locali. La revisione della lingua resta necessaria per i termini non coperti dal controllo automatico.
 
 ### Testing
 

@@ -1,6 +1,6 @@
 # Guida per la segreteria
 
-Aggiornata al 29 settembre 2026. [English](Setup_Guide_Non_Technical.md)
+Aggiornata al 3 ottobre 2026. [English](Setup_Guide_Non_Technical.md)
 
 ## Prima attivazione
 
@@ -30,7 +30,7 @@ Le righe 10–16 indicano le **ore in cui sospendere l'automatismo perché la se
 
 Le assenze nelle righe 5–7 e le festività gestite dal programma mantengono attiva la risposta automatica, salvo interruttore Spento. Durante la sospensione, una richiesta non letta da oltre 12 ore può essere recuperata dal controllo degli arretrati. L'esecuzione dipende anche da trigger, quote e disponibilità dei servizi: non è una risposta istantanea garantita.
 
-Per cambiare un valore non rieseguire il comando di creazione del foglio: può cancellare il contenuto di Controllo.
+Per cambiare un valore usare direttamente le celle di Controllo. Il comando di setup serve a predisporre il layout e conserva i valori esistenti.
 
 ## Cosa controllare in Gmail
 

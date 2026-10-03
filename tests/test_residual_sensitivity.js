@@ -77,7 +77,7 @@ for (const [name, body, extra = {}] of variants) {
     personal: prompt.includes('Il mittente ha condiviso qualcosa di personale o delicato'), chars: prompt.length });
 }
 
-// Current signals remain independent from historical sensitivity.
+// I segnali attuali sono indipendenti dalla sensibilità storica.
 for (const [name, fields, expectedRegister, expectedMode] of [
   ['current bereavement', { classification: { category: 'information', subIntents: { bereavement: true } } }, 'pastoral_supportive', 'bereavement'],
   ['personal', { relationalPosture: 'personal', relationalPostureConfidence: 0.95 }, 'pastoral_supportive', 'pastoral_longitudinal'],

@@ -1,6 +1,6 @@
 # Email policy rules
 
-> Stato al 29 settembre 2026: le regole dichiarative sono definite negli helper di gas_email_processor.js; ThreadPolicy e gli altri componenti le invocano nelle fasi appropriate. La consegna senza domande non implica sempre receipt-only: le condizioni distinguono sponsor, domande e intento canonico complesso. Per il filtro lingua e la label · vedere [LANGUAGE_MODES_IT.md](LANGUAGE_MODES_IT.md).
+> Stato al 3 ottobre 2026: le regole dichiarative sono definite negli helper di gas_email_processor.js; ThreadPolicy e gli altri componenti le invocano nelle fasi appropriate. La consegna senza domande non implica sempre receipt-only: le condizioni distinguono sponsor, domande e intento canonico complesso. Per il filtro lingua e la label · vedere [LANGUAGE_MODES_IT.md](LANGUAGE_MODES_IT.md).
 
 Questo progetto usa un piccolo layer dichiarativo per alcune decisioni di
 `EmailProcessor.processThread`. Lo scopo e separare le policy leggibili

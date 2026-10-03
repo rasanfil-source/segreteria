@@ -1,6 +1,6 @@
 # Installation and deployment
 
-Aligned with local source on 29 September 2026. [Italiano](DEPLOYMENT_IT.md)
+Aligned with local source on 3 October 2026. [Italiano](DEPLOYMENT_IT.md)
 
 ## Setup
 
@@ -10,7 +10,7 @@ The manifest declares Gmail v1 and Drive v3 advanced services, `Europe/Rome`, an
 
 Set at least `GEMINI_API_KEY` and `SPREADSHEET_ID` in Script Properties. Check bot identity/aliases, optional backup key, personal exclusions and alert recipients separately for each project. See [configuration](CONFIGURATION.md).
 
-UI setup needs the active spreadsheet. `setupConfigurationSheets()` rebuilds Controllo and can clear its data; preserve a copy first. Use `applyValidationOnly()` for constraints without full layout setup. Choose B2 and F2 explicitly; [language mode](LANGUAGE_MODES.md) can later change without redeployment.
+UI setup needs the active spreadsheet. `setupConfigurationSheets()` rebuilds Controllo formatting while preserving existing values. Use `applyValidationOnly()` for constraints without full layout setup. Choose B2 and F2 explicitly; [language mode](LANGUAGE_MODES.md) can later change without redeployment.
 
 ## Local verification
 

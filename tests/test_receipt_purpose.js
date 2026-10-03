@@ -2,7 +2,7 @@ const assert = require('assert');
 const path = require('path');
 const { runScenario } = require('./helpers/thread_scenario');
 const root = path.resolve(__dirname, '..');
-// Anonymized request: supporting data do not turn an action request into a receipt.
+// Richiesta anonima: i dati di supporto mantengono distinto l’intento operativo dalla semplice consegna.
 const body = 'Alla c.a. del sacerdote. A seguito della telefonata di oggi comunico le informazioni richieste: Maria Esempio, nata a Roma il 29.01.1972. Si richiede un documento che attesti che la sottoscritta è pronta per ricevere il sacramento della Cresima, alla luce del percorso triennale di catechesi e della partecipazione al seminario finale. Ringrazio della gentile attenzione.';
 for (const attachment of [false, true]) {
   for (const purpose of ['operational_request', 'mixed', 'information_request', 'unknown', 'status_update', 'acknowledgment']) {

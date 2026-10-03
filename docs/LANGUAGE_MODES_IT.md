@@ -1,6 +1,6 @@
 # Modalità “Tutte le lingue” e “Solo straniere”
 
-Verificato sul codice locale il 29 settembre 2026. [English](LANGUAGE_MODES.md)
+Verificato sul codice locale il 3 ottobre 2026. [English](LANGUAGE_MODES.md)
 
 ## Impostazione
 

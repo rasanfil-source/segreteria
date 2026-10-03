@@ -262,7 +262,7 @@ var PromptContext = class PromptContext {
         const flags = pattern.flags && pattern.flags.indexOf('g') === -1 ? pattern.flags : String(pattern.flags || '').replace(/g/g, '');
         const regex = new RegExp(pattern.source, flags);
         const negationWindow = /(?:\bnon\b|\bnessun[oa]?\b|\bsenza\b|\bnon\s+riguarda\b|\bnon\s+si\s+tratta\s+di\b)[^.;:\n]{0,60}$/i;
-        // Dated bullets are generated from assistant replies, not user disclosures.
+        // Le voci datate provengono dalle risposte dell’assistente e sono distinte dalle dichiarazioni dell’utente.
         const segments = String(memoryText).split('\n')
             .filter(line => !/^\s*(?:•\s*\[\d{4}-\d{2}-\d{2}\]|\.\.\.)/.test(line))
             .join('\n').split(/[.;:\n]+/);
@@ -834,7 +834,7 @@ var PromptContext = class PromptContext {
              this.concerns.relational_warmth)) {
             return 'soft';
         }
-        // NUOVO: primo contatto emotivo
+        // Primo contatto emotivo
         if (mode === 'full' &&
             (register === 'pastoral_crisis' ||
              register === 'pastoral_supportive')) {

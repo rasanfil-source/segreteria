@@ -1,6 +1,6 @@
 # Messages in review
 
-Procedure aligned with source on 29 September 2026.
+Procedure aligned with source on 3 October 2026.
 
 Check sent mail first: review can accompany delivery, a block or an uncertain send. Inspect logged reasons for crisis, validation, documents and technical failures. Do not automatically lower the threshold. No approval draft is created. Thread labels overlap, so summing label counts does not count unique messages.
 

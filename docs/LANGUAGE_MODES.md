@@ -1,6 +1,6 @@
 # All languages and foreign-only mode
 
-Checked against local source on 29 September 2026. [Italiano](LANGUAGE_MODES_IT.md)
+Checked against local source on 3 October 2026. [Italiano](LANGUAGE_MODES_IT.md)
 
 ## Setting
 

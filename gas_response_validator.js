@@ -864,7 +864,7 @@ var ResponseValidator = class ResponseValidator {
         const escapedMarker = String(marker).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         // Confini accent-aware senza lookbehind/property escapes: Apps Script V8 può
         // variare per versione, mentre questo intervallo copre i marker latini supportati.
-        // (es. "paróquia", "grüße", "querría"). \b è ASCII-only e fallisce con diacritici.
+        // (es. "paróquia", "grüße", "querría"). \b è limitato ad ASCII e fallisce con diacritici.
         const regex = new RegExp(`(?:^|[^\\wÀ-ÿ])${escapedMarker}(?=[^\\wÀ-ÿ]|$)`, 'i');
         return count + (regex.test(responseLower) ? 1 : 0);
       }, 0);
@@ -1733,7 +1733,7 @@ var ResponseValidator = class ResponseValidator {
       const compareOrdinal = this._dateOnlyOrdinal_(compareDate);
       if (!Number.isFinite(compareOrdinal) || compareOrdinal === todayOrdinal) return;
       const windowText = this._extractTemporalWindow_(response, item.index, item.length);
-      // A future January date mentioned in December naturally refers to next year.
+      // Una data futura di gennaio menzionata in dicembre si riferisce all’anno successivo.
       // La deroga esclude anni espliciti e riferimenti espliciti all’anno corrente.
       if (item.type === 'date_without_year' && compareOrdinal < todayOrdinal &&
           this._hasFutureTemporalQualification_(windowText, detectedLanguage) &&
@@ -2039,8 +2039,8 @@ var ResponseValidator = class ResponseValidator {
       /\bnon\s+fa\s+parte\s+(?:del|della)\s+(?:territorio|parrocchia|competenza)/,
       /\bnon\s+e\s+(?:nel|nella|in)\s+(?:nostro|nostra)\s+(?:territorio|parrocchia|competenza)/
     ];
-    // Mask each negative claim, preserving separate affirmative claims and
-    // sentence boundaries so a mixed/contradictory reply is still rejected.
+    // Esclude ogni affermazione negata e conserva le affermazioni positive separate
+    // e i confini delle frasi per verificare risposte miste o contraddittorie.
     const affirmativeText = outsidePatterns.reduce(
       (value, pattern) => value.replace(new RegExp(pattern.source, 'g'), '.'), text
     );
@@ -3666,8 +3666,7 @@ var ResponseValidator = class ResponseValidator {
 
     // Usa thinkingPatterns come sorgente per le keyword di ragionamento
     // Rimuove l'INTERA frase che contiene la keyword (dal confine di frase
-    // precedente a quello successivo). La versione precedente tagliava dalla
-    // keyword in avanti, lasciando frammenti come "le confermo che,  Cordiali saluti".
+    // iniziale a quello finale), conservando unite le altre frasi.
     const keywords = this.thinkingPatterns || [];
     keywords.forEach(kw => {
       const escaped = this._escapeRegex(kw);
@@ -4032,7 +4031,7 @@ Rispondi SOLO con questo JSON (senza markdown):
 
     const inferredIsValid = !(hasThinkingLeak || hasHallucinations || hasIrrelevantDetails);
     // Le evidenze esplicite possono determinare il rifiuto anche quando il risultato non contiene un verdetto.
-    // An approval, however, requires a boolean verdict and numeric confidence.
+    // L’approvazione richiede un verdetto booleano e una confidenza numerica.
     if (inferredIsValid &&
         (typeof payload.isValid !== 'boolean' ||
           (payload.isValid === true &&

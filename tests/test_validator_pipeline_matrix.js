@@ -36,7 +36,7 @@ for (const [first, firstMethod] of Object.entries(checks)) for (const [second, s
     assert.equal(result.isValid, !(blocking && canBlock));
     assert.equal(result.errors.length, Number(blocking && canBlock));
     assert.equal(result.warnings.length, Number(first !== 'sacramentalDeadline'));
-    // Check method results are exposed, rather than silently dropped.
+    // I risultati dei metodi di controllo sono presenti nel risultato pubblico.
     assert.ok(Object.values(result.details).some(detail => detail.score === 0.8));
     assert.ok(Object.values(result.details).some(detail => detail.score === 0.9));
   });
@@ -63,7 +63,7 @@ for (const initialValid of bools) for (const attempt of bools) for (const fixed 
 });
 
 // Tabella completa dell’eccezione semantica per mobilità: varia ogni prerequisito
-// independently so a weakening of any AND term causes a failing test.
+// indipendentemente, così la verifica rileva qualsiasi requisito congiunto mancante.
 for (let mask = 0; mask < 256; mask++) row(`mobility exception mask=${mask}`, () => {
   const flags = Array.from({ length: 8 }, (_, i) => Boolean(mask & (1 << i)));
   const [baseValid, highScore, thinkingValid, irrelevant, grounded, constrained, remote, recognized] = flags;

@@ -1,6 +1,6 @@
 # System architecture
 
-Local source reference: 29 September 2026. [Italiano](ARCHITECTURE_IT.md)
+Local source reference: 3 October 2026. [Italiano](ARCHITECTURE_IT.md)
 
 ## Runtime
 
@@ -50,6 +50,8 @@ The RAW send path uses `reply_<MESSAGE_ID>@parish-reply.invalid`. Persistent sta
 
 Local settings include batch 2, 280-second execution budget, 90-second margin, 8 history messages, 310-second thread lock and a 10-minute checkpoint with at most 3 rapid resumptions of the same work set. Checkpoints respect `notBefore`.
 
-`GeminiService` contains `GeminiContentClient` and `EmailQuickCheckPolicy`. There is no public generic `GeminiClient.runTask` API. The current code calls `generateContent`, estimates tokens locally and does not implement the formerly documented `GEMINI_CONTEXT_CACHE` option.
+`GeminiService` contains `GeminiContentClient` and `EmailQuickCheckPolicy`. The pipeline owns generation strategies and application decisions. The client calls `generateContent` and estimates tokens locally.
+
+Resumption limits include the scheduled attempt: both reading and writing abandon a checkpoint only above the configured threshold. Without LockService the system uses compatibility mode without atomic concurrency guarantees and releases logical tokens owned by the caller. Uncertain send markers have bounded retention of at least seven days. See the [functional contracts](CONTRATTI_FUNZIONALI_IT.md) and [thread components](COMPONENTI_THREAD_IT.md).
 
 See [configuration](CONFIGURATION.md), [diagrams](ARCHITECTURE_DIAGRAMS.md), [troubleshooting](TROUBLESHOOTING.md) and [test coverage](validator_testing.md). Offline tests do not verify production deployment or provider availability.

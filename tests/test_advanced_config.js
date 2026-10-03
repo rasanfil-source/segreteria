@@ -131,7 +131,7 @@ function createFakeSheet() {
     'A10:D16': {
       getValues: () => [
         ['Lunedì', 8 / 24, '', 20 / 24],   // layout corrente
-        ['', 'Martedì', 8, 14],            // layout legacy
+        ['', 'Martedì', 8, 14],            // layout compatibile
         ['Mercoledì', '09:00', '', '17:00'],
         ['Giovedì', 8 / 24, '', 14 / 24],
         ['Venerdì', 8, '', 17],

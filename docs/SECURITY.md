@@ -1,6 +1,6 @@
 # 🔐 Security and GDPR Compliance
 
-> Technical note, 29 September 2026: dry-run may still call services and log content. All-languages/foreign-only controls eligibility, not a guarantee that data will not be processed. See [language modes](LANGUAGE_MODES.md) and [configuration](CONFIGURATION.md). This note describes code; it does not update or certify the legal assessment or external terms cited below.
+> Technical note, 3 October 2026: dry-run may still call services and log content. All-languages/foreign-only controls eligibility, not a guarantee that data will not be processed. See [language modes](LANGUAGE_MODES.md) and [configuration](CONFIGURATION.md). This note describes code; it does not update or certify the legal assessment or external terms cited below.
 
 [![Versione Italiana](https://img.shields.io/badge/Italiano-Versione-green?style=flat-square)](SECURITY_IT.md)
 
@@ -71,7 +71,7 @@ The spreadsheet acts as a database and Knowledge Base.
 
 ### 3. Logs and Monitoring
 
--   **Logs**: Some paths log sender addresses, subjects, validation reasons, document context or response previews (including dry run). There is no universal redaction layer. Restrict log access and retention. Review emails may include subject, identifiers and reasons; see [operational behavior](RELIABILITY_AUDIT_2026-09-22.md).
+-   **Logs**: Some paths log sender addresses, subjects, validation reasons, document context or response previews (including dry run). There is no universal redaction layer. Restrict log access and retention. Review emails may include subject, identifiers and reasons; see [operational behavior](CONTRATTI_FUNZIONALI_IT.md).
 -   **Audit Trail**: Keep track of who has access to the script and the spreadsheet.
 
 ---

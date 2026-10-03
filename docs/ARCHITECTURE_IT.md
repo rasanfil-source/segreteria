@@ -1,6 +1,6 @@
 # Architettura del sistema
 
-Riferimento: codice locale al 29 settembre 2026. [English](ARCHITECTURE.md)
+Riferimento: codice locale al 3 ottobre 2026. [English](ARCHITECTURE.md)
 
 ## Runtime e risorse
 
@@ -52,6 +52,8 @@ Il percorso RAW usa un identificativo deterministico `reply_<ID_MESSAGGIO>@paris
 
 Valori locali: batch 2, esecuzione 280 secondi, margine 90 secondi, storia 8 messaggi, lock thread 310 secondi, checkpoint 10 minuti e fino a 3 riprese rapide dello stesso insieme. `notBefore` impedisce riprese anticipate; la pipeline salva o cancella il checkpoint secondo l'esito.
 
-`GeminiService` usa `GeminiContentClient` e `EmailQuickCheckPolicy` nello stesso file. Le strategie di generazione e i controlli applicativi rimangono nella pipeline; non esiste un'API pubblica generica `GeminiClient.runTask`. Il codice usa `generateContent` e stime locali dei token; non implementa la precedente opzione documentale `GEMINI_CONTEXT_CACHE`.
+`GeminiService` usa `GeminiContentClient` e `EmailQuickCheckPolicy` nello stesso file. Le strategie di generazione e i controlli applicativi appartengono alla pipeline. Il client usa `generateContent` e stime locali dei token.
+
+Il limite delle riprese è inclusivo e conta la ripresa pianificata: scrittura e lettura abbandonano il checkpoint soltanto oltre la soglia. In assenza di LockService il sistema usa la modalità compatibilità, priva di atomicità fisica, con rilascio dei token logici appartenenti al chiamante. I marcatori di invio incerto hanno conservazione limitata ad almeno sette giorni. Vedi i [contratti funzionali](CONTRATTI_FUNZIONALI_IT.md) e i [componenti del thread](COMPONENTI_THREAD_IT.md).
 
 Vedi [configurazione](CONFIGURATION_IT.md), [diagrammi](ARCHITECTURE_DIAGRAMS_IT.md) e [copertura dei test](validator_testing.md). Le suite offline non attestano disponibilità Gemini, quote reali o stato del deploy.

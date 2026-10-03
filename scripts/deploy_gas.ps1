@@ -1,4 +1,4 @@
-# scripts/deploy_gas.ps1 - Automated multi-environment Google Apps Script deployment
+# scripts/deploy_gas.ps1 - Distribuzione automatica Google Apps Script su più ambienti
 
 $ErrorActionPreference = "Stop"
 

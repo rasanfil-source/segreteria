@@ -1,6 +1,6 @@
 # FAQ
 
-Aggiornato al 29 settembre 2026.
+Aggiornato al 3 ottobre 2026.
 
 ## Risponde anche in italiano?
 

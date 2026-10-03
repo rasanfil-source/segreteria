@@ -25,7 +25,7 @@
 ## 🔗 Collegamenti Rapidi
 
 - [Tutte le lingue / Solo straniere](../LANGUAGE_MODES_IT.md)
-- [Valutazione audit del 29 settembre 2026](../VALUTAZIONE_AUDIT_2026-09-29.md)
+- [Contratti funzionali](../CONTRATTI_FUNZIONALI_IT.md)
 
 - [Troubleshooting Completo](../TROUBLESHOOTING_IT.md)
 - [Deployment Guide](../DEPLOYMENT_IT.md)

@@ -343,7 +343,7 @@ var RequestTypeClassifier = class RequestTypeClassifier {
     const result = {
       type: requestType, // Categoria classica
       source: source,
-      dimensions: dimensions, // Nuova metrica
+      dimensions: dimensions, // Dimensioni della richiesta
       complexity: complexity,
       emotionalLoad: emotionalLoad,
 
@@ -642,7 +642,7 @@ var RequestTypeClassifier = class RequestTypeClassifier {
       return this._getSimpleHint(classificationOrType);
     }
 
-    // Input oggetto completo (Nuovo sistema blended)
+    // Oggetto completo per la classificazione combinata
     const typeInfo = classificationOrType || {};
     const reqType = typeInfo.type || 'mixed';
     const isSbattezzo = !!typeInfo.isSbattezzo;

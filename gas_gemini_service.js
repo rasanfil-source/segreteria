@@ -96,7 +96,7 @@ var GeminiContentClient = class GeminiContentClient {
 
     if (maxOutputTokens != null) config.maxOutputTokens = maxOutputTokens;
     // Da Gemini 3.6 Flash / 3.5 Flash-Lite i parametri di sampling sono
-    // deprecati: non devono essere inviati nemmeno se presenti nei profili legacy.
+    // deprecati: non devono essere inviati nemmeno se presenti nei profili compatibili.
     if (!usesLatestSamplingPolicy) {
       if (hasOverride('temperature') || profile.temperature != null) {
         config.temperature = hasOverride('temperature') ? overrides.temperature : profile.temperature;
@@ -2273,7 +2273,7 @@ var GeminiService = class GeminiService {
           count += weight * matches;
         } else {
           const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          // NOTA: niente \b perché in JS è ASCII-only e fallisce con accenti (es. "olá", "perché").
+          // NOTA: niente \b perché in JS è limitato ad ASCII e fallisce con accenti (es. "olá", "perché").
           // Usiamo invece un confine Unicode esplicito senza lookbehind per massima compatibilità runtime.
           const pattern = new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'giu');
           const matches = (txt.match(pattern) || []).length;
