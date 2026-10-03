@@ -841,7 +841,7 @@ var EmailProcessor = class EmailProcessor {
       // Conserva il riferimento temporale del batch quando ancora valido.
       const startTimeAgeMs = startTime - Number(this._startTime || 0);
       const staleStartThresholdMs = Math.max(0, this.config.maxExecutionTimeMs - this.config.minRemainingTimeMs);
-      if (!this._startTime || startTimeAgeMs < 0 || startTimeAgeMs > staleStartThresholdMs) {
+      if (!this._startTime || startTimeAgeMs < 0 || (!options.batchManagedStartTime && startTimeAgeMs > staleStartThresholdMs)) {
         this._startTime = startTime;
       }
       const normalizedKnowledgeBase = this._normalizeTextContent(knowledgeBase);
@@ -1373,6 +1373,7 @@ var EmailProcessor = class EmailProcessor {
       const canPreloadMessageLabelCaches = this.gmailService && typeof this.gmailService.getMessageIdsWithLabel === 'function';
       const addIdsToSet = (targetSet, ids) => {
         if (!(targetSet instanceof Set)) return;
+        if (!ids || ids.complete === false) messageLabelCachesComplete = false;
         if (ids instanceof Set) {
           if (ids.complete === false) messageLabelCachesComplete = false;
           ids.forEach((id) => targetSet.add(id));
@@ -1380,11 +1381,14 @@ var EmailProcessor = class EmailProcessor {
         }
         if (Array.isArray(ids)) {
           ids.forEach((id) => targetSet.add(id));
+        } else {
+          messageLabelCachesComplete = false;
         }
       };
       const preloadMessageLabelCaches = () => {
         if (messageLabelCachesPreloaded) return;
         if (!canPreloadMessageLabelCaches) {
+          messageLabelCachesComplete = false;
           runLogger.warn('gmailService.getMessageIdsWithLabel non disponibile: continuo senza cache label pre-caricata.');
           messageLabelCachesPreloaded = true;
           return;
@@ -1402,17 +1406,16 @@ var EmailProcessor = class EmailProcessor {
 
         // Include anche i messaggi unread già marcati come Errore/Verifica:
         // evitiamo retry infiniti del singolo messaggio, ma senza oscurare l'intero thread.
-        try {
-          addIdsToSet(
-            labeledMessageIds,
-            this.gmailService.getMessageIdsWithLabel(this.config.errorLabelName, true, { onlyUnread: true })
-          );
-          addIdsToSet(
-            labeledMessageIds,
-            this.gmailService.getMessageIdsWithLabel(this.config.validationErrorLabel, true, { onlyUnread: true })
-          );
-        } catch (e) {
-          runLogger.warn(`Impossibile pre-caricare ID error/validation (${e.message}). Continuo con sola cache IA.`);
+        for (const label of [this.config.errorLabelName, this.config.validationErrorLabel]) {
+          if (!label) continue;
+          try {
+            addIdsToSet(labeledMessageIds,
+              this.gmailService.getMessageIdsWithLabel(label, true, { onlyUnread: true }));
+          } catch (e) {
+            messageLabelCachesComplete = false;
+            if (this._isGmailDailyQuotaError_(e && e.message)) throw e;
+            runLogger.warn(`Impossibile pre-caricare ID label '${label}' (${e.message}). Continuo con cache parziale.`);
+          }
         }
 
         // Pre-caricamento degli ID dei messaggi con etichetta skip (·)
@@ -1427,6 +1430,8 @@ var EmailProcessor = class EmailProcessor {
               console.log(`   🌐 Pre-caricati ${skippedMessageIds.size} ID messaggi skip (·) per fast-skip`);
             }
           } catch (e) {
+            messageLabelCachesComplete = false;
+            if (this._isGmailDailyQuotaError_(e && e.message)) throw e;
             console.warn(`⚠️ Impossibile pre-caricare gli ID skip (${e.message}). Continuo senza cache skip.`);
           }
         }
@@ -1439,12 +1444,9 @@ var EmailProcessor = class EmailProcessor {
         if (Array.isArray(options.threadIds) && options.threadIds.length > 0) {
           threads = options.threadIds
             .map((id) => {
-              try {
-                return GmailApp.getThreadById(id);
-              } catch (getErr) {
-                runLogger.debug(`Thread ${id} non recuperabile da checkpoint: ${getErr.message}`);
-                return null;
-              }
+              // Solo un risultato nullo conferma l'assenza del thread. Le eccezioni
+              // interrompono la ripresa conservando il checkpoint completo.
+              return GmailApp.getThreadById(id);
             })
             .filter(Boolean);
           runLogger.info(`Ripresa batch con ${threads.length}/${options.threadIds.length} thread da checkpoint`);
@@ -1533,6 +1535,9 @@ var EmailProcessor = class EmailProcessor {
         try {
           preloadMessageLabelCaches();
         } catch (e) {
+          if (this._isGmailDailyQuotaError_(e && e.message)) {
+            return { total: 0, replied: 0, filtered: 0, errors: 0, skipped: 1, reason: 'gmail_daily_limit_reached' };
+          }
           return { total: 0, replied: 0, filtered: 0, errors: 1, skipped: 0, reason: 'label_cache_failed' };
         }
       }
@@ -1582,6 +1587,12 @@ var EmailProcessor = class EmailProcessor {
           continue;
         }
 
+        // Il pre-check può effettuare chiamate Gmail lente: verifica di nuovo
+        // il budget prima di entrare nella pipeline del thread.
+        if (this._getRemainingTimeMs(MAX_EXECUTION_TIME) < this.config.minRemainingTimeMs || this._isNearDeadline(MAX_EXECUTION_TIME)) {
+          deferBatchCheckpoint(threads, index, 5000);
+          break;
+        }
         runLogger.info(`Thread ${index + 1}/${threads.length}`);
 
         // Se abbiamo già acquisito il lock batch in questa funzione (o il chiamante
@@ -1594,7 +1605,7 @@ var EmailProcessor = class EmailProcessor {
           labeledMessageIds,
           threadLockAlreadyCovered,
           skippedMessageIds,
-          { ...options, logger: runLogger, lockAlreadyCovered: threadLockAlreadyCovered }
+          { ...options, logger: runLogger, lockAlreadyCovered: threadLockAlreadyCovered, batchManagedStartTime: true }
         );
         stats.total++;
         // Conteggia gli esiti di revisione prima di un eventuale arresto per infrastruttura o quota.
@@ -4317,12 +4328,11 @@ var EmailProcessor = class EmailProcessor {
     const sensitiveQualityWarnings = (details.sensitiveContinuityQuality && Array.isArray(details.sensitiveContinuityQuality.warnings))
       ? details.sensitiveContinuityQuality.warnings
       : [];
-    const hasSensitiveQuality = sensitiveQualityErrors.length > 0 || errorText.some(e =>
-      e.includes('continuita sensibile') ||
-      e.includes('registro formale') ||
-      e.includes('qualita sensibile') ||
-      e.includes('qualita mista')
-    );
+    const hasSensitiveQuality = sensitiveQualityErrors.length > 0 || errorText.some(e => {
+      const folded = e.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return folded.includes('continuita sensibile') || folded.includes('registro formale') ||
+        folded.includes('qualita sensibile') || folded.includes('qualita mista');
+    });
 
     return {
       thinking_leak: hasThinkingLeak,
@@ -6108,8 +6118,12 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       remote_request: /\b(?:preferisco (?:ora |adesso )?(?:venire|incontrarvi) di persona|i now prefer to come in person|je prefere maintenant venir en personne|ahora prefiero ir en persona|agora prefiro ir pessoalmente|ich mochte jetzt personlich kommen)\b/
     };
     const matchesAffirmativeResolution = (clause, pattern) => {
-      const match = clause.match(pattern);
-      return Boolean(match && !/\b(non|not|ne|pas|no|nao|nicht)\s*$/.test(clause.slice(0, match.index)));
+      const globalPattern = new RegExp(pattern.source, pattern.flags.includes('g') ? pattern.flags : pattern.flags + 'g');
+      let match;
+      while ((match = globalPattern.exec(clause)) !== null) {
+        if (!/\b(non|not|ne|pas|no|nao|nicht)\s*$/.test(clause.slice(0, match.index))) return true;
+      }
+      return false;
     };
     const resolvedTypes = new Set();
     if (localPresence) resolvedTypes.add('geographic_distance');

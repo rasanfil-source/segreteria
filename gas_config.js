@@ -506,6 +506,19 @@ var LANGUAGE_MARKERS = {
  */
 function validateConfig() {
   const errors = [];
+  const warnings = [];
+  for (const key of ['SENSITIVE_FLAGS_TTL_DAYS', 'MEMORY_RETENTION_DAYS']) {
+    if (!Number.isSafeInteger(CONFIG[key]) || CONFIG[key] <= 0) {
+      errors.push(`Errore Config: '${key}' deve essere un numero intero positivo di giorni`);
+    }
+  }
+  if (Number.isSafeInteger(CONFIG.MEMORY_RETENTION_DAYS) && CONFIG.MEMORY_RETENTION_DAYS > 0 &&
+      Number.isSafeInteger(CONFIG.SENSITIVE_FLAGS_TTL_DAYS) &&
+      CONFIG.MEMORY_RETENTION_DAYS < CONFIG.SENSITIVE_FLAGS_TTL_DAYS) {
+    warnings.push('La memoria delle conversazioni inattive viene eliminata dopo ' +
+      CONFIG.MEMORY_RETENTION_DAYS + ' giorni, inclusi i flag sensibili. Il loro TTL di ' +
+      CONFIG.SENSITIVE_FLAGS_TTL_DAYS + ' giorni si applica alle conversazioni ancora conservate.');
+  }
 
   // Helper per validazione tipo
   const checkType = (path, value, expectedType) => {
@@ -653,6 +666,7 @@ function validateConfig() {
     }
   }
 
+  warnings.forEach(message => console.warn('Configurazione: ' + message));
   // Se ci sono errori, logghiamoli subito
   if (errors.length > 0) {
     console.error("🚨 VALIDAZIONE CONFIGURAZIONE FALLITA 🚨");
@@ -661,7 +675,8 @@ function validateConfig() {
 
   return {
     valid: errors.length === 0,
-    errors: errors
+    errors: errors,
+    warnings: warnings
   };
 }
 

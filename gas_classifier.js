@@ -677,7 +677,7 @@ var Classifier = class Classifier {
       /\bcontatto\s+telefonico\b/i,
       /\bcolloquio\s+telefonico\b/i,
       /\btelefonata\s+(?:intercorsa|avuta|di|del|della|con)\b/i,
-      /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:ci\s+siamo\s+sentit[ie]|vi\s+siete\s+sentit[ie]|mi\s+sono\s+sentit[oa])\b/i,
+      /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:(?:ci\s+siamo\s+sentit[ie]|vi\s+siete\s+sentit[ie])\b(?!\s+(?:male|bene|sol[ie]|trist[ie]|felici|stanchi|stanche|abbandonat[ie]|ascoltat[ie]|accolt[ie]|a\s+disagio)\b)|mi\s+sono\s+sentit[oa]\s+(?:con\b|al\s+telefono\b|telefonicamente\b|per\s+telefono\b))/i,
       /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\b/i,
       /\bcome\s+(?:gia\s+|già\s+)?(?:concordato|anticipato|accennato)\b/i,
       /\bcome\s+da\s+(?:accordi|telefonata|colloquio|incontro)\b/i,
