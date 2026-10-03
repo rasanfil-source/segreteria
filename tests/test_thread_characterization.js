@@ -44,8 +44,8 @@ const scenarios = {
   session_memory: { history: true, memory: { exists: true, lastUpdated: '2026-09-25T09:55:00.000Z', messageCount: 2, category: 'pastoral', memorySummary: 'Colloquio richiesto', providedInfo: ['contatti'] } }
 };
 const sourceRoot = process.argv.includes('--record-baseline') ? path.join(root, 'outputs', 'process-thread-baseline') : root;
-// Explicit model output for document requests: the old harness supplied OCR text
-// directly, whereas production PDFs now receive one structured visual analysis.
+// Risultato strutturato del modello per le richieste documentali:
+// i PDF vengono sottoposti a una sola analisi visiva strutturata.
 if (!process.argv.includes('--record-baseline')) {
   for (const name of ['ocr_formal', 'ocr_formal_routing']) {
     scenarios[name].attachmentAnalysis = {consistent: true, reason: '', requestPurpose: 'operational_request',
@@ -62,27 +62,27 @@ if (process.argv.includes('--record-baseline')) {
 }
 const originalExpected = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 const expected = JSON.parse(JSON.stringify(originalExpected));
-// Classifier filtering now preserves its reason in the public result.
+// Il risultato pubblico conserva la motivazione del filtro del classificatore.
 expected.classifier_reject.result.reason = 'fixture';
 if (!process.argv.includes('--record-baseline')) {
-  // Audit correction #4: explicitly approved changes to the original immutable fixture.
-  // All other results, prompts and service effects must remain byte-for-byte identical.
+  // Le aspettative del contratto documentale sono applicate a una copia della fixture.
+  // Risultati, prompt ed effetti sui servizi sono confrontati integralmente.
   const lookback = expected.attachment_lookback;
   assert.equal(lookback.effects[6][0], 'attachments.read');
-  lookback.effects.splice(6, 1); // bypass the text-only guard before any file lookup
+  lookback.effects.splice(6, 1); // ricerca dei file indipendente dal marcatore testuale
   const markerWrites = lookback.effects.filter(([event, value]) => event === 'props.set' && value[0].startsWith('duplicate_reply_v1_'));
   assert.equal(markerWrites.length, 1);
   lookback.effects = lookback.effects.filter(effect => effect !== markerWrites[0]);
   lookback.props = lookback.props.filter(([key]) => !key.startsWith('duplicate_reply_v1_'));
-  // These historical quick-check mocks omit intent. They now generate and validate
-  // instead of sending the hardcoded receipt. Original fixture remains immutable.
+  // I controlli rapidi simulati privi di intento richiedono generazione e validazione.
+  // La fixture di riferimento resta immutata.
   const receiptUpdates = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'thread_receipt_intent.json'), 'utf8'));
   assert.deepStrictEqual(Object.keys(receiptUpdates).sort(), ['attachment', 'receipt_only']);
   Object.assign(expected, receiptUpdates);
-  // Ambiguous send: review label and batch metrics now use the same outcome.
+  // L’invio incerto condivide lo stesso esito tra etichetta di revisione e metriche del batch.
   expected.send_uncertain.result.status = 'validation_failed';
   expected.send_uncertain.result.validationFailed = true;
-  // Approved audit changes: serialize untrusted semantic data and use the limiter.
+  // I dati semantici non attendibili sono serializzati e le chiamate attraversano il limitatore.
   const semanticPayloads = {
     semantic_mismatch: {
       subject: 'Informazioni catechismo', body: 'In allegato il programma',
@@ -108,8 +108,8 @@ if (!process.argv.includes('--record-baseline')) {
       JSON.stringify(payload);
     args[1] = { modelName: 'gemini-3.5-flash-lite', attachments: [] };
   }
-  // Approved audit: avoid language calls for messages already rejected locally.
-  // Unknown received type now receives semantic review using the actual available text.
+  // I messaggi esclusi dai filtri locali non richiedono chiamate per la lingua.
+  // Il tipo ricevuto indeterminato richiede verifica semantica del testo disponibile.
   const extraSemantic = JSON.parse(JSON.stringify(expected.semantic_mismatch.effects.find(([event, args]) =>
     event === 'generate' && args[0].startsWith('Rispondi SOLO con un oggetto JSON valido'))));
   const payloadStart = extraSemantic[1][0].lastIndexOf('\n') + 1;
@@ -145,7 +145,7 @@ if (!process.argv.includes('--record-baseline')) {
     }
   }
 }
-// Audit: successful cleanup is scoped to the current burst, never the thread.
+// La pulizia riguarda i messaggi accorpati nel gruppo corrente.
 expected.truncated.result.validationFailed = true;
 for (const [name, snapshot] of Object.entries(expected)) {
   const effects = snapshot.effects;
@@ -159,7 +159,7 @@ for (const [name, snapshot] of Object.entries(expected)) {
   if (name === 'cleanup_failure') cleanup.splice(1);
   snapshot.effects.splice(cleanupIndex, 0, ...cleanup);
 }
-// Audit allegati: cleanup sending, contenuto della memoria e coerenza semantica positiva.
+// Verifica allegati: pulizia dei marcatori di invio, contenuto della memoria e coerenza semantica.
 for (const [name, snapshot] of Object.entries(expected)) {
   const effects = snapshot.effects;
   for (let index = effects.length - 1; index >= 0; index--) {
@@ -188,9 +188,9 @@ for (const [name, snapshot] of Object.entries(expected)) {
   }
 }
 for (const [name, output] of Object.entries(actual)) {
-  // With no configured model in these mocks the semantic fallback is evergreen.
+  // Con modello non configurato, il controllo semantico simulato usa la risposta generica.
   for (const [event, value] of expected[name].effects) {
-    // Post-OCR directives now retain the document-specific guidance.
+    // Le direttive successive alla lettura conservano le indicazioni specifiche del documento.
     if (event === 'prompt' && value.attachmentIntentContext?.phase === 'post_ocr') {
       const context = value.attachmentIntentContext;
       const types = context.detectedDocTypes || {};
@@ -215,14 +215,14 @@ for (const [name, output] of Object.entries(actual)) {
   ));
   const newDocumentProcessing = output.effects.some(([event, value]) => event === 'prompt' && value.attachmentIntentContext?.phase === 'document_analysis');
   if (newDocumentProcessing) {
-    // The pre-routing analysis intentionally replaces the old document decisions.
-    // Preserve the original delivery transaction and result, while the new suite
+    // L’analisi documentale determina le decisioni prima del routing.
+    // La verifica conserva la transazione di consegna e il risultato; la suite dedicata
     // tests analysis, routing, prompt, validation context and failure paths directly.
     const deliveryEvents = new Set(['send', 'send.reconcile', 'lock.acquire', 'lock.release',
       'cache.put', 'cache.remove', 'props.set', 'props.delete', 'label.processed',
       'label.review', 'label.error', 'label.cleanMessage']);
     if (name === 'ocr_formal') {
-      // Positive content analysis replaces the old taxonomy false mismatch.
+      // L’analisi positiva del contenuto determina la coerenza documentale.
       expected[name].effects = expected[name].effects.map(([event, value]) => event === 'label.review' &&
         value[1].reason === 'document_consistency_prudent_response'
         ? ['label.cleanMessage', [value[0], 'Verifica']] : [event, value]);

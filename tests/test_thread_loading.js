@@ -1,4 +1,4 @@
-// Deployment remains the existing rootDir=./ + .claspignore GAS file loading.
+// Il caricamento GAS usa rootDir=./ e le esclusioni di .claspignore.
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');

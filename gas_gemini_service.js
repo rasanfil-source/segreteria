@@ -2478,7 +2478,7 @@ Testo:
         const isoDay = parseInt(Utilities.formatDate(now, 'Europe/Rome', 'u'), 10);
         if (!isNaN(isoDay)) day = isoDay % 7;
       } catch (e) {
-        // fallback locale: manteniamo comportamento precedente se Utilities non è disponibile
+        // Alternativa locale quando Utilities non è disponibile
       }
     }
 
@@ -2814,7 +2814,7 @@ Testo:
       return this._shouldRespondToEmailAttempt_(emailContent, emailSubject, precomputedDetection, intentContext, 2048);
     } catch (error) {
       if (error.code !== 'TRUNCATED_OUTPUT') throw error;
-      // Re-enter the limiter: both attempts must be accounted for.
+      // Ogni tentativo attraversa il limitatore e contribuisce al conteggio delle quote.
       return this._shouldRespondToEmailAttempt_(emailContent, emailSubject, precomputedDetection, intentContext, 4096);
     }
   }
@@ -2867,7 +2867,7 @@ Testo:
       }
     }
 
-    // IMPLEMENTAZIONE ORIGINALE (fallback o quando Rate Limiter disabilitato)
+    // CHIAMATA DIRETTA (quando il limitatore è disabilitato)
     try {
       const safeSubject = typeof emailSubject === "string" ? emailSubject : (emailSubject == null ? "" : String(emailSubject));
       console.log(`🔍 Gemini quick check per: ${safeSubject.substring(0, 40)}...`);
@@ -2897,7 +2897,7 @@ Testo:
 
   /**
    * Genera risposta AI con retry
-   * Supporta Rate Limiter + fallback originale
+   * Supporta il limitatore e il percorso di chiamata diretta
    * 
    * @param {string} prompt - Prompt completo
    * @param {Object} options - Opzioni per strategia Cross-Key Quality First

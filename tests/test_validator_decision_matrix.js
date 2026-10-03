@@ -88,7 +88,7 @@ for (const key of ['physicalPresenceConstraint', 'physical_presence_constraint']
   assert.equal(result.errors.length, Number(blocked));
 });
 
-// Exhaust every term of the attachment-template conjunctions, plus activation and prohibition.
+// Verifica ogni requisito dei modelli per allegati, inclusi attivazione e divieti.
 for (const active of bools) for (const first of bools) for (const second of bools) for (const forbidden of bools) {
   for (const kind of ['documentMismatch', 'expectedDocumentMissing']) row(`document ${kind}/${active}/${first}/${second}/${forbidden}`, () => {
     const text = kind === 'documentMismatch'
@@ -123,7 +123,7 @@ for (const active of bools) for (const formal of bools) for (const human of bool
   assert.equal(result.score, !active ? 1 : formal && pastoral ? 0.5 : !formal && !human ? 0.85 : 1);
 });
 
-// Explicit semantic validity must never override evidence of an error.
+// Un giudizio semantico positivo rispetta la precedenza delle evidenze di errore.
 const semantic = new SemanticValidator();
 for (const explicit of [undefined, false, true]) for (const leak of bools) for (const examples of bools) for (const hallucination of bools) for (const irrelevant of bools) row(`semantic payload ${explicit}/${leak}/${examples}/${hallucination}/${irrelevant}`, () => {
   if (explicit === undefined && !leak && !examples && !hallucination && !irrelevant) {

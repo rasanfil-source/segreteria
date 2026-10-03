@@ -4,7 +4,7 @@ const { spawnSync } = require('child_process');
 const { summarizeCoverage, enforceCoverage } = require('./validator_coverage');
 
 const rootDir = path.join(__dirname, '..');
-// Fresh profiles prevent stale runs from concealing a coverage regression.
+// Ogni esecuzione usa profili nuovi per misurare soltanto la copertura corrente.
 const outputDir = path.join(rootDir, 'outputs', 'coverage');
 fs.mkdirSync(outputDir, { recursive: true });
 const coverageDir = fs.mkdtempSync(path.join(outputDir, 'v8-'));

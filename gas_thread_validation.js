@@ -220,7 +220,7 @@ var ThreadValidation = {
 
     return { validation, shouldLabelForReview, response };
   },
-  /** correctionPlans: returns retryPlans; preserves the caller's service-effect order. */
+  /** correctionPlans: restituisce retryPlans; conserva l’ordine delle operazioni sui servizi. */
   correctionPlans(deps, { strategyUsedPlan, attemptStrategy, fallbackModelName }) {
     const retryPlan = strategyUsedPlan || attemptStrategy.find(p => p && p.key) || {
       key: deps.geminiService.primaryKey,
@@ -240,7 +240,7 @@ var ThreadValidation = {
     ].filter((plan, index, plans) => plans.findIndex(candidatePlan => retryPlanKey(candidatePlan) === retryPlanKey(plan)) === index);
     return { retryPlans };
   },
-  /** regenerate: returns retryResponse, retryInfrastructureFailure, retryPermanentApiFailure; preserves the caller's service-effect order. */
+  /** regenerate: restituisce retryResponse, retryInfrastructureFailure, retryPermanentApiFailure; conserva l’ordine delle operazioni sui servizi. */
   regenerate(deps, { retryInfrastructureFailure, retryPermanentApiFailure, retryPlans, retryPayload, attachmentBlobs = [] }) {
     let retryResponse = null;
     retryInfrastructureFailure = null;

@@ -1,6 +1,6 @@
-/** Owns the selected messages and the once-only marking lifecycle of one thread.
- * Only label operations are injected. Candidate/context changes remain visible if a phase throws.
- * This is message bookkeeping, not a shared pipeline context.
+/** Gestisce i messaggi selezionati e le marcature uniche del thread.
+ * Riceve le operazioni sulle etichette; gli aggiornamenti di candidato e contesto restano disponibili in caso di eccezione.
+ * La responsabilità del componente è la gestione dello stato dei messaggi.
  */
 var ThreadMessageState = {
   create(deps, { thread, labeledMessageIds, skippedMessageIds }) {

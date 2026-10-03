@@ -92,7 +92,7 @@ const kb = engine._truncateKbSemantically(completeRow + '\n' + longRow, 150);
 assert.ok(kb.includes(completeRow));
 assert.ok(!kb.includes('Orario speciale'));
 
-// Resetting the layout must never clear data, even outside known configuration cells.
+// La ricostruzione del layout conserva i dati anche fuori dalle celle di configurazione.
 const values = new Map([['B4', 'Europe/London'], ['B5', '2026-08-01'], ['E13', 'example.org'], ['F13', 'custom phrase']]);
 let formats = 0;
 const range = { breakApart(){ return this; }, clearFormat(){ formats++; return this; },

@@ -1,5 +1,5 @@
 // Offline migration helper. Never connects to Apps Script or prints addresses.
-// Run before deployment: node maintenance/export_legacy_blacklist.js [git-ref]
+// Esporta gli indirizzi di esclusione: node maintenance/export_legacy_blacklist.js [git-ref]
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');

@@ -1,5 +1,5 @@
 /**
- * Shared response strategy helpers.
+ * Funzioni condivise per la strategia di risposta.
  */
 
 function normalizeRelationalPosture_(posture, fallback = 'direct') {

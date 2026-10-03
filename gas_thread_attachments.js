@@ -35,7 +35,7 @@ var ThreadAttachments = {
         let hasAttachments = false;
         attachmentPreCheckFailed = false;
         try {
-          // Inspect size metadata for every source even after finding one attachment.
+          // Controlla le dimensioni di ogni sorgente anche quando è già presente un allegato.
           // Otherwise a file budget can hide an oversized second message.
           hasAttachments = attachmentSourceMessages.reduce((found, message) => {
             const sizeEstimate = deps._getMessageSizeEstimateForAttachmentDownload_(message, threadLogger);
@@ -140,7 +140,7 @@ var ThreadAttachments = {
       attachmentSkipped, usedLookbackAttachments, attachmentAnalysis
     };
   },
-  /** collect: returns attachmentData, countProcessedAttachments; preserves the caller's service-effect order. */
+  /** collect: restituisce attachmentData, countProcessedAttachments; conserva l’ordine delle operazioni sui servizi. */
   collect(deps, { attachmentSettings, attachmentSourceMessages, threadLogger, maxAttachmentMessageBytes }) {
     const maxAttachmentFiles = Math.max(1, parseInt(attachmentSettings.maxFiles, 10) || 3);
     const parsedMaxTotalChars = parseInt(attachmentSettings.maxTotalChars, 10);
@@ -234,7 +234,7 @@ var ThreadAttachments = {
     }
     return { attachmentData, countProcessedAttachments };
   },
-  /** interpretOcr: returns attachmentIntentContext, categoryHintSource, forceReceiptOnlyForSubmission; preserves the caller's service-effect order. */
+  /** interpretOcr: restituisce attachmentIntentContext, categoryHintSource, forceReceiptOnlyForSubmission; conserva l’ordine delle operazioni sui servizi. */
   interpretOcr(deps, {
     messageDetails, attachmentItems, textFromAttachments, attachmentIntentContext,
     preQuickAttachmentIntentContext, categoryHintSource, quickCheck, detectedLanguage,
@@ -334,7 +334,7 @@ var ThreadAttachments = {
     }
     return { attachmentIntentContext, categoryHintSource, forceReceiptOnlyForSubmission };
   },
-  /** lookBack: returns hasAttachments; preserves the caller's service-effect order. */
+  /** lookBack: restituisce hasAttachments; conserva l’ordine delle operazioni sui servizi. */
   lookBack(deps, {
     messageDetails, hasAttachments, attachmentPreCheckFailed, messages, candidate, ownAddresses,
     attachmentSourceMessages, attachmentSkipped = [], maxAttachmentMessageBytes, threadLogger

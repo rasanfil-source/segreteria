@@ -1,4 +1,4 @@
-// Regressioni offline per i due audit allegati: nessun invio o accesso remoto.
+// Verifica locale di allegati e criteri di risposta, con servizi remoti simulati.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');

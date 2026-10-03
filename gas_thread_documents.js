@@ -170,7 +170,7 @@ var ThreadDocuments = {
       hasDocumentDeliveryUnverified
     );
     const effectiveDocumentMismatchReason = documentMismatchReason || documentDeliveryModel.blockReason || null;
-    // A local submission heuristic cannot override the quick-check's communicative intent.
+    // L’euristica locale di consegna rispetta l’intento comunicativo rilevato dal controllo rapido.
     // Missing/uncertain AI intent goes through normal generation and validation.
     const aiConfirmsPureDelivery = Boolean(
       requestPurpose && requestPurpose.source === 'quick_check_model' &&
@@ -293,7 +293,7 @@ var ThreadDocuments = {
 
     return { attachmentIntentContext, forceReceiptOnlyForSubmission, requestTypeName, categoryHintSource };
   },
-  /** assessConsistency: returns documentConsistency, semanticConsistency, hasTaxonomyMismatch, hasSemanticMismatch, hasDocumentMismatch, documentMismatchReason, hasRiskyUnknownReceived; preserves the caller's service-effect order. */
+  /** assessConsistency: restituisce documentConsistency, semanticConsistency, hasTaxonomyMismatch, hasSemanticMismatch, hasDocumentMismatch, documentMismatchReason, hasRiskyUnknownReceived; conserva l’ordine delle operazioni sui servizi. */
   assessConsistency(deps, {
     documentDeliveryModel, messageDetails, attachmentItems, textFromAttachments,
     physicalAttachmentsDetected, attachmentIntentContext, quickDocumentDelivery, attachmentBlobs,
@@ -413,7 +413,7 @@ var ThreadDocuments = {
       hasDocumentMismatch, documentMismatchReason, hasRiskyUnknownReceived
     };
   },
-  /** directives: returns injectedMissingDocumentDirective, injectedMismatchDirective; preserves the caller's service-effect order. */
+  /** directives: restituisce injectedMissingDocumentDirective, injectedMismatchDirective; conserva l’ordine delle operazioni sui servizi. */
   directives(deps, {
     hasExpectedDocumentMissing, quickDocumentDelivery, quickAttachmentIntent, systemDirectives,
     hasDocumentMismatch, hasDocumentDeliveryIncongruent, hasDocumentDeliveryUnverified,

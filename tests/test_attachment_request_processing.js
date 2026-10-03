@@ -1,4 +1,4 @@
-// Decisions use document content before routing; all services remain offline.
+// Le decisioni usano il contenuto documentale prima del routing; tutti i servizi sono simulati.
 const assert = require('node:assert/strict');
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const {runScenario} = require('./helpers/thread_scenario');

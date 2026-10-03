@@ -63,7 +63,7 @@ for (const text of ['Could you clarify this number?','Could you clarify via mail
 }
 console.log('Contact extraction, contextual dates, presence, church intent and multilingual reactions passed');
 
-// Unicode boundaries must neither truncate names nor retain weekday complements.
+// I confini Unicode conservano i nomi interi ed escludono i complementi dei giorni della settimana.
 for (const name of ['Don Nicolò','Don Giosuè','Don Marco De Luca','Don D’Angelo']) {
   for (const text of ['Ho parlato con ' + name, 'Mi sono sentito con ' + name,
     'contatto: ' + name]) {

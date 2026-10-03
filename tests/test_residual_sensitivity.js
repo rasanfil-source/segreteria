@@ -4,7 +4,7 @@ const vm = require('vm');
 const assert = require('assert');
 const { execFileSync } = require('child_process');
 
-// --baseline measures the same scenarios against HEAD without altering the checkout.
+// --baseline misura gli stessi scenari rispetto a HEAD senza modificare i sorgenti di lavoro.
 const baseline = process.argv.includes('--baseline');
 const root = path.join(__dirname, '..');
 const sandbox = {
@@ -59,7 +59,7 @@ for (const [name, body, extra = {}] of variants) {
     memoryContext: input.memory, physicalPresenceConstraint: extra.physicalPresenceConstraint,
     activeConcerns: ctx.concerns, promptProfile: ctx.profile, ...ctx.meta
   }));
-  // meta.activeConcerns is an array, as accepted by the renderer.
+  // meta.activeConcerns è un array accettato dal generatore del contesto.
   check(ctx.concerns.residual_sensitivity, `${name}: residual sensitivity preserved`);
   check(ctx.meta.responseRegister === 'warm_institutional', `${name}: operational register`);
   check(ctx.meta.responseMode === 'longitudinal_tone_only', `${name}: implicit continuity`);
@@ -94,7 +94,7 @@ for (const [name, fields, expectedRegister, expectedMode] of [
   check(ctx.meta.responseMode === expectedMode, `${name}: mode preserved`);
 }
 
-// Repeated administrative turns must not turn bereavement history into an ongoing pastoral process.
+// I turni amministrativi ripetuti mantengono distinto lo storico di lutto dal bisogno pastorale attuale.
 let flags = { bereaved: true, remote_user: true, canonical_complexity: true };
 for (let turn = 0; turn < 3; turn++) {
   const next = api.processor._deriveContextualFlagsUpdate_({ existingFlags: flags,

@@ -54,7 +54,7 @@ for (const status of ['past', 'future', undefined]) for (const [text, acknowledg
   assert.equal(result.checked, status === 'past');
   assert.equal(result.errors.length, Number(status === 'past' && !acknowledges));
 });
-// Context aliases must forward consistently through the public API.
+// Gli alias del contesto vengono trasmessi coerentemente tramite l’API pubblica.
 for (const nested of [false, true]) for (const aliases of [false, true]) row(`public options ${nested}/${aliases}`, () => {
   const validator = context.createResponseValidator();
   let captured;

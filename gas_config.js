@@ -305,7 +305,7 @@ var CONFIG = {
   MAX_SAFE_PROMPT_CHARS: 120000,       // Limite caratteri prompt prima del troncamento.
   KB_TOKEN_BUDGET_RATIO: 0.5,          // Budget percentuale KB rispetto a un token massimo
   KB_HALLUCINATION_RISK_THRESHOLD: 8000, // Soglia chars KB oltre cui scatta hallucination_risk
-  LONGITUDINAL_TONE_ONLY_MAX_CHARS: 500, // Legacy: valore ignorato; la continuità solo-tono dipende dai segnali
+  LONGITUDINAL_TONE_ONLY_MAX_CHARS: 500, // Parametro compatibile ignorato: la continuità del tono dipende dai segnali
   MAX_PROVIDED_INFO_JSON_CHARS: 45000, // Limite serializzazione memoria providedInfo per riga Sheet
   PROMPT_ENGINE: {
     OVERHEAD_TOKENS: 15000,            // Riserva token per istruzioni/fixed context fuori KB

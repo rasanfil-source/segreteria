@@ -1,5 +1,5 @@
-/* Regression tests for the four defects reproduced in the 2026-09-28 audit.
- * Production classes are loaded unchanged; external services are simulated.
+/* Test dei contratti di classificazione, cache semantica, configurazione e destinatari.
+ * Carica le classi applicative e simula i servizi esterni.
  */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -52,7 +52,7 @@ const report = {};
   report.semanticCache = { responseLength: permitted.length, sameHash: false, first, second, generatedWithCache: 2, withoutCache };
 }
 
-// Change every semantic input at the beginning, middle and end, preserving length.
+// Varia ogni ingresso semantico all’inizio, al centro e alla fine, conservando la lunghezza.
 {
   const s = new (validatorContext().SemanticValidator)();
   let calls = 0;
@@ -135,7 +135,7 @@ const report = {};
   const properRejection = v.validateResponse(...args);
   assert.equal(properRejection.isValid, false);
   report.properSemanticRejection = { isValid: properRejection.isValid, errors: properRejection.errors };
-  // Preserve explicit negative findings even if the verdict/confidence is absent
+  // Conserva le evidenze negative esplicite anche quando mancano verdetto o confidenza
   // or malformed; throwing here could fall back to permissive optional checks.
   for (const isValid of [undefined, 'false', true]) {
     const negative = v.semanticValidator._normalizeSemanticPayload({ isValid, hallucinations: { unsupportedClaims: ['Unsupported requirement'] } });

@@ -1,4 +1,4 @@
-// Offline checks: production source is read unchanged; proposed diff runs only in memory.
+// Verifica locale: legge il sorgente e valuta le varianti soltanto in memoria.
 const fs = require('node:fs'), vm = require('node:vm'), path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const ctx = vm.createContext({console:{log(){},warn(){},error(){}} ,CONFIG:{MAX_THREAD_LENGTH:8}});

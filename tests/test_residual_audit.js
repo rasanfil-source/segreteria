@@ -7,7 +7,7 @@ vm.createContext(ctx);
 vm.runInContext(classifier, ctx);
 vm.runInContext(processor, ctx);
 const c = new ctx.Classifier(), p = Object.create(ctx.EmailProcessor.prototype);
-// Preserve the previous audit fixes alongside the residual cases.
+// Verifica congiuntamente i contratti applicativi e i casi limite.
 assert.equal(c.classifyEmail('Orari messe?', 'Buongiorno,\nGrazie mille', false).shouldReply, true);
 assert.equal(c.classifyEmail('Re: Orari messe?', 'Grazie mille', true).shouldReply, false);
 for (const [input, expected] of [['6pm', '18:00'], ['6:00 pm', '18:00'], ['12am', '00:00'], ['12pm', '12:00']]) {

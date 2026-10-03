@@ -2024,7 +2024,7 @@ function runAllTests() {
             try {
                 global.Utilities = undefined;
                 global.Intl = { DateTimeFormat: function () { throw new Error('Intl unavailable'); } };
-                // Only exercise the date helper, not unrelated service constructors.
+                // Verifica l’helper delle date senza istanziare servizi estranei al caso.
                 const processor = Object.create(EmailProcessor.prototype);
                 return processor._getBusinessDateString(new Date(2026, 5, 2, 0, 30, 0)) === '2026-06-02';
             } finally {

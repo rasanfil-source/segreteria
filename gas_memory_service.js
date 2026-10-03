@@ -88,7 +88,7 @@ var MemoryService = class MemoryService {
         this._normalizeHeaders();
       }
 
-      // Numeric-looking Gmail IDs must retain their exact string representation.
+      // Gli identificativi Gmail composti da cifre conservano la rappresentazione testuale esatta.
       this._sheet.getRange('A:A').setNumberFormat('@');
       this._initialized = true;
       console.log(`✓ MemoryService inizializzato (Foglio: ${this.sheetName})`);
@@ -2513,7 +2513,7 @@ function createMemoryService() {
 
 function cleanupOldMemory() {
   const memoryService = new MemoryService();
-  // Retention of an entire conversation is independent from the maximum age of evidence.
+  // La conservazione della conversazione è indipendente dall’età massima delle evidenze.
   const days = typeof CONFIG !== 'undefined' && Number.isInteger(CONFIG.MEMORY_RETENTION_DAYS) && CONFIG.MEMORY_RETENTION_DAYS > 0
     ? CONFIG.MEMORY_RETENTION_DAYS : 30;
   const deleted = memoryService.cleanOldEntries(days);

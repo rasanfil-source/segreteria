@@ -35,7 +35,7 @@ for (const cacheEnabled of [false, true]) row(`cache roundtrip ${cacheEnabled}`,
     assert.equal(s.validateThinkingLeak('response', regex).isValid, true);
   }
   assert.equal(generated, cacheEnabled ? 2 : 4);
-  // Changing any grounding input must cause a miss.
+  // Ogni variazione delle fonti di riscontro invalida la cache.
   for (const [response, kb, email, purpose] of [['changed', 'kb', 'email', 'information'], ['response', 'changed', 'email', 'information'], ['response', 'kb', 'changed', 'information'], ['response', 'kb', 'email', 'changed']]) {
     s.validateHallucinations(response, kb, regex, email, { requestPurpose: purpose });
   }

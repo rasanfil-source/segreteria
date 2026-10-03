@@ -51,7 +51,7 @@ assert(presence.includes('Riconosci con naturalezza') && presence.includes('solo
 for (const [lang, precision] of [['es', 'usa usted, no tú'], ['fr', 'avec le vouvoiement'], ['de', 'Sie-Anrede']]) {
   assert(engine._renderContextualChecklist(lang, null, 'full').includes(precision));
 }
-// The forced quality contract must survive actual budget omission of the checklist.
+// Il contratto obbligatorio di qualità resta presente anche quando il budget esclude la lista di controllo.
 CONFIG.MAX_SAFE_TOKENS = 1;
 CONFIG.MAX_SAFE_PROMPT_CHARS = 120000;
 for (const lang of Object.keys(apologies)) {

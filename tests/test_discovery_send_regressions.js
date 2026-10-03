@@ -1,4 +1,4 @@
-// Regressioni audit: nessuna chiamata a Gmail reale.
+// Verifica locale di selezione messaggi e transazioni di invio.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');

@@ -91,7 +91,7 @@ var ThreadPolicy = {
 
     return {  };
   },
-  /** Newsletter headers are checked before sender filters and any AI call. */
+  /** Controlla le intestazioni delle newsletter prima dei filtri mittente e delle chiamate AI. */
   newsletter(deps, {
     messageDetails, languageMode, unlabeledUnread, skippedMessageIds, result, messageState,
     labeledMessageIds, buildRuleContext

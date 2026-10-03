@@ -1,4 +1,4 @@
-// Read-only, offline reproduction of the pasted audit. No external services.
+// Verifica locale in sola lettura dei contratti funzionali, con servizi simulati.
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');

@@ -57,7 +57,7 @@ for(const limiter of [false,true]) for(const repeat of [false,true]) {
   else assert.equal(service.shouldRespondToEmail('body','subject').shouldRespond,true);
   assert.deepEqual(budgets,[2048,4096]);assert.equal(reservations,limiter?2:0);
 }
-// Actual outbound quick-check payload uses the caller's increased budget.
+// Il contenuto del controllo rapido rispetta il budget impostato dal chiamante.
 const actualService=Object.create(ctx.GeminiService.prototype);
 Object.assign(actualService,{config:{},primaryKey:'p',_buildGenerateUrl:()=> 'test',_isPrimaryKeyFallbackHttpError_:()=>false,
   fetchFn(url,options){assert.equal(JSON.parse(options.payload).generationConfig.maxOutputTokens,4096);

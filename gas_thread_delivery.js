@@ -49,7 +49,7 @@ var ThreadDelivery = {
       );
       delivery.confirmed = true;
     } catch (e) {
-      if (delivery.confirmed) throw e; // Post-send persistence failure must never roll back delivery.
+      if (delivery.confirmed) throw e; // Un errore di persistenza dopo la conferma conserva l’esito di consegna.
       const errorMessage = e && e.message ? e.message : String(e);
       const classifiedSendError = e && e.sendNotAttempted === true && /GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE/.test(errorMessage)
         ? { type: 'NETWORK', retryable: true }

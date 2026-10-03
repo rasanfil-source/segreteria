@@ -16,7 +16,7 @@ try {
   let report = summarizeCoverage(profiles, root);
   assert.equal(report['gas_fixture.js'].blocks.percent, 50);
   assert.equal(enforceCoverage(report, { 'gas_fixture.js': { blocks: 100, functions: 100 } }).length, 1);
-  // A second run enters part of the previously missed block, but not its child.
+  // La seconda esecuzione copre parte del blocco esterno e lascia scoperto quello interno.
   write('two.json', [range(0, 100, 1), range(20, 30, 0)]);
   report = summarizeCoverage(profiles, root);
   assert.equal(report['gas_fixture.js'].blocks.covered, 2);

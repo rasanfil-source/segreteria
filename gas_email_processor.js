@@ -1597,7 +1597,7 @@ var EmailProcessor = class EmailProcessor {
           { ...options, logger: runLogger, lockAlreadyCovered: threadLockAlreadyCovered }
         );
         stats.total++;
-        // Count review outcomes before infrastructure/quota branches can stop the batch.
+        // Conteggia gli esiti di revisione prima di un eventuale arresto per infrastruttura o quota.
         if (result && result.validationFailed) stats.validationFailed++;
         if (result && result.reason === 'possible_email_loop') stats.skipped_loop++;
         if (result && result.status === 'error' && !result.validationFailed) {
@@ -1670,7 +1670,7 @@ var EmailProcessor = class EmailProcessor {
         processedCount++;
 
         if (result.validationFailed) {
-          // Already counted before early exits above.
+          // Esito già conteggiato prima dei percorsi di uscita anticipata.
         } else if (result.status === 'replied') {
           stats.replied++;
         } else if (result.status === 'dry_run') {
@@ -2527,7 +2527,7 @@ var EmailProcessor = class EmailProcessor {
     // La v1 non confronta messaggi con allegati: lo stesso testo può accompagnare
     // documenti diversi. In caso di errore di lettura si procede (fail-open).
     if (!message) return null;
-    // Exclude before lookup too: an old text marker must not hide referenced files.
+    // Esclude il marcatore testuale prima della ricerca, per mantenere visibili i file referenziati.
     if (this._hasPastAttachmentReference_(messageDetails.body)) return null;
     if (messageDetails.hasAttachments === true) return null;
     const attachmentSettings = (typeof CONFIG !== 'undefined' && CONFIG && CONFIG.ATTACHMENT_CONTEXT)
@@ -2837,7 +2837,7 @@ var EmailProcessor = class EmailProcessor {
         }
         return { ok: false, reason: 'send_state_unavailable' };
       }
-      // Confirmed evidence wins over a durable uncertainty guard left by a partial commit.
+      // L’evidenza di invio confermato prevale sul marcatore persistente di incertezza.
       if (cache.get(sentKey)) {
         if (lockAcquired && scriptLock && typeof scriptLock.releaseLock === 'function') {
           try { scriptLock.releaseLock(); } catch (_) { }
@@ -2927,7 +2927,7 @@ var EmailProcessor = class EmailProcessor {
     } finally {
       try {
         this._persistSendIdempotencyBackup_(messageId, props);
-        // Do not discard the durable guard if persisting confirmed evidence failed.
+        // Conserva il marcatore persistente quando il salvataggio della conferma non riesce.
         if (props && typeof props.deleteProperty === 'function' && this._readSendIdempotencyBackup_(messageId, props)) {
           props.deleteProperty(`send_uncertain_${messageId}`);
         }
@@ -3211,7 +3211,7 @@ var EmailProcessor = class EmailProcessor {
   _normalizeRelativeDateText_(text, language) {
     const normalizedText = String(text || '').normalize('NFC').toLowerCase();
     const lang = this._normalizeLanguageCode_(language, 'it');
-    // Remove morning-only expressions before matching the ambiguous word "tomorrow".
+    // Esclude le espressioni riferite alla mattina prima di riconoscere la parola «tomorrow».
     return lang === 'de'
       ? normalizedText
           .replace(/(?<![\p{L}\p{N}_])(?:heute|diesen)\s+(?:fr[üu]hen\s+)?morgen(?![\p{L}\p{N}_])/giu, 'heute')
@@ -3364,7 +3364,7 @@ var EmailProcessor = class EmailProcessor {
       };
     }
     const current = this._coerceBusinessDateOnly_(currentDate) || new Date();
-    // A year without February 29 has no corresponding mentioned calendar date.
+    // Negli anni non bisestili il 29 febbraio non ha una data corrispondente nel calendario.
     const currentYearAnchorDate = explicitDate.leapYearAdjusted === true ? null : date;
     if (explicitDate.leapYearAdjusted === true && temporalIntent === 'future') {
       return {
@@ -3449,7 +3449,7 @@ var EmailProcessor = class EmailProcessor {
     while ((match = pattern.exec(String(text || '').toLowerCase())) !== null) {
       const startMonth = monthMap[match[2]];
       const endMonth = monthMap[match[4]];
-      if (options.preferSummerMonths && (startMonth < 5 || startMonth > 8 || endMonth < startMonth)) continue;
+      if (options.preferSummerMonths && (startMonth < 5 || startMonth > 8 || endMonth < startMonth || endMonth > 9)) continue;
       const start = this._makeValidDateOnly_(year, startMonth, parseInt(match[1], 10));
       const endYear = endMonth < startMonth ? year + 1 : year;
       const end = this._makeValidDateOnly_(endYear, endMonth, parseInt(match[3], 10));
@@ -4103,7 +4103,7 @@ var EmailProcessor = class EmailProcessor {
     const cacheEmail = (typeof GLOBAL_CACHE !== 'undefined' && GLOBAL_CACHE) ? GLOBAL_CACHE.validationReviewEmail : '';
     const validateRecipient = (value) => {
       const rawCandidate = String(value || '');
-      // Reject malformed configured recipients rather than rewriting the destination.
+      // Rifiuta destinatari configurati con formato non valido e conserva l’indirizzo di destinazione.
       if (/[\r\n\x00-\x1f\x7f]/.test(rawCandidate)) return '';
       const candidate = rawCandidate.trim();
       if (!candidate || candidate.includes('[') || candidate.includes('YOUR_')) return '';
@@ -5435,7 +5435,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     if (!text || typeof text !== 'string') return [];
 
     // Boundary Unicode: evita match dentro parole; distingue "ore 10" dalla durata "10 ore".
-    // Strip full numeric dates and explicit chapter:verse references before time parsing.
+    // Esclude date numeriche complete e riferimenti espliciti a capitolo e versetto dall’estrazione degli orari.
     const source = text.replace(/\b\d{1,2}[.,]\d{2}\s*(?:€|(?:eur|euro|dollari|usd|chf|gbp)\b)/gi, ' ')
       .replace(/(?:€|\$|\b(?:eur|euro|dollari|usd|chf|gbp)\b)\s*\d{1,2}[.,]\d{2}\b/gi, ' ')
       .replace(/\b(?:entro|per|dura(?:ta)?|in|dopo|ogni)\s+\d{1,2}\s*h\b/gi, ' ')
@@ -5792,7 +5792,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   }
 
   /**
-   * Backward-compat alias mantenuto per test/call-site legacy.
+   * Alias compatibile per i chiamanti che usano questa firma.
    * Usa lo stesso percorso atomico del processore, senza incrementare i messaggi.
    */
   _inferUserReaction(userBody, previousTopics, threadId) {
@@ -6064,7 +6064,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       .normalize('NFC')
       .replace(/(^|[.!?;\n]\s*)si(?=\s*[,;:!])/giu, '$1certamente')
       .replace(/(?<![\p{L}\p{N}_])s[ìí](?=$|[^\p{L}\p{N}_])/giu, 'certamente')
-      // Combined Italian clitics are not hypothetical conjunctions, regardless of the verb.
+      // I clitici italiani combinati sono distinti dalle congiunzioni ipotetiche, indipendentemente dal verbo.
       .replace(/(?<![\p{L}\p{N}_])(ci|mi|ti|vi)\s+si(?=$|[^\p{L}\p{N}_])/giu, '$1')
       .replace(/(?<![\p{L}\p{N}_])si\s+(trova|trovano|puo|può|riesce|è|sono|ha|hanno|sente|sentono|tratta|sposta|muove|sposa|sposano|celebra|celebrano|tiene|tengono|svolge|svolgono|fa|fanno|deve|devono|chiama|chiamano|cresima|battezza|preoccupi|preoccupa|figuri|ricorda|ricordano|vede|vedono)(?=$|[^\p{L}\p{N}_])/giu, '$1')
       .replace(/(?<![\p{L}\p{N}_])se\s+(encuentra|encuentran|trouve|trouvent|encontra|encontram|mueve|mueven|déplace|deplace|desloca)(?=$|[^\p{L}\p{N}_])/giu, '$1')
@@ -6107,18 +6107,19 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       temporary_unavailability: /\b(?:ora posso venire|adesso posso venire|i can now come|je peux maintenant venir|ahora puedo ir|agora posso ir|ich kann jetzt kommen)\b/,
       remote_request: /\b(?:preferisco (?:ora |adesso )?(?:venire|incontrarvi) di persona|i now prefer to come in person|je prefere maintenant venir en personne|ahora prefiero ir en persona|agora prefiro ir pessoalmente|ich mochte jetzt personlich kommen)\b/
     };
+    const matchesAffirmativeResolution = (clause, pattern) => {
+      const match = clause.match(pattern);
+      return Boolean(match && !/\b(non|not|ne|pas|no|nao|nicht)\s*$/.test(clause.slice(0, match.index)));
+    };
     const resolvedTypes = new Set();
     if (localPresence) resolvedTypes.add('geographic_distance');
     const combinedAssertions = [subjectAssertions, assertions].filter(Boolean).join('\n');
     for (const [type, pattern] of Object.entries(resolutions)) {
-      if (combinedAssertions.split('\n').some(clause => {
-        const match = clause.match(pattern);
-        return match && !/\b(non|not|ne|pas|no|nao|nicht)\s*$/.test(clause.slice(0, match.index));
-      })) resolvedTypes.add(type);
+      if (combinedAssertions.split('\n').some(clause => matchesAffirmativeResolution(clause, pattern))) resolvedTypes.add(type);
     }
     // I segnali locali possono recuperare un secondo impedimento indipendente.
     const activeAssertions = combinedAssertions.split('\n').filter(clause =>
-      !Object.values(resolutions).some(pattern => pattern.test(clause))).join('\n');
+      !Object.values(resolutions).some(pattern => matchesAffirmativeResolution(clause, pattern))).join('\n');
     const localConstraints = this._detectPhysicalPresenceConstraint_('', activeAssertions, true);
     // Una nuova affermazione di impedimento prevale su una risoluzione
     // contraddittoria nello stesso messaggio; la residenza non nega l'arrivo.
@@ -6286,7 +6287,9 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
 
     const matches = [];
     const clauses = `${subject || ''}\n${body || ''}`.toLowerCase().normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '').split(/[.!?;\n]+/);
+      .replace(/[\u0300-\u036f]/g, '')
+      // Una nuova affermazione personale ha una negazione indipendente dalla precedente.
+      .split(/[.!?;\n]+|(?:,|\be\b)\s*(?=(?:sono|siamo|ho|abbiamo|mi trovo|ci troviamo|soffro|assisto|allatto)\b)/);
     for (const rule of rules) {
       if (rule.pattern.test(compact)) {
         const personal = clauses.some(clause => {
@@ -6675,7 +6678,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       // l'engine regex valuta \w in ASCII-only e tratta "à" come carattere non di parola:
       // non c'è transizione \w/\W tra "à" e lo spazio o la fine stringa che segue. Per questo
       // usiamo (?![a-zàèéìòù]) al posto del \b finale dove lo stem può terminare in vocale accentata.
-      // Require a document title tied directly to the role, not a distant form field.
+      // Richiede un titolo documentale direttamente associato al ruolo e distingue i campi distanti del modulo.
       { type: 'attestato_idoneita_padrino_madrina', pattern: /\b(?:attestat[oa]|certificat[oa]|modul[oa]|autocertificazion[ea]|dichiarazion[ea])\s+(?:(?:di|del|della|per|per il|per la|di un|di una)\s+)?(?:idoneit[aà](?![\p{L}\p{N}_])|(?:padrin[oa]|madrin[ao]|sponsor)\b)/iu },
       { type: 'attestato_idoneita_padrino_madrina', pattern: /\bidoneit[aà](?![\p{L}\p{N}_])/iu },
       { type: 'certificato_battesimo', pattern: /\bcertificat[oa]\b[\s\S]{0,40}\bbattesim[oa]\b/i },

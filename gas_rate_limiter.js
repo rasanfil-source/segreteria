@@ -1205,7 +1205,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   }
 
   _clearRecoveredWindowQuarantine_(windowType, entries) {
-    // A later, independent corruption must start its own bounded quarantine.
+    // Ogni stato corrotto indipendente avvia una quarantena di durata limitata.
     const hasQuarantine = entries.some(entry => String(entry.nonce || '').startsWith('corrupt_'));
     if (!hasQuarantine && this.props.getProperty(`rate_limit_corrupt_${windowType}_since`) &&
         typeof this.props.deleteProperty === 'function') {
@@ -1673,7 +1673,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const now = Date.now();
     this._ensureWindowCache();
 
-    // Usa cache se fresh
+    // Usa la cache se ancora valida
     if (now - this.cache.lastCacheUpdate < this.cache.cacheTTL) {
       const cacheKey = windowType + 'Window';
       const cachedWindow = Array.isArray(this.cache[cacheKey]) ? this.cache[cacheKey] : [];

@@ -12,6 +12,35 @@ const processor = Object.create(ctx.EmailProcessor.prototype);
 assert.equal(classifier._extractPriorCommunicationContact_('Ho parlato con Don Marco\nVorrei confermare'), 'Don Marco');
 assert.equal(classifier._extractPriorCommunicationContact_('Referente: Marco Rossi\nGrazie mille'), 'Marco Rossi');
 assert.equal(classifier._detectPriorOralCommunication('Ho parlato con Don Marco\nVorrei confermare').mentioned_contact, 'Don Marco');
+for (const newline of ['\n', '\r\n']) {
+  for (const text of ['Referente:' + newline + 'don Marco', 'Contatto: don' + newline + 'Marco',
+    'Referente' + newline + ': Marco Rossi', 'Riferimento: il' + newline + 'parroco']) {
+    assert.equal(classifier._extractPriorCommunicationContact_(text), null, text);
+  }
+}
+assert.equal(classifier._extractPriorCommunicationContact_('Referente:\tdon Marco'), 'don Marco');
+assert.equal(classifier._extractPriorCommunicationContact_('Contatto: il parroco'), 'il parroco');
+
+for (const endMonth of ['ottobre', 'novembre', 'dicembre']) {
+  const range = 'dal 1 maggio al 30 ' + endMonth;
+  assert.equal(processor._parseItalianDateRange_(range, 2026, {preferSummerMonths: true}), null);
+  assert.ok(processor._parseItalianDateRange_(range, 2026), 'il parser generico conserva gli intervalli non estivi');
+}
+assert.ok(processor._parseItalianDateRange_('dal 1 maggio al 30 settembre', 2026, {preferSummerMonths: true}));
+assert.equal(processor._parseItalianDateRange_('dal 1 agosto al 30 giugno', 2026, {preferSummerMonths: true}), null);
+
+const activeCaregiving = processor._reconcilePhysicalPresenceConstraint_(null, '',
+  'Non sono guarito e assisto mia madre', {});
+assert.equal(activeCaregiving.has_constraint, true, 'la risoluzione negata non deve eliminare un impedimento indipendente');
+assert.equal(processor._reconcilePhysicalPresenceConstraint_(null, '',
+  'Non sono guarito, sono ancora ricoverato in ospedale', {}).has_constraint, true);
+assert.equal(processor._reconcilePhysicalPresenceConstraint_(null, '',
+  'Non sono ricoverato in ospedale', {}).has_constraint, false);
+const memory = {conversationState: {physicalPresenceState: {constraints: [
+  {type: 'health', status: 'active', policy: 'avoid_invitation'}
+]}}};
+assert.equal(processor._reconcilePhysicalPresenceConstraint_(null, '', 'Sono guarito', memory).has_constraint, false);
+assert.equal(processor._reconcilePhysicalPresenceConstraint_(null, '', 'Non sono guarito', memory).has_constraint, true);
 
 for (const amount of ['€ 10.00', '€15.30', 'EUR 20.00', '$ 12.00', 'usd 9,45']) {
   assert.equal(processor._extractTimes(amount).length, 0, amount);

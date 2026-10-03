@@ -382,7 +382,7 @@ var ResponseValidator = class ResponseValidator {
       } else if (!semanticValid) {
         console.warn('❌ Il validatore semantico ha rilevato problemi non catturati da regex');
         validationResult.isValid = false;
-        // Confidence measures certainty of the verdict, not response quality.
+        // La confidenza misura la certezza del giudizio semantico; la qualità della risposta ha una valutazione distinta.
         validationResult.score = 0;
         let semanticReason = 'Validazione semantica fallita senza motivo esplicito';
         if (!semHalluc.isValid) {
@@ -1284,7 +1284,7 @@ var ResponseValidator = class ResponseValidator {
     const inventedDates = responseDateClaims.filter(item => {
       const fullKey = formatDateKey(item.date);
       const monthDayKey = formatMonthDayKey(item.date);
-      // Omitting the year does not invent a date already explicitly grounded in the sources.
+      // Una data esplicita nelle fonti può essere riportata senza anno.
       const groundedYearlessDate = item.hasExplicitYear === false &&
         Array.from(allowedFullDates).some(key => key.slice(5) === monthDayKey);
       return fullKey &&
@@ -1734,7 +1734,7 @@ var ResponseValidator = class ResponseValidator {
       if (!Number.isFinite(compareOrdinal) || compareOrdinal === todayOrdinal) return;
       const windowText = this._extractTemporalWindow_(response, item.index, item.length);
       // A future January date mentioned in December naturally refers to next year.
-      // Explicit years and an explicit current-year qualifier never receive this allowance.
+      // La deroga esclude anni espliciti e riferimenti espliciti all’anno corrente.
       if (item.type === 'date_without_year' && compareOrdinal < todayOrdinal &&
           this._hasFutureTemporalQualification_(windowText, detectedLanguage) &&
           !/\b(?:quest['’]?anno|anno corrente|this year|cette ann[eé]e|este a[nñ]o|este ano|dieses jahr)\b/i.test(windowText)) {
@@ -3364,7 +3364,7 @@ var ResponseValidator = class ResponseValidator {
     const numericWithoutYear = /(?<![\d\/.-])\b([0-2]?\d|3[01])([\/.])(0?[1-9]|1[0-2])\b/g;
     while ((match = numericWithoutYear.exec(normalized)) !== null) {
       const trailing = normalized.substring(match.index + match[0].length, match.index + match[0].length + 6);
-      // A bare dotted pair is ambiguous with a time; require an explicit date cue.
+      // Due numeri separati da punto richiedono un indizio esplicito di data per distinguerli da un orario.
       const before = normalized.substring(Math.max(0, match.index - 30), match.index);
       const dottedDate = match[2] !== '.' || /\b(?:il|del|dal|al|am|den|le|du)\s*$/.test(before);
       if (referenceYear && dottedDate && !/^[\/.-]?\d{2,4}\b/.test(trailing)) {
@@ -4031,7 +4031,7 @@ Rispondi SOLO con questo JSON (senza markdown):
     const hasIrrelevantDetails = irrelevantDetails.length > 0;
 
     const inferredIsValid = !(hasThinkingLeak || hasHallucinations || hasIrrelevantDetails);
-    // Explicit findings may still reject a legacy payload without a verdict.
+    // Le evidenze esplicite possono determinare il rifiuto anche quando il risultato non contiene un verdetto.
     // An approval, however, requires a boolean verdict and numeric confidence.
     if (inferredIsValid &&
         (typeof payload.isValid !== 'boolean' ||
@@ -4085,8 +4085,8 @@ Rispondi SOLO con questo JSON (senza markdown):
   }
 
   _hashText(text) {
-    // Every character participates: equal-length edits in the middle must
-    // invalidate the cached verdict just like edits at either end.
+    // Ogni carattere contribuisce alla chiave: variazioni di pari lunghezza al centro devono
+    // invalidare il giudizio in cache come le variazioni agli estremi.
     const sample = text;
     let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
     for (let i = 0; i < sample.length; i++) {

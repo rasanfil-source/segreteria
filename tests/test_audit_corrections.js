@@ -1,4 +1,4 @@
-// Offline regressions for the verified audit; no Google/Gemini calls.
+// Verifica locale dei contratti applicativi con servizi Google e Gemini simulati.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -116,7 +116,7 @@ for (const scenario of [
     assert(!output.effects.some(([event, value]) => event === 'attachments.process' && value[0] === id), `oversize process: ${id}`);
   }
 }
-// Taxonomy recognizes the type, not the person: point 3 must retain semantic checking.
+// La tassonomia riconosce il tipo documentale; l’identità della persona richiede il controllo semantico.
 let semanticCalls = 0;
 const semanticDetails = { subject: 'Certificato di battesimo di Mario Rossi', body: 'Allego il certificato di battesimo di Mario Rossi.' };
 const ocr = 'Certificato di battesimo di Lucia Bianchi.';

@@ -96,7 +96,7 @@ run(`sem.runtimeSemanticAvailable=true;sem._readCache=()=>null;sem._cacheKey=()=
  sem._generateSemantic=()=>{throw new Error('offline outage')};`);
 assert.strictEqual(run(`sem.validateHallucinations('x','kb',lexical,'mail',{forceRelevanceReview:true}).isValid`), false);
 
-// Suspension: bounded cursor, cooldown, new pending message after handled backlog, unknown errors.
+// Sospensione: cursore limitato, attesa, nuovi messaggi pendenti e gestione degli errori indeterminati.
 run(`var searches=0; var metadataReads=0; var pending=false;
  GmailService.prototype._getOptionalLabelIdByName=n=>'label-'+n;
  GmailService.prototype._getMessageMetadataWithResilience=id=>{metadataReads++;return {labelIds:id==='pending'?[]:['label-IA']}};
@@ -163,7 +163,7 @@ for (const outcome of ['normal','confirmed','uncertain']) {
     assert.strictEqual(notifications.length,0);
   }
 }
-// Delivery delay and inter-message gap are distinct even when the user replied immediately.
+// Il ritardo di consegna e l’intervallo tra messaggi hanno conteggi distinti anche per risposte immediate.
 props.clear(); cache.clear(); labels.length=0;
 run(`outcome='normal';
  var oldDate=new Date(Date.now()-5*86400000);
@@ -204,7 +204,7 @@ run(`var nativeAttempts=0;g._incrementGmailCallCounterOrThrow_=()=>{};
 assert.throws(()=>run(`g.sendHtmlReply(outgoing,'Test',{senderEmail:'user@example.org'})`), /ambiguo/);
 assert.strictEqual(run('nativeAttempts'),1);
 
-// The migration helper is offline and emits a local JSON file, never values to logs.
+// L’esportatore produce un file JSON locale e omette i valori dai log.
 let exported, printed='';
 const exportSource=fs.readFileSync(path.join(__dirname,'..','maintenance','export_legacy_blacklist.js'),'utf8');
 vm.runInNewContext(exportSource, {__dirname:path.join(__dirname,'..','maintenance'),process:{argv:['node','helper']},

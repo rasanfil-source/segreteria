@@ -20,8 +20,8 @@ const checks = {
   territoryConsistency: '_checkTerritoryConsistency', sensitiveContinuity: '_checkSensitiveContinuityQuality',
   documentMismatchTemplate: '_checkDocumentMismatchTemplate', expectedDocumentMissingTemplate: '_checkExpectedDocumentMissingTemplate'
 };
-// Isolate the orchestrator, not its decision: two independent penalties must multiply,
-// and any blocking error wins even when the numeric threshold is satisfied.
+// Verifica l’orchestrazione: due penalità indipendenti si moltiplicano
+// e gli errori bloccanti prevalgono anche quando la soglia numerica è soddisfatta.
 for (const [first, firstMethod] of Object.entries(checks)) for (const [second, secondMethod] of Object.entries(checks)) {
   if (first === second) continue;
   for (const blocking of bools) row(`aggregate ${first}/${second}/${blocking}`, () => {
@@ -62,7 +62,7 @@ for (const initialValid of bools) for (const attempt of bools) for (const fixed 
   assert.equal(texts.at(-1), refined ? 'Corrected response' : 'Original response');
 });
 
-// Full truth table for the semantic mobility exception. Toggle each prerequisite
+// Tabella completa dell’eccezione semantica per mobilità: varia ogni prerequisito
 // independently so a weakening of any AND term causes a failing test.
 for (let mask = 0; mask < 256; mask++) row(`mobility exception mask=${mask}`, () => {
   const flags = Array.from({ length: 8 }, (_, i) => Boolean(mask & (1 << i)));
@@ -90,7 +90,7 @@ for (let mask = 0; mask < 256; mask++) row(`mobility exception mask=${mask}`, ()
   if (!exception) assert.equal(result.reasonCode, !thinkingValid ? 'semantic_thinking_leak' : !grounded ? 'semantic_unsupported_claim' : irrelevant ? 'semantic_irrelevant_detail' : 'semantic_validation_failed');
 });
 
-// Exercise real checks through the public API as well as isolated decision tables.
+// Verifica i controlli reali tramite API pubblica e tabelle decisionali isolate.
 const validText = 'Gentile signora, grazie per il suo messaggio. Restiamo a disposizione per rispondere alle sue domande. Cordiali saluti, Segreteria Parrocchia Sant\'Eugenio';
 for (const threshold of [0, 0.6, 1]) for (const wrapper of ['plain', 'email', 'analysis']) for (const blocked of bools) row(`public ${threshold}/${wrapper}/${blocked}`, () => {
   const v = new context.ResponseValidator();

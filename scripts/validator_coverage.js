@@ -34,9 +34,9 @@ function summarizeCoverage(directory, rootDir) {
     }
     const details = [];
     for (const fn of functions.values()) {
-      // V8 elides inner ranges with the same count as the enclosing range.
-      // Evaluate union ranges against the smallest enclosing range in EACH run
-      // before OR-merging. Summing only identical offsets undercounts coverage.
+      // V8 omette intervalli interni con lo stesso conteggio dell’intervallo contenitore.
+      // Valuta gli intervalli rispetto al contenitore più piccolo in ogni esecuzione
+      // prima dell’unione logica; la sola somma degli estremi identici sottostima la copertura.
       const ranges = [...fn.ranges.values()].map(range => {
         const covered = fn.runs.some(run => {
           const enclosing = run.filter(r => r.startOffset <= range.startOffset && r.endOffset >= range.endOffset)

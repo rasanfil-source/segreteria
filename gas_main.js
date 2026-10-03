@@ -564,7 +564,7 @@ function scanStaleUnreadThreads_(maxAgeHours, searchLimit, maxLookbackDays, stat
       if (threads.length === 0) { state.offset = 0; state.messageOffset = 0; return scanUnknown ? null : false; }
       state.offset = offset + threads.length;
 
-      // Fix architetturale: filtra i falsi positivi della query `newer_than`
+      // Filtra i risultati della query `newer_than` in base alla data effettiva del messaggio
       // prima di passare al controllo dettagliato per-messaggio.
       for (let threadIndex = 0; threadIndex < threads.length; threadIndex++) {
         const thread = threads[threadIndex];
@@ -603,7 +603,7 @@ function scanStaleUnreadThreads_(maxAgeHours, searchLimit, maxLookbackDays, stat
     return null;
   }
 
-  return null; // Budget exhausted: continue at the cursor, never claim absence.
+  return null; // Budget esaurito: riprende dal cursore e mantiene indeterminata l’assenza di messaggi.
 }
 
 // ====================================================================

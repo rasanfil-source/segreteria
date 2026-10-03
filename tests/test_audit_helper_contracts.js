@@ -1,4 +1,4 @@
-// Regression coverage for the 2026-09-29 audit; no external services.
+// Verifica dei contratti degli helper con servizi esterni simulati.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -81,7 +81,7 @@ test('empty-body classification is invariant to reply prefix chains', () => {
   }
 });
 
-// Exercise the real notifier with an in-memory transport. No email is sent.
+// Verifica il notificatore con un trasporto in memoria.
 test('review notification preserves paragraph spacing and optional fields', () => {
   processor.config = { validationReviewAlerts: { enabled: true }, validationErrorLabel: 'Verifica' };
   processor._getValidationReviewRecipient_ = () => 'review@example.test';

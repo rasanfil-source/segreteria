@@ -13,7 +13,7 @@ const context = vm.createContext({ console: { log() {}, warn() {}, error() {} },
 const file = path.resolve(__dirname, '../gas_email_processor.js');
 vm.runInContext(fs.readFileSync(file, 'utf8'), context, { filename: file });
 const processor = Object.create(context.EmailProcessor.prototype);
-processor._persistSendIdempotencyBackup_ = () => false; // actual commit with failed durable write
+processor._persistSendIdempotencyBackup_ = () => false; // conferma con errore di scrittura persistente simulato
 props.set('send_uncertain_m', '1');
 processor._commitSendTransaction('m');
 assert(props.has('send_uncertain_m'), 'retain uncertain marker when backup persistence fails');
@@ -26,8 +26,8 @@ assert.equal(processor._beginSendTransaction('m').reason, 'gmail_send_uncertain'
 assert.equal(acquired, released, 'release every acquired lock');
 assert(props.has('send_uncertain_m'), 'do not erase uncertainty as a side effect of checking');
 console.log('Send evidence: confirmed cache/backup precedence and uncertain-only safety pass');
-// Audit 3.3: timeout is intentionally normalized to NETWORK, both with and
-// without the shared classifier. Keep compatibility aliases in consumers.
+// I timeout sono normalizzati a NETWORK sia con il classificatore condiviso
+// sia senza di esso; i chiamanti accettano gli alias compatibili.
 for (const message of ['timeout', 'request timed out', 'ECONNRESET', 'HTTP 503']) {
   const classified = processor._classifyError(new Error(message));
   assert.equal(classified.type, 'NETWORK');

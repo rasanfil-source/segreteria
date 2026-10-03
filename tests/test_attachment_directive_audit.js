@@ -39,7 +39,7 @@ for(const failedPersistence of [false,true]) {
   p._persistSendIdempotencyBackup_=()=>{if(failedPersistence) throw Error('persistence failed'); props.set('confirmed','yes');};
   p._readSendIdempotencyBackup_=()=>props.get('confirmed');
   const transaction = {lock:{releaseLock(){releases++; throw Error('release failed');}}};
-  // Confirmed delivery must not become a send failure; retain the uncertain marker on persistence errors.
+  // La consegna confermata conserva il proprio esito; un errore di persistenza mantiene il marcatore di incertezza.
   assert.doesNotThrow(()=>p._commitSendTransaction('m',transaction));
   assert.equal(releases,1);
   assert(cache.has('sent_m'));

@@ -239,7 +239,7 @@ function createNamedRanges(ss, warningsCollector) {
     { name: 'cfg_system_master', range: "'Controllo'!B2" },
     { name: 'cfg_language_mode', range: "'Controllo'!F2" },
     { name: 'cfg_timezone', range: "'Controllo'!B4" }, // Inizializzata in setupControlloSheet
-    // Legacy: nome ambiguo mantenuto per retrocompatibilità (punta alla prima data ferie).
+    // Alias della prima data di ferie, disponibile per i chiamanti compatibili.
     { name: 'cfg_holidays_mode', range: "'Controllo'!B5" },
     // Nome esplicito consigliato per nuove integrazioni.
     { name: 'cfg_vacation_start_date', range: "'Controllo'!B5" },
@@ -320,7 +320,7 @@ function getOrCreateSheet(ss, name, tabColor) {
 function resetSheetLayout(sheet) {
   const range = sheet.getRange(UI_CONFIG.SHEET_RESET_RANGE);
   range.breakApart();
-  // Rebuild presentation only: settings, lists, dates and notification addresses survive.
+  // Ricrea la presentazione del foglio e conserva impostazioni, elenchi, date e destinatari delle notifiche.
   range.clearFormat();
 }
 

@@ -10,7 +10,7 @@ let cases = 0;
 function row(label, fn) {
   try { fn(); cases++; } catch (error) { throw new Error(label, { cause: error }); }
 }
-// Use a synthetic street to vary the rule, independently from production address data.
+// Usa una strada sintetica per variare le regole indipendentemente dai dati territoriali reali.
 const street = 'via esempio';
 const rules = [
   [{}, () => false], [{ tutti: true }, () => true],

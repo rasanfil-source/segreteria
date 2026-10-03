@@ -2521,8 +2521,8 @@ Non richiedere nuovamente queste informazioni.`;
     } else if (physical && physical.has_constraint && category === 'document_request') {
       caseKind = 'remote_document_request';
     } else if (synthesisKey) {
-      // A concern synthesis is already the reconciled operational case; prefer it
-      // over raw concern fallbacks such as longitudinal_sensitivity below.
+      // La sintesi delle esigenze rappresenta il caso operativo riconciliato e ha precedenza
+      // sui segnali grezzi, come longitudinal_sensitivity.
       caseKind = synthesisKey;
     } else if (responseMode && responseMode !== 'standard_operational') {
       caseKind = responseMode;

@@ -1,4 +1,4 @@
-// Offline regressions for the consolidated user report of 2026-10-03.
+// Verifica locale dei contratti di classificazione, calendario, memoria e checkpoint.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');

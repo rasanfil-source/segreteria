@@ -1,4 +1,4 @@
-// Offline: real routing and fallback code, mocked remote requests/storage only.
+// Verifica il routing e i percorsi alternativi reali, simulando richieste remote e archiviazione.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -78,7 +78,7 @@ calls = [];
 assert.throws(()=>service._runConfiguredTask_('semantic', name=>{calls.push(name); throw Error('404 cachedContent missing');}), /cachedContent/);
 assert.equal(calls.length,1, 'cache miss does not retire models');
 
-// Limiter: consecutive 404s traverse the full configured chain even with one retry.
+// Il limitatore percorre la catena configurata dopo risposte 404 consecutive, anche con un solo tentativo ripetuto.
 const limiter = Object.create(ctx.GeminiRateLimiter.prototype);
 Object.assign(limiter, {models:config.GEMINI_MODELS, strategies:config.MODEL_STRATEGY,
   props:{getProperty:()=>null}, _getRequestsInWindow:()=>1, _trackRequest(){}, _releaseReservation(){}});
@@ -100,7 +100,7 @@ assert.throws(()=>limiter.executeRequest('semantic', name=>{calls.push(name); th
 assert.equal(calls.length,3, 'all absent models terminate without repeats');
 assert.equal(limiter._normalizeDeprecatedModelNames({'old':{name:'gemini-3.6-flash'}}).old.name,'gemini-3.6-flash');
 
-// Generation must skip the backup key of a missing endpoint and recover on the next model.
+// La generazione salta la chiave di riserva di un endpoint assente e prosegue sul modello successivo.
 const plans = ['retired','retired','current'].map((model,i)=>({model,key:'key',name:String(i),usesBackupKey:i===1}));
 calls = [];
 const outcome = ctx.ThreadGeneration.generate({config:{}, _isNearDeadline:()=>false,
@@ -111,7 +111,7 @@ const outcome = ctx.ThreadGeneration.generate({config:{}, _isNearDeadline:()=>fa
 assert.equal(outcome.response,'answer');
 assert.deepEqual(calls,['retired','current']);
 
-// Auxiliary calls retain accounting, attachments and the selected backup key.
+// Le chiamate ausiliarie conservano conteggi, allegati e chiave di riserva selezionata.
 service.useRateLimiter = true;
 service._estimateTokens = (prompt, attachments)=>{assert.equal(attachments.length,1); return 99;};
 service._generateWithModelEnvelope_ = (prompt,model,key,attachments)=>{

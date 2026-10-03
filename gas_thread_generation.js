@@ -173,7 +173,7 @@ var ThreadGeneration = {
           }
 
         } catch (err) {
-          // An invalid or failed attempt must never survive as a successful response.
+          // Un tentativo non valido o fallito viene escluso dalle risposte utilizzabili.
           response = null;
           generationError = err;
           if (!initialError) initialError = err;

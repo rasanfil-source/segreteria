@@ -123,7 +123,7 @@ ctx.ThreadDelivery.send({
 });
 assert.equal(txnRollbackCalled, true);
 
-// Exercise the actual ambiguous-send branch, which must never roll back.
+// Verifica il percorso di invio incerto e la conservazione dello stato della transazione.
 for(const propsPresent of [true,false]) for(const messages of [null,undefined,[]]) {
   const writes=[], marks=[], result={};
   ctx.ThreadDelivery.send({config:{dryRun:false},_beginSendTransaction:()=>({ok:true}),

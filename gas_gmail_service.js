@@ -1558,7 +1558,7 @@ var GmailService = class GmailService {
         let hasReplyTo = false;
 
         // Cross-domain Reply-To requires an explicitly trusted form sender.
-        // All other senders retain the same-domain policy.
+        // Agli altri mittenti si applica la regola del dominio comune.
         const fromAddress = this._extractEmailAddress(sender) || '';
         const replyToAddress = replyTo ? (this._extractEmailAddress(replyTo) || '') : '';
         const domainOf = (address) => String(address || '').split('@')[1] ? String(address).split('@')[1].toLowerCase() : '';
@@ -3075,7 +3075,7 @@ var GmailService = class GmailService {
                     depth += /^<\//.test(tag[0]) ? -1 : 1;
                     if (depth === 0) { end = tags.lastIndex; break; }
                 }
-                if (end < 0) break; // malformed HTML: keep content rather than erase it
+                if (end < 0) break; // HTML incompleto: conserva il contenuto disponibile
                 currentHtml = currentHtml.slice(0, start) + currentHtml.slice(end);
                 start = this._findStructuredHtmlQuoteStart_(currentHtml);
             }
@@ -3116,7 +3116,7 @@ var GmailService = class GmailService {
         ];
 
         let result = String(content || '').replace(/\r\n?/g, '\n');
-        // Explicitly quoted lines have a reliable boundary. Keep interleaved replies.
+        // Le righe citate esplicitamente delimitano lo storico; conserva le risposte intercalate.
         result = result.replace(/^(?:On [^\n]* wrote:|Il [^\n]*ha scritto:)\s*\n(?=\s*>)/gmi, '')
             .split('\n').filter(line => !/^\s*>/.test(line)).join('\n');
         let earliestMatch = -1;
@@ -3761,7 +3761,7 @@ var GmailService = class GmailService {
 
     _sanitizeHeaders(text) {
         if (!text) return '';
-        // This is MIME body content; actual headers are sanitized separately.
+        // Il contenuto appartiene al corpo MIME; le intestazioni vengono sanificate separatamente.
         return String(text).replace(/\r\n|\r/g, '\n');
     }
 
@@ -3834,7 +3834,7 @@ var GmailService = class GmailService {
 
         // Folding: Subject: + prima riga + righe successive con spazio (WSP)
         const headerPrefix = 'Subject: ';
-        const maxFirstLine = 78; // RFC 2822 SHOULD
+        const maxFirstLine = 78; // limite raccomandato dalla RFC 2822
         const maxContinuationLine = 76;
         const foldedLines = [];
         let currentLine = headerPrefix;

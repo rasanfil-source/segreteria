@@ -163,8 +163,8 @@ var Classifier = class Classifier {
     const hasFreshSubjectQuestion = /[?？]/.test(safeSubject) &&
       !/^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]/i.test(safeSubject.trim());
     const hasCurrentRequest = this._isSbattezzoFormalRequest_(mainContent) || this._isDocumentSubmission(mainContent);
-    // An inherited subject must not reopen an explicit closing message.
-    // A genuinely empty reply still follows the subject-based analysis below.
+    // Un oggetto ereditato dalla conversazione non riapre un messaggio esplicito di chiusura.
+    // Una risposta con corpo vuoto viene analizzata in base all’oggetto.
     if (isReply && !hasFreshSubjectQuestion && !hasCurrentRequest && (
       this._isUltraSimpleAcknowledgment(greetingBody) ||
       (Boolean(mainContent.trim()) && this._isUltraSimpleAcknowledgment(mainContent))
@@ -322,7 +322,7 @@ var Classifier = class Classifier {
     const lines = processedBody.split('\n');
     const cleanLines = [];
     let inQuoteBlock = false;
-    let quoteMode = null; // header, prefixed, or unprefixed history
+    let quoteMode = null; // intestazione, citazione con prefisso o storico senza prefisso
 
     for (const line of lines) {
       const safeLine = line == null ? '' : String(line);
@@ -354,11 +354,11 @@ var Classifier = class Classifier {
         if (quoteMode !== 'history') quoteMode = 'prefixed';
         continue;
       }
-      // Additional header fields and folded header values are not historical body text.
+      // I campi aggiuntivi e i valori delle intestazioni su più righe sono esclusi dal corpo storico.
       if (inQuoteBlock && quoteMode === 'header' &&
           (/^(?:Da|From|De|Von|A|To|Para|An|Cc|Bcc|Ccn|Oggetto|Subject|Assunto|Asunto|Objet|Betreff|Data|Date|Fecha|Datum|Inviato|Sent|Enviado|Envoy[eé]|Gesendet):/iu.test(stripped.normalize('NFC')) ||
            /^[ \t]+\S/.test(safeLine))) continue;
-      // Only prefixed quotations allow inline replies. A new header resets the mode.
+      // Le citazioni con prefisso consentono risposte intercalate; una nuova intestazione reimposta la modalità.
       if (inQuoteBlock && (quoteMode === 'header' || quoteMode === 'after_header')) quoteMode = 'history';
       if (inQuoteBlock && quoteMode === 'history') continue;
       if (inQuoteBlock &&
@@ -369,7 +369,7 @@ var Classifier = class Classifier {
         quoteMode = null;
       }
 
-      // A clearly operational bullet can reopen an inline reply; punctuation alone cannot.
+      // Una voce di elenco con richiesta operativa riapre la risposta intercalata; la sola punteggiatura è insufficiente.
       if (inQuoteBlock && /^(?:[-*•]|\[)[\s\S]*\b(?:vorrei|posso|chiedo|allego|confermo|please|could|would)\b/i.test(stripped)) {
         inQuoteBlock = false;
         quoteMode = null;
@@ -514,7 +514,7 @@ var Classifier = class Classifier {
     try {
       normalized = normalized.normalize('NFC');
     } catch (e) {
-      // Runtime legacy senza normalize: proseguiamo con la normalizzazione disponibile.
+      // In assenza di normalize, usa la normalizzazione disponibile nel runtime.
     }
     try {
       normalized = normalized.replace(/[^\p{L}\p{N}\s]/gu, '');
@@ -644,7 +644,7 @@ var Classifier = class Classifier {
     const source = String(text || '').toLowerCase();
     const explicitRequest = /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|\babbandonare\s+la\s+(?:fede|religione)\b|\brinnegare\s+la\s+fede\b|cancellazione\s+(?:dal|dai|dei)\s+registr|registr[oi]\s+del\s+battesim[oa]|cancellarmi\s+dalla\s+chiesa|disiscrivermi\s+dalla\s+chiesa|rinunciare\s+al\s+battesim[oa]|(?:togliermi|rimuovermi|essere\s+rimosso)\s+dai\s+registr|non\s+(?:voglio|desidero)\s+(?:piu|più)\s+essere\s+(?:cattolic[oa]|cristian[oa])|non\s+(?:mi\s+)?(?:ritengo|sento)\s+(?:piu|più)\s+(?:cattolic[oa]|cristian[oa])|non\s+essere\s+(?:piu|più)\s+registrat[oa]\s+come\s+cattolic[oa]/i.test(source);
     if (explicitRequest) return true;
-    // Evaluate each exit statement locally; unrelated events must not suppress it.
+    // Valuta ogni dichiarazione di uscita nel suo contesto, indipendentemente da eventi estranei.
     return source.split(/[.!?;\n]+/).some(clause => {
       if (!/\buscire\s+dalla\s+chiesa\b/i.test(clause)) return false;
       const institutionalDecision = /\b(?:ho\s+deciso\s+di|intendo|voglio|vorrei|desidero|chiedo\s+(?:come|informazioni\s+per)|procedura\s+per)\s+uscire\s+dalla\s+chiesa\s+cattolica\b/i.test(clause);
@@ -725,13 +725,13 @@ var Classifier = class Classifier {
     const contactPatterns = [
       /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:ho|abbiamo|avevo|avevamo)\s+(?:gia\s+|già\s+)?parlato\s+con\s+(?:(?:il|lo|la|l['’])\s*)?((?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)[ \t]+[\p{L}'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)(?=$|[^\p{L}\p{N}_])/iu,
       /(?<!\b(?:non|mai|neanche|nemmeno)\s+)\b(?:mi\s+sono\s+sentit[oa]|ci\s+siamo\s+sentit[ie]|vi\s+siete\s+sentit[ie])\s+con\s+(?:(?:il|lo|la|l['’])\s*)?((?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)[ \t]+[\p{L}'’ -]{2,45}|il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria)(?=$|[^\p{L}\p{N}_])/iu,
-      /\b(?:referente|riferimento|contatto)\s*[:\-]\s*(?:(?:il|lo|la|l['’])\s*)?(il\s+parroco|la\s+segretaria|la\s+segreteria|un\s+sacerdote|una\s+persona\s+della\s+segreteria|(?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)\s+[\p{L}'’ -]{2,45})(?=$|[^\p{L}\p{N}_])/iu
+      /\b(?:referente|riferimento|contatto)[ \t]*[:\-][ \t]*(?:(?:il|lo|la|l['’])[ \t]*)?(il[ \t]+parroco|la[ \t]+segretaria|la[ \t]+segreteria|un[ \t]+sacerdote|una[ \t]+persona[ \t]+della[ \t]+segreteria|(?:don|padre|monsignore|mons\.?|sig\.ra|signora|signor|sig\.?)[ \t]+[\p{L}'’ -]{2,45})(?=$|[^\p{L}\p{N}_])/iu
     ];
     for (const pattern of contactPatterns) {
       const match = safeText.match(pattern);
       if (match && match[1]) {
         return match[1]
-          // Stop before narrative complements, while preserving names such as De Luca.
+          // Termina prima dei complementi narrativi e conserva i cognomi composti, come De Luca.
           .split(/\s+(?:ieri|oggi|domani|stamattina|stasera|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|questa|questo|scorsa|scorso|per|con|che|e|ed|alle|alla|al|sul|sulla|durante|dopo|prima|in|telefonicamente|abbiamo|avevamo|vorrei|vorremmo|chiedo|chiediamo|scrivo|invio|allego|confermo|grazie|saluti|buongiorno|buonasera)(?=$|[^\p{L}\p{N}_])/iu)[0]
           .replace(/\s+/g, ' ')
           .replace(/[.,;:!?]+$/g, '')
@@ -740,8 +740,8 @@ var Classifier = class Classifier {
       }
     }
 
-    // Preserve explicit names without a title, without accepting generic contact instructions.
-    const namedContact = safeText.match(/\b(?:[Rr]eferente|[Rr]iferimento|[Cc]ontatto)\s*[:\-][ \t]*(\p{Lu}[\p{L}'’]+(?:[ \t]+\p{Lu}[\p{L}'’]+){1,3})(?=$|[^\p{L}\p{N}_])/u);
+    // Riconosce nomi espliciti senza titolo ed esclude istruzioni generiche di contatto.
+    const namedContact = safeText.match(/\b(?:[Rr]eferente|[Rr]iferimento|[Cc]ontatto)[ \t]*[:\-][ \t]*(\p{Lu}[\p{L}'’]+(?:[ \t]+\p{Lu}[\p{L}'’]+){1,3})(?=$|[^\p{L}\p{N}_])/u);
     return namedContact ? namedContact[1] : null;
   }
 
