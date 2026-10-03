@@ -2055,7 +2055,7 @@ var MemoryService = class MemoryService {
     const providedInfoJson = this._serializeProvidedInfoForSheet(data.providedInfo || []);
     const contextualFlagsJson = this._serializeContextualFlagsForSheet(data.contextualFlags || {});
 
-    this._sheet.appendRow([
+    const row = [
       data.threadId,
       data.language || 'it',
       data.category || '',
@@ -2066,7 +2066,21 @@ var MemoryService = class MemoryService {
       data.version !== undefined ? data.version : 1,
       data.memorySummary || '',
       contextualFlagsJson
-    ]);
+    ];
+    // La retention svuota A:J senza spostare eventuali colonne aggiuntive.
+    // Riutilizza i buchi interni, preservando le righe con note manuali.
+    if (typeof this._sheet.getDataRange === 'function' && typeof this._sheet.getRange === 'function') {
+      const data = this._sheet.getDataRange().getValues();
+      for (let index = 1; index < data.length; index++) {
+        if (!data[index].every(value => value === '' || value == null)) continue;
+        const target = this._sheet.getRange(index + 1, 1, 1, 10);
+        if (typeof target.getNotes === 'function' && target.getNotes()[0].some(Boolean)) continue;
+        if (typeof target.getFormulas === 'function' && target.getFormulas()[0].some(Boolean)) continue;
+        target.setValues([row]);
+        return;
+      }
+    }
+    this._sheet.appendRow(row);
   }
 
   _serializeProvidedInfoForSheet(providedInfo) {

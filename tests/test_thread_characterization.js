@@ -187,6 +187,12 @@ for (const [name, snapshot] of Object.entries(expected)) {
     }
   }
 }
+// Un invio riconciliato completa gli stessi effetti dell'invio ordinario.
+expected.send_reconciled = JSON.parse(JSON.stringify(expected.ordinary));
+expected.send_reconciled.result.reason = 'send_reconciled';
+expected.send_reconciled.effects.splice(expected.send_reconciled.effects.findIndex(([event]) => event === 'send') + 1,
+  0, originalExpected.send_reconciled.effects.find(([event]) => event === 'send.reconcile'));
+expected.uncertain_marker.labeled = ['m2'];
 for (const [name, output] of Object.entries(actual)) {
   // Con modello non configurato, il controllo semantico simulato usa la risposta generica.
   for (const [event, value] of expected[name].effects) {
@@ -245,6 +251,9 @@ assert(events('ordinary').indexOf('send') < events('ordinary').indexOf('memory.u
 assert.equal(events('retry').filter(name => name === 'generate').length, 2);
 assert.equal(actual.send_uncertain.result.reason, 'gmail_send_uncertain');
 assert.equal(actual.send_reconciled.result.reason, 'send_reconciled');
+assert.equal(events('send_reconciled').filter(name => name === 'send').length, 1);
+assert(events('send_reconciled').includes('memory.update'));
+assert(events('send_reconciled').includes('label.cleanMessage'));
 assert.equal(actual.commit_failure.result.status, 'replied');
 assert.equal(events('commit_failure').filter(name => name === 'send').length, 1);
 assert.equal(actual.memory_failure.result.status, 'replied');

@@ -23,7 +23,7 @@ var ThreadDelivery = {
     if (!sendTxn.ok) {
       console.warn(`   ⊖ Invio saltato per idempotenza (${sendTxn.reason})`);
       if (sendTxn.reason === 'gmail_send_uncertain') {
-        deps._addValidationErrorLabel(messageState.candidate, { reason: 'gmail_send_uncertain', subject: messageDetails.subject });
+        messageState.markFailureForCurrentBurst('validation', { reason: 'gmail_send_uncertain', subject: messageDetails.subject }, false);
       }
       if (sendTxn.reason === 'already_sent') {
         messageState.markHandledUnreadOnce();
@@ -64,42 +64,45 @@ var ThreadDelivery = {
         if (confirmed) {
           delivery.confirmed = true;
           deps._commitSendTransaction(messageState.candidate.getId(), sendTxn);
-          messageState.markHandledUnreadOnce();
-          result.status = 'replied';
+          if (!usedLookbackAttachments) deps._recordConfirmedDuplicateReply_(
+            duplicateReplyFingerprintContext, messageState.candidate.getId(), threadId
+          );
           result.reason = 'send_reconciled';
-          return { terminal: true };
+        } else {
+          const uncertainMessages = (messageState.responseContextMessages && messageState.responseContextMessages.length > 0)
+            ? messageState.responseContextMessages
+            : (messageState.candidate ? [messageState.candidate] : []);
+          uncertainMessages.forEach(message => {
+            if (message && typeof message.getId === 'function' && deps.props && typeof deps.props.setProperty === 'function') {
+              deps.props.setProperty(`send_uncertain_${message.getId()}`, String(Date.now()));
+            }
+          });
+          messageState.markFailureForCurrentBurst('validation', { reason: 'gmail_send_uncertain', subject: messageDetails.subject }, false);
+          result.reason = 'gmail_send_uncertain';
         }
-        const uncertainMessages = (messageState.responseContextMessages && messageState.responseContextMessages.length > 0)
-          ? messageState.responseContextMessages
-          : (messageState.candidate ? [messageState.candidate] : []);
-        uncertainMessages.forEach(message => {
-          if (message && typeof message.getId === 'function' && deps.props && typeof deps.props.setProperty === 'function') {
-            deps.props.setProperty(`send_uncertain_${message.getId()}`, String(Date.now()));
+      }
+      if (!delivery.confirmed) {
+        console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
+
+        // Errori transienti: lascia il messaggio eleggibile per retry automatico.
+        if (!classifiedSendError.retryable) {
+          try {
+            messageState.markFailureForCurrentBurst('error');
+          } catch (markError) {
+            console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
           }
-        });
-        messageState.markFailureForCurrentBurst('validation', { reason: 'gmail_send_uncertain', subject: messageDetails.subject }, false);
-        result.reason = 'gmail_send_uncertain';
-      }
-      console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
-
-      // Errori transienti: lascia il messaggio eleggibile per retry automatico.
-      if (!classifiedSendError.retryable) {
-        try {
-          messageState.markFailureForCurrentBurst('error');
-        } catch (markError) {
-          console.warn(`⚠️ Errore label su thread in errore silenziato: ${markError.message}`);
+        } else if (ambiguousSendOutcome) {
+          console.warn('   ⚠️ Esito invio incerto: invio bloccato in attesa di revisione umana');
+        } else {
+          console.warn(`   ↻ Errore invio retryable (${classifiedSendError.type}) - nessuna marcatura permanente`);
         }
-      } else if (ambiguousSendOutcome) {
-        console.warn('   ⚠️ Esito invio incerto: invio bloccato in attesa di revisione umana');
-      } else {
-        console.warn(`   ↻ Errore invio retryable (${classifiedSendError.type}) - nessuna marcatura permanente`);
-      }
 
-      result.status = ambiguousSendOutcome ? 'validation_failed' : 'error';
-      if (ambiguousSendOutcome) result.validationFailed = true;
-      result.error = `gmail_send_failed: ${errorMessage}`;
-      result.errorClass = classifiedSendError.type;
-      return { terminal: true };
+        result.status = ambiguousSendOutcome ? 'validation_failed' : 'error';
+        if (ambiguousSendOutcome) result.validationFailed = true;
+        result.error = `gmail_send_failed: ${errorMessage}`;
+        result.errorClass = classifiedSendError.type;
+        return { terminal: true };
+      }
     }
 
     // Chiude il burst subito dopo l'invio confermato: memoria, cleanup e label

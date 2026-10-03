@@ -2898,30 +2898,20 @@ var GmailService = class GmailService {
             .replace(/[\u201C\u201D]/g, '"')
             .replace(/[\u2018\u2019]/g, "'");
 
-        text = text.replace(/&nbsp;/g, ' ')
-            .replace(/&amp;/g, '&')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'")
-            .replace(/&#(\d+);/g, (match, dec) => {
-                const code = Number(dec);
+        // Un solo passaggio: le entità prodotte non vengono decodificate di nuovo.
+        const entities = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+        text = text.replace(/&(nbsp|amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);/gi, (match, entity) => {
+                const normalized = entity.toLowerCase();
+                if (Object.prototype.hasOwnProperty.call(entities, normalized)) return entities[normalized];
+                const code = normalized.startsWith('#x')
+                    ? Number.parseInt(normalized.slice(2), 16) : Number(normalized.slice(1));
                 if (!Number.isFinite(code)) return match;
                 try {
                     return String.fromCodePoint(code);
                 } catch (_) {
                     return match;
                 }
-            })
-            .replace(/&#x([0-9a-f]+);/gi, (match, hex) => {
-                const code = Number.parseInt(hex, 16);
-                if (!Number.isFinite(code)) return match;
-                try {
-                    return String.fromCodePoint(code);
-                } catch (_) {
-                    return match;
-                }
-            });
+        });
         // Riduce spazi/tabs senza distruggere i newline significativi
         text = text
             .replace(/\r\n?/g, '\n')

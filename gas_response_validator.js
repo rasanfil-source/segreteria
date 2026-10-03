@@ -337,7 +337,8 @@ var ResponseValidator = class ResponseValidator {
 
       const semThinking = this.semanticValidator.validateThinkingLeak(
         currentResponse,
-        validationResult.details.exposedReasoning
+        validationResult.details.exposedReasoning,
+        { force: true }
       );
 
       const semanticValid = semHalluc.isValid && semThinking.isValid;
@@ -1173,6 +1174,8 @@ var ResponseValidator = class ResponseValidator {
       contextualHourPattern.lastIndex = 0;
       let contextualHourMatch;
       while ((contextualHourMatch = contextualHourPattern.exec(text || '')) !== null) {
+        const suffix = String(text || '').slice(contextualHourPattern.lastIndex);
+        if (/^\s+(?:coppie|persone|famiglie|bambini|bambine|ragazzi|ragazze|partecipanti|gruppi|documenti|richieste|domande|giorni|settimane|mesi|anni|euro|volte)\b/i.test(suffix)) continue;
         target.push(contextualHourMatch[1]);
       }
     };
@@ -1505,6 +1508,7 @@ var ResponseValidator = class ResponseValidator {
 
     // 2. Cerca pattern statici residui
     for (const pattern of this.thinkingPatterns) {
+      if (pattern === 'come da istruzioni' && !/come da istruzioni(?!\s+allegate\b)/i.test(response)) continue;
       if (responseLower.includes(pattern.toLowerCase())) {
         foundPatterns.push(pattern);
       }
@@ -3799,7 +3803,7 @@ var SemanticValidator = class SemanticValidator {
   /**
    * Valida leak di pensiero usando comprensione semantica
    */
-  validateThinkingLeak(response, regexResult) {
+  validateThinkingLeak(response, regexResult, options = {}) {
     if (!this.runtimeSemanticAvailable) {
       const fallbackThreshold = 0.85;
       return {
@@ -3811,7 +3815,7 @@ var SemanticValidator = class SemanticValidator {
       };
     }
 
-    if (!this.shouldRun(regexResult.score)) {
+    if (!this.shouldRun(regexResult.score) && !(this.enabled && options.force === true)) {
       return { isValid: true, confidence: regexResult.score, skipped: true };
     }
 

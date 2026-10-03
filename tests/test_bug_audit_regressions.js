@@ -185,7 +185,7 @@ function deliveryCase(stage, failure = 'Unexpected error', reconciled = false) {
   for (const name of ['_beginSendTransaction', '_rollbackSendTransaction', '_commitSendTransaction', '_classifyError']) deps[name] = processor[name].bind(processor);
   const result = {};
   const delivery = { confirmed: false };
-  ctx.ThreadDelivery.send(deps, {
+  const sendOutcome = ctx.ThreadDelivery.send(deps, {
     response: 'Grazie per averci scritto.', result, startTime: Date.now(), threadLogger: silent,
     messageState: { candidate: message, responseContextMessages: [message], markHandledUnreadOnce() {}, markFailureForCurrentBurst: type => labels.push(type) },
     skipLock: false, messageDetails: { senderEmail: 'user@example.org', recipientEmail: 'bot@example.org', subject: 'Richiesta' },
@@ -196,7 +196,7 @@ function deliveryCase(stage, failure = 'Unexpected error', reconciled = false) {
   const observed = { stage, attempts, simulatedDeliveries: delivered, reconciliations, labels, guardAfterSend: !!guardAfterSend, result, nextTransaction: { ok: nextTransaction.ok, reason: nextTransaction.reason } };
   assert.equal(delivered, 1);
   if (reconciled) {
-    assert.equal(result.status, 'replied');
+    assert.equal(sendOutcome.terminal, undefined, 'la riconciliazione deve proseguire verso cleanup e memoria');
     assert.equal(result.reason, 'send_reconciled');
     assert.equal(delivery.confirmed, true);
     assert.equal(reconciliations, 1);

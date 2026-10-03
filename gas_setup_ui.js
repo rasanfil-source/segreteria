@@ -123,6 +123,7 @@ function runSetupStep_(stepName, fn, errors) {
 }
 
 function setupControlloSheet(ss) {
+  ss.setSpreadsheetTimeZone('Europe/Rome');
   const sheet = getOrCreateSheet(ss, UI_CONFIG.CONTROLLO_SHEET, '#4285F4');
   resetSheetLayout(sheet);
 
@@ -139,7 +140,7 @@ function setupControlloSheet(ss) {
   safeMerge(sheet.getRange('E1:F1'));
   applyFormulaWithLocaleFallback_(
     sheet.getRange('E1:F1'),
-    '=IF($B$2="Spento";"🔴 Spento";IF(SUMPRODUCT((TODAY()>=IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7))*(TODAY()<=$D$5:$D$7)*(IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7)<>"")*($D$5:$D$7<>""))>0;"🟢 Attiva (Ferie/H24)";IFERROR(IF(OR(AND(INDEX($B$10:$B$16;WEEKDAY(TODAY();2))<INDEX($D$10:$D$16;WEEKDAY(TODAY();2));HOUR(NOW())>=INDEX($B$10:$B$16;WEEKDAY(TODAY();2));HOUR(NOW())<INDEX($D$10:$D$16;WEEKDAY(TODAY();2)));AND(INDEX($B$10:$B$16;WEEKDAY(TODAY();2))>INDEX($D$10:$D$16;WEEKDAY(TODAY();2));OR(HOUR(NOW())>=INDEX($B$10:$B$16;WEEKDAY(TODAY();2));HOUR(NOW())<INDEX($D$10:$D$16;WEEKDAY(TODAY();2)))));"🟡 Sospesa (orari)";"🟢 Attiva");"🟢 Attiva")))'
+    _buildControlloStatusFormula_()
   );
   sheet.getRange('E1:F1')
     .setFontWeight('bold')
@@ -147,7 +148,7 @@ function setupControlloSheet(ss) {
     .setBackground('#E6F4EA');
 
   safeMerge(sheet.getRange('A3:F3'));
-  sheet.getRange('A3:F3').setValue('La risposta automatica è attiva fuori dalla presenza segreteria e quando non ci sono assenze attive.');
+  sheet.getRange('A3:F3').setValue('La risposta automatica è attiva fuori dagli orari di segreteria, durante le assenze e nelle festività previste.');
 
   // ASSENZE compatte nel Controllo
   sheet.getRange('A4').setValue('🟢 Assenze segretario').setFontWeight('bold');
@@ -167,7 +168,7 @@ function setupControlloSheet(ss) {
   sheet.getRange('E9').setValue('Motivo:').setFontWeight('bold');
   sheet.getRange('E10').setValue('Fascia attuale:').setFontWeight('bold');
 
-  applyFormulaWithLocaleFallback_(sheet.getRange('F5'), '=IF($B$2="Spento";"🔴 Spento";IF(SUMPRODUCT((TODAY()>=IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7))*(TODAY()<=$D$5:$D$7)*(IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7)<>"")*($D$5:$D$7<>""))>0;"🟢 Attiva (Ferie/H24)";IFERROR(IF(OR(AND(INDEX($B$10:$B$16;WEEKDAY(TODAY();2))<INDEX($D$10:$D$16;WEEKDAY(TODAY();2));HOUR(NOW())>=INDEX($B$10:$B$16;WEEKDAY(TODAY();2));HOUR(NOW())<INDEX($D$10:$D$16;WEEKDAY(TODAY();2)));AND(INDEX($B$10:$B$16;WEEKDAY(TODAY();2))>INDEX($D$10:$D$16;WEEKDAY(TODAY();2));OR(HOUR(NOW())>=INDEX($B$10:$B$16;WEEKDAY(TODAY();2));HOUR(NOW())<INDEX($D$10:$D$16;WEEKDAY(TODAY();2)))));"🟡 Sospesa (orari)";"🟢 Attiva");"🟢 Attiva")))');
+  applyFormulaWithLocaleFallback_(sheet.getRange('F5'), _buildControlloStatusFormula_());
   // Formula aggiornata per B/D
   applyFormulaWithLocaleFallback_(sheet.getRange('F6'), '=IF(SUMPRODUCT((TODAY()>=IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7))*(TODAY()<=$D$5:$D$7)*(IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7)<>"")*($D$5:$D$7<>""))>0;"Assente";"In servizio")');
 
@@ -189,11 +190,7 @@ function setupControlloSheet(ss) {
   sheet.getRange('E12').setValue('domini').setFontWeight('bold').setBackground('#F97316').setHorizontalAlignment('center');
   sheet.getRange('F12').setValue('parole').setFontWeight('bold').setBackground('#F97316').setHorizontalAlignment('center');
 
-  if (!sheet.getRange('B4').getValue()) sheet.getRange('B4').setValue(
-    (typeof Session !== 'undefined' && Session && typeof Session.getScriptTimeZone === 'function')
-      ? Session.getScriptTimeZone()
-      : 'Europe/Rome'
-  );
+  sheet.getRange('B4').setValue('Europe/Rome');
   sheet.getRange('B4').setHorizontalAlignment('center');
 
   // Layout generale
@@ -207,6 +204,22 @@ function setupControlloSheet(ss) {
 
   // Applica le constraints GUIDATE dall'utente
   applyControlloInputConstraints_(sheet);
+}
+
+function _buildControlloStatusFormula_() {
+  // Stesse festività fisse del runtime; Pasqua gregoriana calcolata per l'anno corrente.
+  const fixedDays = ALWAYS_OPERATING_DAYS.map(([month, day]) =>
+    `TODAY()=DATE(yr;${month + 1};${day})`);
+  const specialDays = fixedDays.concat([-1, 0, 1, 49, 63].map(offset => `TODAY()=easter+(${offset})`)).join(';');
+  return '=LET(yr;YEAR(TODAY());golden;MOD(yr;19);century;INT(yr/100);' +
+    'epact;MOD(19*golden+century-INT(century/4)-INT((century-INT((century+8)/25)+1)/3)+15;30);' +
+    'shift;MOD(32+2*MOD(century;4)+2*INT(MOD(yr;100)/4)-epact-MOD(MOD(yr;100);4);7);' +
+    'correction;INT((golden+11*epact+22*shift)/451);easter;DATE(yr;3;22)+epact+shift-7*correction;' +
+    'startval;INDEX($B$10:$B$16;WEEKDAY(TODAY();2));endval;INDEX($D$10:$D$16;WEEKDAY(TODAY();2));' +
+    'starthour;IF(startval<1;startval*24;startval);endhour;IF(endval<1;endval*24;endval);hourNow;MOD(NOW();1)*24;' +
+    'IF($B$2="Spento";"🔴 Spento";IF(OR(' + specialDays + ');"🟢 Attiva (festività)";' +
+    'IF(SUMPRODUCT((TODAY()>=IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7))*(TODAY()<=$D$5:$D$7)*(IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7)<>"")*($D$5:$D$7<>""))>0;"🟢 Attiva (Ferie/H24)";' +
+    'IF(OR(startval="";endval="");"🟢 Attiva";IF(IF(starthour<=endhour;AND(hourNow>=starthour;hourNow<endhour);OR(hourNow>=starthour;hourNow<endhour));"🟡 Sospesa (orari)";"🟢 Attiva"))))))';
 }
 
 function applyFormulaWithLocaleFallback_(range, formula) {

@@ -2604,6 +2604,23 @@ Testo:
    * Ottieni saluto speciale per feste liturgiche e festività
    */
   _getSpecialDayGreeting(dateObj, language = 'it') {
+    if (language === 'fr' || language === 'de') {
+      const greetings = {
+        'Happy New Year!': ['Bonne année !', 'Frohes neues Jahr!'],
+        'Happy Epiphany!': ['Bonne fête de l’Épiphanie !', 'Ein gesegnetes Fest der Erscheinung des Herrn!'],
+        'Happy Assumption Day!': ['Bonne fête de l’Assomption !', 'Ein gesegnetes Fest Mariä Himmelfahrt!'],
+        'Happy All Saints Day!': ['Bonne fête de la Toussaint !', 'Ein gesegnetes Allerheiligenfest!'],
+        'Happy Feast of the Immaculate Conception!': ['Bonne fête de l’Immaculée Conception !', 'Ein gesegnetes Fest der Unbefleckten Empfängnis!'],
+        'Merry Christmas!': ['Joyeux Noël !', 'Frohe Weihnachten!'],
+        'Happy Easter!': ['Joyeuses Pâques !', 'Frohe Ostern!'],
+        'Happy Pentecost!': ['Bonne fête de la Pentecôte !', 'Frohe Pfingsten!'],
+        'Happy Corpus Christi!': ['Bonne Fête-Dieu !', 'Ein gesegnetes Fronleichnamsfest!'],
+        'Happy Feast of the Holy Family!': ['Bonne fête de la Sainte Famille !', 'Ein gesegnetes Fest der Heiligen Familie!']
+      };
+      const translated = greetings[this._getSpecialDayGreeting(dateObj, 'en')];
+      return translated ? translated[language === 'fr' ? 0 : 1] : null;
+    }
+    if (!['it', 'en', 'es', 'pt'].includes(language)) return null;
     const parts = this._getRomeDateParts_(dateObj);
     const y = parts.year;
     const m = parts.month;

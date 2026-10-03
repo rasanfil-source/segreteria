@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const ctx = vm.createContext({ console: { log(){}, warn(){}, error(){} }, CONFIG: {} });
 for (const file of ['gas_territory_validator.js', 'gas_response_validator.js', 'gas_email_processor.js',
   'gas_request_classifier.js', 'gas_gemini_service.js', 'gas_thread_documents.js',
-  'gas_thread_validation.js', 'gas_prompt_engine.js', 'gas_setup_ui.js', 'gas_gmail_service.js', 'gas_prompt_context.js', 'gas_memory_service.js']) {
+  'gas_thread_validation.js', 'gas_prompt_engine.js', 'gas_main.js', 'gas_setup_ui.js', 'gas_gmail_service.js', 'gas_prompt_context.js', 'gas_memory_service.js']) {
   const filename = path.resolve(__dirname, '..', file);
   vm.runInContext(fs.readFileSync(filename, 'utf8'), ctx, { filename });
 }
@@ -114,8 +114,10 @@ function sheetRange(a1) {
 }
 const sheet = new Proxy({ getRange: sheetRange, getProtections: () => [] }, { get(target, method) { return target[method] || (() => sheet); } });
 ctx.SpreadsheetApp = { newDataValidation: () => sheetRange('validation'), ProtectionType: { RANGE: 'range' } };
-ctx.setupControlloSheet({ getSheetByName: () => sheet });
-for (const [key, value] of beforeSetup) assert.equal(values.get(key), value, key);
+let spreadsheetTimeZone;
+ctx.setupControlloSheet({ getSheetByName: () => sheet, setSpreadsheetTimeZone: tz => { spreadsheetTimeZone = tz; } });
+for (const [key, value] of beforeSetup) assert.equal(values.get(key), key === 'B4' ? 'Europe/Rome' : value, key);
+assert.equal(spreadsheetTimeZone, 'Europe/Rome');
 assert.equal(values.get('C4'),'dal: colonna B');
 for (const cell of ['E1:F1','F5','F6']) {
   assert.match(setupFormulas.get(cell),/ISNUMBER\(\$B\$5:\$B\$7\)/);

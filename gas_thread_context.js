@@ -454,6 +454,7 @@ ${addressLines.join('\n\n')}
     if (crisisHumanReviewEnabled && crisisCritical === true) {
       console.warn('   🆘 Segnale di crisi rilevato: nessun invio automatico, richiesta presa in carico umana.');
       threadLogger.error('Crisi pastorale rilevata: intervento umano richiesto', {
+        errorClass: 'PASTORAL_CRISIS',
         event: 'pastoral_crisis_human_review',
         threadId: threadId,
         messageId: messageState.candidate.getId()

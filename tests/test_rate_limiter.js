@@ -97,7 +97,7 @@ console.log('--- Test _chunkWindowForProperties: chunk sotto limite PropertiesSe
 {
   const limiter = Object.create(GeminiRateLimiter.prototype);
   const entries = Array.from({ length: 160 }, (_, index) => ({
-    timestamp: 1700000000000 + index,
+    timestamp: Date.now() - 1000 + index,
     nonce: `1700000000000-${index}`,
     modelKey: 'gemini-3.5-flash',
     reserved: true
@@ -115,7 +115,7 @@ console.log('--- Test _mergeWindowData: non dimentica burst RPM oltre 8KB ---');
 {
   const limiter = Object.create(GeminiRateLimiter.prototype);
   const entries = Array.from({ length: 160 }, (_, index) => ({
-    timestamp: 1700000000000 + index,
+    timestamp: Date.now() - 1000 + index,
     nonce: `1700000000000-${index}`,
     modelKey: 'gemini-3.5-flash',
     reserved: true
@@ -125,13 +125,14 @@ console.log('--- Test _mergeWindowData: non dimentica burst RPM oltre 8KB ---');
   assert(merged.length === entries.length, 'merge finestra deve preservare tutte le chiamate vive anche oltre 8KB');
 }
 
+const mergeNow = Date.now();
 console.log('--- Test _mergeWindowData: tie-break deterministico su timestamp uguale ---');
 {
   const limiter = Object.create(GeminiRateLimiter.prototype);
   const entries = [
-    { timestamp: 1700000000000, nonce: 'b', modelKey: 'gemini-3.5-flash', reserved: true },
-    { timestamp: 1700000000000, nonce: 'a', modelKey: 'gemini-3.5-flash', reserved: true },
-    { timestamp: 1700000000000, nonce: 'z', modelKey: 'gemini-3.1-flash-lite', reserved: true }
+    { timestamp: mergeNow, nonce: 'b', modelKey: 'gemini-3.5-flash', reserved: true },
+    { timestamp: mergeNow, nonce: 'a', modelKey: 'gemini-3.5-flash', reserved: true },
+    { timestamp: mergeNow, nonce: 'z', modelKey: 'gemini-3.1-flash-lite', reserved: true }
   ];
 
   const merged = limiter._mergeWindowData([], entries);

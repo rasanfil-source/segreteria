@@ -1597,6 +1597,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
    * Merge dati finestra evitando duplicati
    */
   _mergeWindowData(existing, walData) {
+    const cutoff = Date.now() - 60000;
     const toKey = (entry) => {
       const ts = entry && typeof entry.timestamp !== 'undefined' ? entry.timestamp : 'na';
       const nonce = entry && typeof entry.nonce !== 'undefined' ? entry.nonce : 'na';
@@ -1642,6 +1643,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const mergedByKey = new Map();
     const ingest = (entry) => {
       if (!entry || typeof entry !== 'object') return;
+      if (!Number.isFinite(Number(entry.timestamp)) || Number(entry.timestamp) <= cutoff) return;
       const copy = Object.assign({}, entry);
       const key = toKey(copy);
       const current = mergedByKey.get(key);

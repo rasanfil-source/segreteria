@@ -898,12 +898,14 @@ var PromptContext = class PromptContext {
         }
 
         if (c.hallucination_risk) {
-            key = key || 'sensitive_precision';
-            directiveParts.push(isCrisis
+            key = key || (isSensitive || isBlend ? 'sensitive_precision' : 'operational_precision');
+            directiveParts.push(!isSensitive && !isBlend
+                ? 'Rispondi con precisione operativa. Se mancano dati nella Knowledge Base o il contesto è incompleto, dichiara ciò che non è verificabile invece di dedurre.'
+                : isCrisis
                 ? 'Questo messaggio richiede massima delicatezza e precisione. Se mancano dati nella Knowledge Base o il contesto è incompleto, ammetti l’incertezza con garbo invece di dedurre.'
                 : 'Questo messaggio richiede delicatezza e precisione. Se mancano dati nella Knowledge Base o il contesto è incompleto, ammetti l’incertezza con garbo invece di dedurre.'
             );
-            suppress.formattingGuidelines = true;
+            suppress.formattingGuidelines = isSensitive || isBlend || suppress.formattingGuidelines;
             suppress.checklistHallucinationRule = true;
         }
 

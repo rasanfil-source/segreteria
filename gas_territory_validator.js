@@ -88,8 +88,8 @@ var TerritoryValidator = class TerritoryValidator {
     _buildAbbreviationRegexes_() {
         return Object.entries({
             '(?:\\bs\\.\\s*|\\bs\\s+)': 'san ',
-            '(?:\\bg\\.\\s*)': 'giovanni ',
-            '(?:\\bl\\.\\s*|\\bl\\s+)': 'largo ',
+            '(?:^\\s*l\\.?\\s*tevere\\b)': 'lungotevere ',
+            '(?:^\\s*l\\.\\s*|^\\s*l\\s+)': 'largo ',
             '(?:^\\s*v\\.\\s*|^\\s*v\\s+)(?!ia)': 'via ',
             '(?:\\bc\\.\\s*|\\bc\\s+)': 'corso ',
             '(?:\\bl\\.?\\s*tevere\\b)': 'lungotevere '
@@ -248,7 +248,8 @@ var TerritoryValidator = class TerritoryValidator {
             if (!inputNames.length || inputNames[inputNames.length - 1] !== dbNames[dbNames.length - 1]) continue;
             let position = 0;
             const orderedSubset = inputNames.every(token => {
-                const index = dbNames.indexOf(token, position);
+                const index = dbNames.findIndex((name, index) => index >= position &&
+                    (name === token || (token.length === 1 && name.startsWith(token))));
                 if (index < 0) return false;
                 position = index + 1;
                 return true;
@@ -281,7 +282,7 @@ var TerritoryValidator = class TerritoryValidator {
 
     /**
      * Normalizza nome via: lowercase, trim, spazi, espansione abbreviazioni
-     * Espande le abbreviazioni comuni (es. G. -> giovanni)
+     * Conserva le iniziali personali per risolverle sul database senza ambiguità.
      */
     normalizeStreetName(street) {
         if (!street) {
@@ -293,6 +294,7 @@ var TerritoryValidator = class TerritoryValidator {
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
             .trim();
+        normalized = normalized.replace(/\b([a-z])\.(?=[a-z])/g, '$1. ');
 
         // Espandi abbreviazioni comuni italiane
         for (const { regex, replacement } of this._abbreviationRegexes) {
@@ -317,14 +319,7 @@ var TerritoryValidator = class TerritoryValidator {
     extractAddressFromText(text) {
         if (!text || typeof text !== 'string') return null;
 
-        // Limita lunghezza input per sicurezza
-        const MAX_SAFE_LENGTH = 1000;
-        if (text && text.length > MAX_SAFE_LENGTH) {
-            const truncated = text.substring(0, MAX_SAFE_LENGTH);
-            const lastBoundary = Math.max(truncated.lastIndexOf(' '), truncated.lastIndexOf('\n'));
-            text = lastBoundary > 800 ? truncated.substring(0, lastBoundary) : truncated;
-            console.warn(`⚠️ Input troncato a ${text.length}/${MAX_SAFE_LENGTH} caratteri (protezione memoria)`);
-        }
+        // Analizza tutto il messaggio: pattern e numero di risultati sono già limitati.
 
         // Utilizzo di regex pre-compilate (ottimizzazione performance)
         const patterns = this._addressPatterns;
@@ -431,10 +426,6 @@ var TerritoryValidator = class TerritoryValidator {
         if (!text || typeof text !== 'string') return null;
 
         text = this._sanitizeStreetOnlyInput(text);
-
-        if (text && text.length > 1000) {
-            text = text.substring(0, 1000);
-        }
 
         // Usa regex pre-compilata (ottimizzazione performance)
         const pattern = this._streetOnlyPattern;

@@ -98,8 +98,8 @@ assert(missingCivic.details === 'range_civic_required', 'deve usare il dettaglio
 
 const abbreviatedStreet = validator.normalizeStreetName('via g.vincenzo gravina');
 assert(
-  abbreviatedStreet === 'via giovanni vincenzo gravina',
-  `normalizzazione abbreviazioni invariata attesa, ottenuto ${abbreviatedStreet}`
+  abbreviatedStreet === 'via g vincenzo gravina',
+  `le iniziali personali devono restare disambiguabili, ottenuto ${abbreviatedStreet}`
 );
 
 console.log('✅ Test TerritoryValidator OK');

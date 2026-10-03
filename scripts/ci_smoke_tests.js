@@ -249,8 +249,8 @@ function testTerritoryAbbreviations() {
 
     const compact = validator.normalizeStreetName('via g.vincenzo gravina');
     assert(
-        compact === 'via giovanni vincenzo gravina',
-        `Atteso "via giovanni vincenzo gravina", ottenuto "${compact}"`
+        compact === 'via g vincenzo gravina',
+        `Atteso "via g vincenzo gravina", ottenuto "${compact}"`
     );
 
     const matched = validator.findTerritoryMatch('via g.vincenzo gravina');

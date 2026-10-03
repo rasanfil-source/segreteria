@@ -10,6 +10,13 @@ let cases = 0;
 function row(label, fn) {
   try { fn(); cases++; } catch (error) { throw new Error(label, { cause: error }); }
 }
+row('street type edge cases', () => {
+  assert.equal(v._normalizeStreetType(null), null);
+  assert.equal(v._normalizeStreetType('corso'), 'corso');
+  assert.equal(v._normalizeStreetType('sconosciuto'), null);
+  assert.equal(v._trimStreetOnlyCandidate(null), '');
+  assert.equal(v._trimStreetOnlyCandidate('Via Esempio, vorrei sapere'), 'Via Esempio');
+});
 // Usa una strada sintetica per variare le regole indipendentemente dai dati territoriali reali.
 const street = 'via esempio';
 const rules = [
@@ -70,9 +77,9 @@ for (const [rule, civic, expected] of [
 row('no address', () => assert.equal(v.analyzeEmailForAddress('Grazie', '').addressFound, false));
 row('duplicate street', () => assert.equal(v.extractStreetOnlyFromText('Via Esempio; Via Esempio').length, 1));
 row('form fields', () => assert.equal(v.extractStreetOnlyFromText('Via: Esempio; nome: Mario')[0], 'via Esempio'));
-row('bounded long input', () => {
+row('addresses after long introduction', () => {
   assert.equal(v.extractAddressFromText('Via Esempio 10. ' + 'test '.repeat(300))[0].civic, 10);
-  assert.equal(v.extractAddressFromText('x'.repeat(1001) + ' Via Esempio 10'), null);
-  assert.equal(v.extractStreetOnlyFromText('x'.repeat(1001) + ' Via Esempio'), null);
+  assert.equal(v.extractAddressFromText('x'.repeat(1001) + ' Via Esempio 10')[0].civic, 10);
+  assert.equal(v.extractStreetOnlyFromText('x'.repeat(1001) + ' Via Esempio')[0], 'via Esempio');
 });
 console.log(`Territory decision matrices: ${cases} cases passed`);
