@@ -191,10 +191,10 @@ for (const limit of [1, 3, 6, 10, 20]) {
     PropertiesService: { getScriptProperties: () => props }
   });
   const processor = Object.create(ctx.EmailProcessor.prototype);
-  for (let attempt = 1; attempt <= limit; attempt++) {
+  for (let attempt = 1; attempt <= limit + 1; attempt++) {
     processor._storeBatchCheckpointAndScheduleContinuation_([{ getId: () => 'same' }], 0, 1000);
     const read = ctx._readBatchCheckpoint_();
-    if (attempt === limit) {
+    if (attempt === limit + 1) {
       assert.equal(props.getProperty('EMAIL_BATCH_CHECKPOINT'), null, 'writer deve fermarsi alla stessa soglia del lettore');
       assert.equal(read, null);
     } else {

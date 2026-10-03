@@ -761,12 +761,15 @@ var EmailProcessor = class EmailProcessor {
     if (!lockCtx || !lockCtx.acquired || !lockCtx.key) return;
     let scriptLock = null;
     let scriptLockAcquired = false;
+    let requiresPhysicalLock = false;
     try {
       if (!lockCtx.lockCovered &&
         typeof LockService !== 'undefined' &&
         LockService &&
         typeof LockService.getScriptLock === 'function') {
+        requiresPhysicalLock = true;
         scriptLock = LockService.getScriptLock();
+        requiresPhysicalLock = !!(scriptLock && typeof scriptLock.tryLock === 'function');
         if (scriptLock && typeof scriptLock.tryLock === 'function') {
           scriptLockAcquired = scriptLock.tryLock(500);
         }
@@ -774,7 +777,7 @@ var EmailProcessor = class EmailProcessor {
     } catch (_) { }
 
     try {
-      if (!lockCtx.lockCovered && !scriptLockAcquired) {
+      if (!lockCtx.lockCovered && requiresPhysicalLock && !scriptLockAcquired) {
         if (threadLogger && typeof threadLogger.warn === 'function') {
           threadLogger.warn('Mutex globale non acquisito per rilascio: lock logico lasciato al TTL per evitare cancellazioni concorrenti');
         }
@@ -1880,8 +1883,9 @@ var EmailProcessor = class EmailProcessor {
       const maxCheckpointRetries = (typeof CONFIG !== 'undefined' && Number(CONFIG.BATCH_CHECKPOINT_MAX_RETRIES) > 0)
         ? Math.max(1, Math.floor(Number(CONFIG.BATCH_CHECKPOINT_MAX_RETRIES)))
         : 3;
-      // Stessa soglia del lettore: non creare un trigger per un checkpoint già abbandonabile.
-      if (retryCount >= maxCheckpointRetries) {
+      // Conta le riprese pianificate: la prima vale 1 e il limite è inclusivo.
+      // Il lettore usa la stessa soglia, permettendo tutte le N riprese configurate.
+      if (retryCount > maxCheckpointRetries) {
         console.warn(`Limite retry checkpoint raggiunto (${retryCount}/${maxCheckpointRetries}): ripresa non pianificata.`);
         this._clearBatchCheckpoint_('max_checkpoint_retries_exceeded');
         return;
@@ -2818,11 +2822,12 @@ var EmailProcessor = class EmailProcessor {
     try {
       if (!skipLock) {
         if (!scriptLock || typeof scriptLock.tryLock !== 'function') {
-          return { ok: false, reason: 'send_lock_unavailable' };
-        }
-        lockAcquired = scriptLock.tryLock(sendLockWaitMs);
-        if (!lockAcquired) {
-          return { ok: false, reason: 'send_lock_unavailable' };
+          console.warn('LockService non disponibile: invio in modalità compatibilità con marker di idempotenza, senza atomicità fisica.');
+        } else {
+          lockAcquired = scriptLock.tryLock(sendLockWaitMs);
+          if (!lockAcquired) {
+            return { ok: false, reason: 'send_lock_unavailable' };
+          }
         }
       }
 

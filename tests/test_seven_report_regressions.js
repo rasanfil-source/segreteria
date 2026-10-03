@@ -62,7 +62,10 @@ p._storeBatchCheckpointAndScheduleContinuation_(threads, 0, 5000);
 p._storeBatchCheckpointAndScheduleContinuation_(threads, 0, 5000);
 assert.equal(created, 2);
 p._storeBatchCheckpointAndScheduleContinuation_(threads, 0, 5000);
-assert.equal(created, 2);
+assert.equal(created, 3);
+assert.equal(values.has('EMAIL_BATCH_CHECKPOINT'), true);
+p._storeBatchCheckpointAndScheduleContinuation_(threads, 0, 5000);
+assert.equal(created, 3);
 assert.equal(values.has('EMAIL_BATCH_CHECKPOINT'), false);
 values.set('EMAIL_BATCH_CHECKPOINT', JSON.stringify({pendingThreadIds:['old'], pendingCount:1, retryCount:30}));
 p._storeBatchCheckpointAndScheduleContinuation_(threads, 0, 5000);
@@ -76,9 +79,9 @@ for (const prefix of ['Re', 'Rif', 'AW', 'FW', 'Fwd', 'TR', 'I', 'WG', 'INC']) {
     assert.equal(JSON.stringify(c.classifyEmail(...args)), expected, prefix);
   }
 }
-for (const header of ['Il giorno 3 ottobre 2026 Mario <mario@example.org>\nha scritto:',
-  'On October 3, 2026 Mario\n<mario@example.org>\nwrote:',
-  'Le 3 octobre 2026 Mario <mario@example.org>\na écrit:']) {
+for (const header of ['il giorno 3 ottobre 2026 Mario <mario@example.org>\nha scritto:',
+  'ON October 3, 2026 Mario\n<mario@example.org>\nWROTE:',
+  'LE 3 octobre 2026 Mario <mario@example.org>\nA ÉCRIT:']) {
   for (const newline of ['\n', '\r\n']) {
     const body = ('Quando posso venire?\n\n' + header + '\nVecchio contenuto').replace(/\n/g, newline);
     assert.equal(c._extractMainContent(body).trim(), 'Quando posso venire?');

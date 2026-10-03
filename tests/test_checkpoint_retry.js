@@ -48,7 +48,7 @@ props.set('EMAIL_BATCH_CHECKPOINT', JSON.stringify({
   version: 2,
   runId: 'retry-loop',
   createdAt: new Date().toISOString(),
-  retryCount: 3,
+  retryCount: 4,
   pendingThreadIds: ['t400', 't401']
 }));
 const abandoned = _readBatchCheckpoint_();
@@ -63,7 +63,7 @@ props.set('EMAIL_BATCH_CHECKPOINT', JSON.stringify({
   version: 2,
   runId: 'retry-ok',
   createdAt: new Date().toISOString(),
-  retryCount: 2,
+  retryCount: 3,
   pendingThreadIds: ['t402']
 }));
 const accepted = _readBatchCheckpoint_();

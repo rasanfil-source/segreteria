@@ -457,7 +457,7 @@ var CONFIG = {
   // Nota: lista volutamente mista (domini + email complete).
   // Il matcher supporta sia exact match (email) sia suffisso dominio in _shouldIgnoreEmail.
   IGNORE_DOMAINS: [
-    'noreply', 'no-reply', 'newsletter', 'marketing',
+    'noreply', 'no-reply', 'newsletter',
     'promo', 'ads', 'notifications',
     'amazon.com', 'eventbrite.com', 'paypal.com', 'ebay.com',
     'subito.it', 'mailchimp.com', 'mailup.com',

@@ -2117,7 +2117,8 @@ function _readBatchCheckpoint_() {
       ? Math.max(1, Math.floor(Number(CONFIG.BATCH_CHECKPOINT_MAX_RETRIES)))
       : 3;
     const retryCount = Number(parsed.retryCount || 0);
-    if (Number.isFinite(retryCount) && retryCount >= maxCheckpointRetries) {
+    // retryCount include la ripresa pianificata: anche la N-esima deve poter partire.
+    if (Number.isFinite(retryCount) && retryCount > maxCheckpointRetries) {
       console.warn(
         `Checkpoint abbandonato dopo ${retryCount} riprese consecutive; ` +
         'non applico label Errore perché retryCount può indicare rinvii retryable.'

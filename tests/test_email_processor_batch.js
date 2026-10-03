@@ -1231,7 +1231,7 @@ console.log('--- Test _beginSendTransaction: CacheService assente blocca invio -
   }
 }
 
-console.log('--- Test _beginSendTransaction: LockService assente blocca invio se non coperto ---');
+console.log('--- Test _beginSendTransaction: LockService assente usa compatibilità se non coperto ---');
 {
   const originalLockService = global.LockService;
   global.LockService = undefined;
@@ -1241,10 +1241,10 @@ console.log('--- Test _beginSendTransaction: LockService assente blocca invio se
     const processor = new EmailProcessor({ gmailService: {} });
     const txn = processor._beginSendTransaction('m-no-send-lock', false);
 
-    assert(txn.ok === false, 'LockService assente deve bloccare la transazione di invio senza skipLock');
-    assert(txn.reason === 'send_lock_unavailable', `reason attesa send_lock_unavailable, ottenuta ${txn.reason}`);
-    assert(!cacheStore.get('sending_m-no-send-lock'), 'non deve impostare marker sending senza mutex fisico');
-    assert(!cacheStore.get('sendstarted_m-no-send-lock'), 'non deve impostare marker sendstarted senza mutex fisico');
+    assert(txn.ok === true, 'LockService assente deve usare la modalità compatibilità senza skipLock');
+    assert(txn.reason === 'acquired', `reason attesa acquired, ottenuta ${txn.reason}`);
+    assert(cacheStore.get('sending_m-no-send-lock'), 'deve impostare marker sending in compatibilità');
+    assert(cacheStore.get('sendstarted_m-no-send-lock'), 'deve impostare marker sendstarted in compatibilità');
   } finally {
     global.LockService = originalLockService;
     cacheStore.clear();

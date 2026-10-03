@@ -295,16 +295,16 @@ var Classifier = class Classifier {
 
     // Unfold limitato agli header di citazione, anche quando il verbo è su una terza riga.
     processedBody = processedBody.replace(
-      /^((?:On|Il giorno|Il|Le)\b[^\n]{1,200})(?:\r?\n[ \t]*(?!>)[^\n]{1,200}){0,2}\r?\n[ \t]*(?!>)(?:[^\n]{0,200}?[ \t])?(?:wrote|ha scritto|a écrit|a ècrit):[ \t]*\r?$/gm,
+      /^((?:On|Il giorno|Il|Le)\b[^\n]{1,200})(?:\r?\n[ \t]*(?!>)[^\n]{1,200}){0,2}\r?\n[ \t]*(?!>)(?:[^\n]{0,200}?[ \t])?(?:wrote|ha scritto|a écrit|a ècrit):[ \t]*\r?$/gim,
       header => header.replace(/\r?\n[ \t]*/g, ' ')
     );
 
     // Marcatori citazione per vari client email
     const quoteMarkers = [
       /^>\s*(?:Da|From|On|Il giorno|Le)\b.*$/im,
-      /^On (?=[^\n]*(?:\d|@))[^\n]* wrote:\s*$/m,
-      /^Il giorno (?=[^\n]*(?:\d|@))[^\n]* ha scritto:\s*$/m,
-      /^Il .* alle .* .* ha scritto:.*$/m,
+      /^On (?=[^\n]*(?:\d|@))[^\n]* wrote:\s*$/im,
+      /^Il giorno (?=[^\n]*(?:\d|@))[^\n]* ha scritto:\s*$/im,
+      /^Il .* alle .* .* ha scritto:.*$/im,
       /^Da:\s*.*<[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}>.*$/m,
       /^From:.*Sent:.*$/m,
       /^-{3,}.*Original Message.*$/m,
@@ -314,9 +314,9 @@ var Classifier = class Classifier {
       /^Inizio messaggio inoltrato:.*$/m,
       /^-------- Forwarded Message --------$/m,
       /^\*From:\*.*$/m,
-      /^Le .* \u00E0 .* .* a \u00E9crit.*$/m,
-      /^Le .* a \u00E9crit.*$/m,
-      /^Le .* a \u00E8crit.*$/m
+      /^Le .* \u00E0 .* .* a \u00E9crit.*$/im,
+      /^Le .* a \u00E9crit.*$/im,
+      /^Le .* a \u00E8crit.*$/im
     ];
 
     const lines = processedBody.split('\n');
