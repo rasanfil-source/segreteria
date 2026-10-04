@@ -764,7 +764,7 @@ COMPITI:
    - delivery_channel: "attachment" se il documento dovrebbe essere in allegato/file; "body" se i dati compilati sono riportati nel testo; "both" se entrambi; "unclear" se il canale non e chiaro.
    - body_contains_filled_document: TRUE solo se nel corpo ci sono dati compilati utilizzabili, non un semplice annuncio. Esempi forti: Nome/Cognome, Telefono, Email, Data di nascita, Luogo di nascita, Indirizzo, Parrocchia, Data matrimonio, Sposo/Sposa/Fidanzato/Fidanzata con valori.
    - requires_file_attachment: TRUE se l'utente dichiara che il documento e allegato/file o il flusso richiede proprio un file.
-   - missing_document_if_no_attachment: TRUE solo quando dal testo resulta che il documento dovrebbe esserci come file/allegato e non sono presenti dati compilati nel corpo.
+   - missing_document_if_no_attachment: TRUE solo quando dal testo risulta che il documento dovrebbe esserci come file/allegato e non sono presenti dati compilati nel corpo.
    - reason: breve motivo osservabile.
 10. Fornisci un breve ragionamento (reason)
 10b. Determina request_purpose, cioe lo SCOPO concreto del messaggio, separandolo esplicitamente dall'argomento/topic e prima di qualsiasi scelta di contenuti da KB:

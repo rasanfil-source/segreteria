@@ -105,9 +105,7 @@ var ThreadValidation = {
           detectedLanguage
         );
         if (/^it/i.test(detectedLanguage || 'it')) {
-          retryResponse = effectiveSalutationModeKey === 'full_warm'
-            ? retryResponse.replace(/^(Carissimo|Carissima)\b/gm, 'Gentile')
-            : retryResponse.replace(/^(Caro|Cara|Carissimo|Carissima)\b/gm, 'Gentile');
+          retryResponse = retryResponse.replace(/^(Caro|Cara|Carissimo|Carissima)\b/gm, 'Gentile');
         } else if (/^pt/i.test(detectedLanguage || '')) {
           retryResponse = retryResponse.replace(/^(Caro|Cara)\b/gm, 'Prezado');
         }

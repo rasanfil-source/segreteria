@@ -113,7 +113,7 @@ var Classifier = class Classifier {
     const safeSubject = typeof subject === 'string' ? subject : '';
     let safeBody = typeof body === 'string' ? body : '';
 
-    const replySubjectPattern = /^(?:re|rif|r|ris|risp|aw|sv)\s*[:\-]/i;
+    const replySubjectPattern = /^(?:re|rif|r|ris|risp|aw|sv)(?:\s*:|\s+-\s+)/i;
     // Supporto firma alternativa: il 3° parametro può essere senderEmail anziché booleano.
     if (typeof isReply === 'string' && senderEmail === null) {
       senderEmail = isReply;
@@ -295,7 +295,7 @@ var Classifier = class Classifier {
 
     // Unfold limitato agli header di citazione, anche quando il verbo è su una terza riga.
     processedBody = processedBody.replace(
-      /^((?:On|Il giorno|Il|Le)\b[^\n]{1,200})(?:\r?\n[ \t]*(?!>)[^\n]{1,200}){0,2}\r?\n[ \t]*(?!>)(?:[^\n]{0,200}?[ \t])?(?:wrote|ha scritto|a écrit|a ècrit):[ \t]*\r?$/gim,
+      /^((?:On|Il giorno|Il|Le)\b[^\n]{1,200})(?:\r?\n[ \t]*(?!>)[^\n]{1,200}){0,2}\r?\n[ \t]*(?!>)(?:[^\n]{0,200}?[ \t])?(?:wrote|ha scritto|a écrit):[ \t]*\r?$/gim,
       header => header.replace(/\r?\n[ \t]*/g, ' ')
     );
 
@@ -315,8 +315,7 @@ var Classifier = class Classifier {
       /^-------- Forwarded Message --------$/m,
       /^\*From:\*.*$/m,
       /^Le .* \u00E0 .* .* a \u00E9crit.*$/im,
-      /^Le .* a \u00E9crit.*$/im,
-      /^Le .* a \u00E8crit.*$/im
+      /^Le .* a \u00E9crit.*$/im
     ];
 
     const lines = processedBody.split('\n');
@@ -479,7 +478,7 @@ var Classifier = class Classifier {
     const normalized = `${rawSubject} ${extractedBody}`.toLowerCase();
     // Una descrizione personale dell'assenza non prova un autoresponder.
     const explicitAutoReply = /\b(?:auto(?:matic)?\s*reply|risposta\s+automatica|out\s+of\s+(?:the\s+)?office)\b/i;
-    const isReplySubject = /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]/i.test(rawSubject.trim());
+    const isReplySubject = /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+-\s+)/i.test(rawSubject.trim());
     if (!isReplySubject && explicitAutoReply.test(rawSubject)) return true;
     const textForRequestCheck = isReplySubject ? extractedBody.toLowerCase() : normalized;
     if (/[?？]|\b(?:possiamo|vorrei|potete|chiedo|fissare|appuntamento)\b/i.test(textForRequestCheck)) return false;

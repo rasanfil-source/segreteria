@@ -245,7 +245,7 @@ var ThreadPolicy = {
     // Trunca a 2000 char per prevenire Regex Timeout su mega-thread
     const oooBody = (messageDetails.body || '').substring(0, 2000);
     const isOutOfOfficeText = typeof Classifier === 'function' && typeof Classifier.prototype._isOutOfOfficeAutoReply === 'function'
-      ? new Classifier()._isOutOfOfficeAutoReply(oooSubject, oooBody)
+      ? Classifier.prototype._isOutOfOfficeAutoReply.call(Classifier.prototype, oooSubject, oooBody)
       : outOfOfficePatterns.some(p => p.test(oooSubject)) || /^\s*(?:sono assente,\s*)?(?:risposta automatica|automatic reply)\b/i.test(oooBody);
     const outOfOfficeTextDecision = deps._evaluatePreAiRules_(buildRuleContext({
       phase: 'post_extract_pre_ai',
@@ -414,7 +414,7 @@ var ThreadPolicy = {
     const MAX_SUBJECT_LENGTH = 1000;
     const safeSubject = (messageDetails.subject || '').substring(0, MAX_SUBJECT_LENGTH);
     const safeBody = (messageDetails.body || '');
-    const isReplyPattern = /^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]/i;
+    const isReplyPattern = /^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+-\s+)/i;
     const isReplyBySubject = isReplyPattern.test(safeSubject.toLowerCase());
 
     const classification = deps.classifier.classifyEmail(

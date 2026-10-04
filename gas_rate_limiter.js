@@ -1905,6 +1905,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     });
   }
 
+  // RPD resta prudenziale: un rilascio locale non prova che il provider non abbia
+  // ricevuto la richiesta. Solo RPM/TPM vengono liberati per errori non consumabili.
   _releaseReservation(modelKey, reservationId) {
     this._mutateReservation(modelKey, reservationId, function (entry) {
       // Idempotenza: se la chiamata è già stata contabilizzata come completata,

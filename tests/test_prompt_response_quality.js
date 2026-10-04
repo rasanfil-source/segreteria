@@ -2021,6 +2021,7 @@ const focusHintPrompt = engine.buildPrompt({
   detectedLanguage: 'it',
   topic: 'passaggio in segreteria',
   currentDate: '2026-06-15',
+  runtimeContext: { temporal: { processingTimestampIso: '2026-06-15T10:00:00.000Z' } },
   memoryContext: focusHintMemoryContext
 });
 assert(
@@ -2039,6 +2040,7 @@ const focusHintWithoutTopicPrompt = engine.buildPrompt({
   knowledgeBase: 'Segreteria aperta martedi.',
   detectedLanguage: 'it',
   currentDate: '2026-06-15',
+  runtimeContext: { temporal: { processingTimestampIso: '2026-06-15T10:00:00.000Z' } },
   memoryContext: focusHintMemoryContext
 });
 assert(
@@ -2053,6 +2055,7 @@ const changedTopicPrompt = engine.buildPrompt({
   detectedLanguage: 'it',
   topic: 'orari segreteria',
   currentDate: '2026-06-15',
+  runtimeContext: { temporal: { processingTimestampIso: '2026-06-15T10:00:00.000Z' } },
   memoryContext: focusHintMemoryContext
 });
 assert(
@@ -2085,6 +2088,7 @@ console.log('--- Test prompt: responseFocusHint usa soglie configurabili ---');
       detectedLanguage: 'it',
       topic: 'iter matrimoniale',
       currentDate: '2026-06-15',
+      runtimeContext: { temporal: { processingTimestampIso: '2026-06-15T10:00:00.000Z' } },
       memoryContext: longPathMemoryContext
     });
     assert(
@@ -2099,6 +2103,7 @@ console.log('--- Test prompt: responseFocusHint usa soglie configurabili ---');
       detectedLanguage: 'it',
       topic: 'iter matrimoniale',
       currentDate: '2026-06-25',
+      runtimeContext: { temporal: { processingTimestampIso: '2026-06-25T10:00:00.000Z' } },
       memoryContext: longPathMemoryContext
     });
     assert(
@@ -2117,6 +2122,7 @@ const topicChangePrompt = engine.buildPrompt({
   detectedLanguage: 'it',
   topic: 'certificato matrimonio',
   currentDate: '2026-06-15',
+  runtimeContext: { temporal: { processingTimestampIso: '2026-06-15T10:00:00.000Z' } },
   memoryContext: focusHintMemoryContext,
   conversationShift: {
     shift: 'topic_change',
@@ -2202,7 +2208,8 @@ console.log('--- Test prompt: maxCharsWhenKbTruncated=0 omette testo allegati qu
   global.CONFIG.PROMPT_ENGINE = { OVERHEAD_TOKENS: 5000 };
 
   try {
-    const recoverableKb = 'KB_RECOVERY_START ' + 'Informazioni KB molto lunghe. '.repeat(800) + 'KB_RECOVERY_END';
+    // Tra il budget iniziale (~10k) e quello recuperato (~22k), a 3.2 char/token.
+    const recoverableKb = 'KB_RECOVERY_START ' + 'Informazioni KB molto lunghe. '.repeat(650) + 'KB_RECOVERY_END';
     const zeroAttachmentPrompt = engine.buildPrompt({
       emailSubject: 'Documento',
       emailContent: 'Buongiorno, allego il documento.',

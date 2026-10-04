@@ -117,7 +117,7 @@ var ResponseValidator = class ResponseValidator {
       /\bDIVIETO\s+DI\s+DEROGA\b/i,
       /<\/?(?:analisi|thinking|thought|system|knowledge_base|conversation_history|user_email)>/i,
       // Riferimenti a istruzioni/guida interna/base dati/memoria/system prompt
-      /\b(?:come\s+richiesto|secondo|in\s+base|conformemente|attenendomi)\s+(?:dalle|alle|dalla|alla|a|al|le|la|il|i)?\s*(?:istruzioni|linee\s+guida|guida\s+interna|direttive|regole\s+interne)\b/i,
+      /\b(?:come\s+richiesto|secondo|in\s+base|conformemente|attenendomi)\s+(?:dalle|alle|dalla|alla|a|al|le|la|il|i)?\s*(?:(?:istruzioni|linee\s+guida|direttive)\s+(?:interne|di\s+sistema|del\s+(?:prompt|modello))|guida\s+interna|regole\s+interne)\b/i,
       /\b(?:la\s+|nella\s+)?guida\s+interna\b/i,
       /\bsystem\s+prompt\b|\bprompt\s+di\s+sistema\b/i,
       /\b(?:nella\s+nostra\s+|nella\s+)?base\s+(?:dati|di\s+conoscenza)\b|\bconoscenza\s+di\s+base\b/i,
@@ -272,11 +272,11 @@ var ResponseValidator = class ResponseValidator {
     let validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent, emailSubject, temporalContext);
 
     // --- PERFEZIONAMENTO QUALITATIVO ---
-    if (!validationResult.isValid && attemptPerfezionamento) {
+    if (attemptPerfezionamento) {
       console.log('✨ Tentativo perfezionamento automatico...');
 
       const refinementIssues = validationResult.errors.concat(validationResult.warnings || []);
-      const perfezionamentoResult = this._perfezionamentoAutomatico(currentResponse, refinementIssues, safeDetectedLanguage, temporalContext);
+      const perfezionamentoResult = this._perfezionamentoAutomatico(currentResponse, refinementIssues, safeDetectedLanguage, temporalContext, validationResult.isValid);
 
       if (perfezionamentoResult.fixed) {
         console.log('   ✨ Risposta perfezionata (migliorata qualità o rimozione allucinazioni)');
@@ -1136,12 +1136,18 @@ var ResponseValidator = class ResponseValidator {
     };
 
     // Helper normalizzazione telefono
-    const normalizePhone = (p) => p.replace(/\D/g, '');
+    const normalizePhone = (p) => {
+      const digits = p.replace(/\D/g, '');
+      // Rimuovi solo il prefisso italiano davanti a un numero nazionale plausibile.
+      if (!/^\s*(?:\+39|0039)/.test(p) && digits.length <= 10) return digits;
+      const italian = digits.match(/^(?:0039|39)((?:0\d{6,10}|3\d{8,9}))$/);
+      return italian ? italian[1] : digits;
+    };
 
     // === Controllo orari ===
     // Compatibilità GAS: evita lookbehind a lunghezza variabile, che in alcuni runtime V8
     // può fallire in fase di parsing. Il filtro di contesto replica le esclusioni precedenti.
-    const timePattern = /\b\d{1,2}[:.]\d{2}\b(?![\/.-]\d{2,4})(?!\.[a-z])/gi;
+    const timePattern = /\b\d{1,2}[:.]\d{2}\b(?![\/.]\d{2,4})(?!-\d{4}\b)(?!\.[a-z])/gi;
     const contextualHourPattern = /\b(?:alle?|ore)\s+(\d{1,2})(?![:.]\d{2})\b/gi;
     const collectStandaloneTimes = (text) => {
       const found = [];
@@ -1156,7 +1162,7 @@ var ResponseValidator = class ResponseValidator {
 
         // Whitelist: Escludi URL/nomi file (es. "v.10.30"), indirizzi, prezzi, date e versetti biblici.
         if (/[a-z]\.$/i.test(prefix)) continue;
-        if (/\b\d{1,2}[\/.-]$/i.test(prefix)) continue;
+        if (/\b\d{1,2}[\/.-]$/i.test(prefix) && !/\b\d{1,2}[:.]\d{2}-$/.test(prefix)) continue;
         if (/(?:via|viale|piazza|corso|largo|vicolo|civico|n\.|num\.|int\.|scala)\s*$/i.test(prefix)) continue;
         if (/^\s*(?:euro|\u20AC|eur)/i.test(suffix)) continue;
         if (/^\.\d{2,4}\b/.test(suffix) || /(?:^|[\s(])\d{1,2}[\/.-]\d{1,2}$/.test(prefix.trim())) continue;
@@ -1328,7 +1334,7 @@ var ResponseValidator = class ResponseValidator {
     // === Controllo numeri telefono ===
     // Pattern selettivo: richiede prefisso internazionale o separatori standard
     // Esclude pattern data (GG/MM/AAAA) e orari common
-    const phonePattern = /(?:(?:\+\d{1,3}[\s.-])?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]\d{3,4}(?!\d))|(?:\+?39)?(?:0\d{7,9}|3\d{8,9})\b/g;
+    const phonePattern = /(?:(?:(?:\+\d{1,3}|0039)[\s.-])?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]?\d{3,4}(?!\d))|(?:(?:\+?39|0039)[ \t.-]*)?(?:0\d{7,9}|3\d{8,9})\b/g;
     const responsePhonesRaw = response.match(phonePattern) || [];
     const kbPhonesRaw = safeKnowledgeBase.match(phonePattern) || [];
 
@@ -1348,11 +1354,11 @@ var ResponseValidator = class ResponseValidator {
     );
 
     // Escludi numeri presenti nella whitelist (es. mittente, thread) o nel messaggio originale
-    const whitelistText = (originalMessage || '');
+    const originalPhones = new Set(((originalMessage || '').match(phonePattern) || []).map(normalizePhone));
     const inventedPhones = [...responsePhones].filter(p => {
       if (kbPhones.has(p)) return false;
       // Se il numero è presente nel testo originale, è legittimo ripeterlo
-      if (whitelistText.replace(/\D/g, '').includes(p)) return false;
+      if (originalPhones.has(p)) return false;
       return true;
     });
 
@@ -3451,7 +3457,7 @@ var ResponseValidator = class ResponseValidator {
   /**
    * Tenta di correggere automaticamente gli errori rilevati
    */
-  _perfezionamentoAutomatico(response, errors, language, temporalContext = null) {
+  _perfezionamentoAutomatico(response, errors, language, temporalContext = null, cosmeticOnly = false) {
     let textPerfezionato = response;
     let modified = false;
 
@@ -3476,7 +3482,7 @@ var ResponseValidator = class ResponseValidator {
     const hasThinkingLeak = errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('meta-commento'));
     const hasPlaceholder = errors.some(e => e.includes('placeholder'));
 
-    if (hasThinkingLeak) {
+    if (hasThinkingLeak && !cosmeticOnly) {
       applicaOttimizzazione('ThinkingLeak', (currentText) => this._rimuoviThinkingLeak(currentText));
     }
 

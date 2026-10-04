@@ -316,9 +316,7 @@ var ThreadGeneration = {
     // Il flag /m abbina solo inizio riga, evitando falsi positivi nel corpo.
     // Lascia intatto "Dear" (standard formale EN) e "Cher" (formale FR).
     if (/^it/i.test(detectedLanguage || 'it')) {
-      response = effectiveSalutationModeKey === 'full_warm'
-        ? response.replace(/^(Carissimo|Carissima)\b/gm, 'Gentile')
-        : response.replace(/^(Caro|Cara|Carissimo|Carissima)\b/gm, 'Gentile');
+      response = response.replace(/^(Caro|Cara|Carissimo|Carissima)\b/gm, 'Gentile');
     } else if (/^pt/i.test(detectedLanguage || '')) {
       response = response.replace(/^(Caro|Cara)\b/gm, 'Prezado');
     }

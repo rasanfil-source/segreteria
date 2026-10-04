@@ -4489,7 +4489,7 @@ console.log('--- Test prompt options: relational_warmth deriva dal quick-check G
   assert(promptOptions && promptOptions.relationalPosture === 'appreciative', `relationalPosture attesa appreciative, ottenuta ${promptOptions && promptOptions.relationalPosture}`);
   assert(promptOptions && promptOptions.salutationMode === 'full_warm', `salutationMode atteso full_warm, ottenuto ${promptOptions && promptOptions.salutationMode}`);
   assert(validationSalutationMode === 'full_warm', `la validazione deve ricevere full_warm, ottenuto ${validationSalutationMode}`);
-  assert(outboundText && outboundText.startsWith('Caro Gian Mario'), 'il guardrail italiano deve preservare Caro/Cara quando full_warm è esplicito');
+  assert(outboundText && outboundText.startsWith('Gentile Gian Mario'), 'il guardrail italiano deve sostituire Caro/Cara anche quando full_warm è esplicito');
   assert(promptContextInput && promptContextInput.relationalPostureConfidence === 0.95, `relationalPostureConfidence attesa 0.95, ottenuta ${promptContextInput && promptContextInput.relationalPostureConfidence}`);
   assert(promptContextInput && promptContextInput.quickCheck.relational_posture === 'appreciative', 'il promptContextInput deve contenere appreciative');
 }

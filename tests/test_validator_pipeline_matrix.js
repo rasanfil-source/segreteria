@@ -51,10 +51,14 @@ for (const initialValid of bools) for (const attempt of bools) for (const fixed 
     texts.push(text);
     return { isValid: checksRun++ === 0 ? initialValid : finalValid, score: 1, errors: [], warnings: [], details: {} };
   };
-  v._perfezionamentoAutomatico = () => { refinements++; return { fixed, text: 'Corrected response' }; };
+  v._perfezionamentoAutomatico = (text, issues, language, temporal, cosmeticOnly) => {
+    refinements++;
+    assert.equal(cosmeticOnly, initialValid);
+    return { fixed, text: 'Corrected response' };
+  };
   const result = v.validateResponse('Original response', 'it', '', '', '', 'full', attempt);
-  const refined = !initialValid && attempt && fixed;
-  assert.equal(refinements, Number(!initialValid && attempt));
+  const refined = attempt && fixed;
+  assert.equal(refinements, Number(attempt));
   assert.equal(checksRun, refined ? 2 : 1);
   assert.equal(result.isValid, refined ? finalValid : initialValid);
   assert.equal(result.metadata.wasRefined, refined);

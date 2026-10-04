@@ -5390,24 +5390,25 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       topic.includes('confini parrocchiali') ||
       topic.includes('parrocchia di residenza') ||
       topic.includes('competenza parrocchiale') ||
-      topic.includes('appartenenza')
+      /appartenenza\s+(?:territoriale|parrocchiale)/.test(topic)
     ) return true;
 
     const explicitPatterns = [
-      /\bterritorio\b/i,
+      /\bterritorio\s+(?:parrocchiale|della\s+parrocchia)\b/i,
       /\bparrocchia\s+di\s+residenza\b/i,
       /\brientr[aio]\b[\s\S]{0,60}\b(?:territorio|parrocchia|confini)\b/i,
       /\b(?:territorio|parrocchia|confini)\b[\s\S]{0,60}\brientr[aio]\b/i,
       /\bcompetenza\s+parrocchiale\b/i,
-      /\bquale\s+parrocchia\b/i,
+      /\b(?:a\s+quale\s+parrocchia\s+(?:appartengo|apparteniamo)|quale\s+parrocchia\s+[eè]\s+(?:competente|la\s+mia))\b/i,
       /\bfuori\s+territorio\b/i,
-      /\bcircoscrizione\b/i,
+      /\bcircoscrizione\s+parrocchiale\b/i,
       /\bconfini\s+(?:parrocchiali|della\s+parrocchia|di\s+parrocchia)\b/i,
-      /\bfa\s+parte\b[\s\S]{0,80}\b(?:parrocchia|territorio|confini|zona)\b/i,
-      /\bappartenenza\b/i
+      /\bappartenenza\s+(?:territoriale|parrocchiale)\b/i
     ];
 
-    return explicitPatterns.some((pattern) => pattern.test(text));
+    if (explicitPatterns.some((pattern) => pattern.test(text))) return true;
+    const hasSpatialSignal = /\b(?:via|viale|piazza|indirizzo|zona|residenza|residente|abito|abitiamo|domicilio|civico)\b/i.test(text);
+    return hasSpatialSignal && /\b(?:territorio|appartenenza|circoscrizione|quale\s+parrocchia|fa\s+parte)\b/i.test(text);
   }
 
   _extractQuickCheckTerritoryCandidates_(quickCheck) {

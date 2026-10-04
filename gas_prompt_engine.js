@@ -684,6 +684,8 @@ Vincoli:
         : new Date().toISOString().slice(0, 10)
     );
     const safeMessageDate = temporalContext.messageDate || messageDate || null;
+    // La scadenza della memoria usa un istante, non la mezzanotte della data civile.
+    const focusReferenceTimestamp = temporalContext.processingTimestampIso || new Date().toISOString();
     const safeCurrentTime = temporalContext.currentTime || currentTime || null;
     const safeTemporalContext = Object.freeze(Object.assign({}, temporalContext, {
       currentDate: safeCurrentDate,
@@ -771,17 +773,17 @@ Vincoli:
     let kbCharsLimit;
     if (OVERHEAD_TOKENS >= MAX_SAFE_TOKENS) {
       console.warn(`⚠️ PromptEngine: overhead (${OVERHEAD_TOKENS} token) >= budget totale (${MAX_SAFE_TOKENS}). KB ridotta al minimo operativo.`);
-      kbCharsLimit = 1500 * 4;
+      kbCharsLimit = Math.floor(1500 * 3.2);
     } else {
       const ocrTokens = this.estimateTokens(workingAttachmentsContext || '');
       const availableForKB = Math.max(1500, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - ocrTokens) * KB_BUDGET_RATIO));
-      kbCharsLimit = Math.round(availableForKB * 4);
+      kbCharsLimit = Math.floor(availableForKB * 3.2);
     }
-    // Il budget KB in token*4 può superare il tetto caratteri dell'intero prompt
-    // (con CONFIG reale: ~170k vs 100k). Senza questo clamp la KB non viene
+    // Il budget KB in token*3.2 può superare il tetto caratteri dell'intero prompt
+    // nelle configurazioni con budget token elevato. Senza questo clamp la KB non viene
     // troncata e addSection la scarta in blocco, oppure consuma il budget e fa
     // saltare le sezioni di sistema non forzate (checklist, reminder anti-leak).
-    kbCharsLimit = Math.min(kbCharsLimit, Math.max(1500 * 4, Math.floor(MAX_SAFE_PROMPT_CHARS * KB_BUDGET_RATIO)));
+    kbCharsLimit = Math.min(kbCharsLimit, Math.max(Math.floor(1500 * 3.2), Math.floor(MAX_SAFE_PROMPT_CHARS * KB_BUDGET_RATIO)));
 
     const aiCoreLiteText = this._normalizePromptTextInput(aiCoreLite, '');
     const aiCoreText = this._normalizePromptTextInput(aiCore, '');
@@ -901,7 +903,7 @@ Vincoli:
 
       const reducedOcrTokens = this.estimateTokens(workingAttachmentsContext || '');
       const revisedKbCharsLimit = Math.round(
-        Math.max(1500, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - reducedOcrTokens) * KB_BUDGET_RATIO)) * 4
+        Math.max(1500, ((MAX_SAFE_TOKENS - OVERHEAD_TOKENS - reducedOcrTokens) * KB_BUDGET_RATIO)) * 3.2
       );
       const revisedRawEffectiveKbCharsLimit = revisedKbCharsLimit - aiCoreLiteSectionOverhead - kbSectionOverhead;
       const revisedEffectiveKbCharsLimit = Math.max(500, revisedRawEffectiveKbCharsLimit);
@@ -1063,7 +1065,7 @@ Vincoli:
       goalContinuity &&
       String((typeof goalContinuity === 'object' ? goalContinuity.value : goalContinuity) || 'none').trim().toLowerCase() !== 'none'
     );
-    const hasResponseFocusHintSignal = isResponseFocusApplicable_(this._extractConversationState_(memoryContext), topic, safeCurrentDate);
+    const hasResponseFocusHintSignal = isResponseFocusApplicable_(this._extractConversationState_(memoryContext), topic, focusReferenceTimestamp);
     const processorResponseStrategyInferenceBlocked =
       responseStrategyInferenceBlocked === true
         ? true
@@ -1129,7 +1131,7 @@ Vincoli:
       addSection(this._renderUserOverloadGuidance(normalizedConcerns), 'UserOverloadGuidance', { isSystem: true });
     }
     addSection(
-      this._renderResponseFocusHint(memoryContext, topic, safeCurrentDate),
+      this._renderResponseFocusHint(memoryContext, topic, focusReferenceTimestamp),
       'ThreadContinuityFocus',
       { isSystem: true }
     );

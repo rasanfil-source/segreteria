@@ -159,7 +159,10 @@ var TerritoryValidator = class TerritoryValidator {
         // - numeri nel toponimo (es. "24 Maggio")
         const streetNameToken = `[a-zA-Z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF'.-]{1,50}`;
         const streetName = `${streetNameToken}(?:\\s+${streetNameToken}){0,5}?`;
-        const civic = `\\d{1,4}(?:[a-zA-Z]{1,3}|[/-]\\s*[a-zA-Z]{1,3}|\\s+(?![eE]\\b)[a-zA-Z]{1,3})?|snc`;
+        // I suffissi separati da spazio devono essere autonomi; a/e seguite da
+        // testo sono preposizioni/congiunzioni, non estensioni del civico.
+        const spacedSuffix = `\\s+(?:bis\\b|ter\\b|(?![ae]\\b\\s+[^,;.!?\\s])[a-z]\\b)`;
+        const civic = `\\d{1,4}(?:[a-zA-Z]{1,3}|[/-]\\s*[a-zA-Z]{1,3}|${spacedSuffix})?|snc`;
         return [
             // Pattern 1: "via Rossi 10" o "Via: Rossi 10" - Supporto alfanumerico esteso e SNC
             new RegExp(`\\b(${streetType})(?:\\s*:\\s*|\\s+)(${streetName})\\s{0,3}(?:,|\\.|\\-|numero|civico|n\\.?|n[°º])?\\s{0,3}(${civic})\\b`, 'gi'),

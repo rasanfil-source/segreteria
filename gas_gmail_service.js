@@ -2865,10 +2865,27 @@ var GmailService = class GmailService {
     _htmlToPlainText(html) {
         if (!html) return '';
 
-        // Troncamento preventivo: evita timeout V8 su HTML anomalo/massivo durante replace regex.
-        let text = html.length > 50000 ? html.substring(0, 50000) : html;
-        // Rimuove blocchi di codice/stile che altrimenti finirebbero nel prompt testuale.
-        text = text.replace(/<(style|script)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, '');
+        // Salta CSS/script prima del limite: scansione lineare, output limitato.
+        // Un grosso foglio di stile iniziale non deve nascondere il corpo email.
+        const limit = 50000;
+        const blockStart = /<(style|script)\b[^>]*>/gi;
+        const chunks = [];
+        let cursor = 0;
+        let remaining = limit;
+        let block;
+        while (remaining > 0 && (block = blockStart.exec(html)) !== null) {
+            const chunk = html.slice(cursor, Math.min(block.index, cursor + remaining));
+            chunks.push(chunk);
+            remaining -= chunk.length;
+            if (remaining === 0) break;
+            const blockEnd = new RegExp('</' + block[1] + '\\s*>', 'gi');
+            blockEnd.lastIndex = blockStart.lastIndex;
+            const closing = blockEnd.exec(html);
+            cursor = closing ? blockEnd.lastIndex : html.length;
+            blockStart.lastIndex = cursor;
+        }
+        if (remaining > 0) chunks.push(html.slice(cursor, cursor + remaining));
+        let text = chunks.join('');
         // Preserva separatori strutturali per evitare blocchi di testo illeggibili.
         text = text.replace(/<br\s*\/?\s*>/gi, '\n');
         text = text.replace(/<!doctype\b[^>]*>|<!--[\s\S]*?-->/gi, '');
