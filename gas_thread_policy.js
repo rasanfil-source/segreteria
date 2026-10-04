@@ -417,11 +417,18 @@ var ThreadPolicy = {
     const isReplyPattern = /^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+-\s+)/i;
     const isReplyBySubject = isReplyPattern.test(safeSubject.toLowerCase());
 
-    const classification = deps.classifier.classifyEmail(
+    let classification = deps.classifier.classifyEmail(
       safeSubject,
       safeBody,
       isReplyBySubject
     );
+    // Un saluto o una conferma nel corpo non descrivono il contenuto dei documenti.
+    if (messageDetails.hasAttachments === true && classification.shouldReply === false &&
+        ['empty_email', 'greeting_only', 'ultra_simple_acknowledgment'].includes(classification.reason)) {
+      classification = Object.assign({}, classification, {
+        shouldReply: true, reason: 'attachment_requires_analysis'
+      });
+    }
 
     const classifierDecision = deps._evaluatePreAiRules_(buildRuleContext({
       phase: 'post_extract_pre_ai',
@@ -555,6 +562,12 @@ var ThreadPolicy = {
       return { terminal: true };
     }
 
+    // Il quick check vede soltanto il testo: una decisione negativa valida deve
+    // attendere la lettura dei documenti. Gli errori restano nel percorso di errore.
+    if (!quickCheck.shouldRespond && quickCheck.reason !== 'quick_check_failed' &&
+        messageDetails.hasAttachments === true) {
+      quickCheck = Object.assign({}, quickCheck, { shouldRespond: true, reason: 'attachment_requires_analysis' });
+    }
     if (!quickCheck.shouldRespond) {
       console.log(`   ⊖ Gemini quick check: nessuna risposta necessaria (${quickCheck.reason})`);
       if (quickCheck.reason === 'quick_check_failed') {

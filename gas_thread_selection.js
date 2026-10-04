@@ -370,6 +370,7 @@ var ThreadSelection = {
         const details = (message.getId() === candidateId
           ? messageDetails
           : deps.gmailService.extractMessageDetails(message)) || {};
+        if (details.hasAttachments === true) messageDetails.hasAttachments = true;
         const messageDate = deps._formatBurstMessageDate_(details.date);
         const bodyPart = details && typeof details.body === 'string' && details.body.trim()
           ? details.body.trim()

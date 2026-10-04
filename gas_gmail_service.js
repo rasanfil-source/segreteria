@@ -3561,6 +3561,15 @@ var GmailService = class GmailService {
         // reply() usa il Reply-To originale: verificare il destinatario effettivo
         // anche quando l'API con To esplicito non è disponibile o rifiuta l'invio.
         this._assertNativeReplyRecipient_(mailEntity, messageDetails.senderEmail);
+        const guardNativeSend = (operation) => {
+            try {
+                this._incrementGmailCallCounterOrThrow_(operation);
+            } catch (error) {
+                // I tentativi precedenti, se presenti, sono falliti con esito certo.
+                error.sendNotAttempted = true;
+                throw error;
+            }
+        };
         try {
             // Corpo minimo non vuoto per massimizzare compatibilità nel fallback nativo.
             const fallbackBody = plainText || this._stripHtmlTags(finalResponse) || 'Visualizza il contenuto HTML.';
@@ -3568,17 +3577,21 @@ var GmailService = class GmailService {
             if (stableFrom && stableFromIsAlias) {
                 fallbackOptions.from = stableFrom;
             }
+            guardNativeSend('gmailapp.reply:html');
             mailEntity.reply(fallbackBody, fallbackOptions);
             console.log(`✓ Risposta HTML inviata a ${messageDetails.senderEmail} (metodo alternativo nativo)`);
         } catch (error) {
+            if (error.sendNotAttempted === true) throw error;
             console.error(`❌ Risposta fallita: ${error.message}`);
             if (isAmbiguousSendError(error)) {
                 throw ambiguousSendError('esito invio GmailApp ambiguo: ulteriori fallback bloccati', error);
             }
             try {
+                guardNativeSend('gmailapp.reply:plain');
                 mailEntity.reply(plainText || this._stripHtmlTags(finalResponse));
                 console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (alternativa)`);
             } catch (fallbackError) {
+                if (fallbackError.sendNotAttempted === true) throw fallbackError;
                 if (isAmbiguousSendError(fallbackError)) {
                     throw ambiguousSendError('Esito fallback plain text ambiguo: fallback thread bloccato', fallbackError);
                 }
@@ -3590,12 +3603,14 @@ var GmailService = class GmailService {
                         : null;
                     if (threadEntity && typeof threadEntity.reply === 'function') {
                         this._assertNativeReplyRecipient_(threadEntity, messageDetails.senderEmail);
+                        guardNativeSend('gmailapp.reply:thread');
                         threadSendAttempted = true;
                         threadEntity.reply(plainText || this._stripHtmlTags(finalResponse));
                         console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (fallback thread-level)`);
                         return;
                     }
                 } catch (e) {
+                    if (e.sendNotAttempted === true) throw e;
                     if (threadSendAttempted && isAmbiguousSendError(e)) {
                         throw ambiguousSendError('esito fallback thread ambiguo', e);
                     }

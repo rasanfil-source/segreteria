@@ -84,8 +84,10 @@ var ThreadDelivery = {
       if (!delivery.confirmed) {
         console.error(`   🛑 Errore invio Gmail: ${errorMessage}`);
 
-        // Errori transienti: lascia il messaggio eleggibile per retry automatico.
-        if (!classifiedSendError.retryable) {
+        const isSystemic = ['SYSTEM_ERROR', 'CONFIG_ERROR', 'INVALID_API_KEY'].includes(classifiedSendError.type) ||
+          /\b(401|403|404)\b/.test(errorMessage);
+        // Guasti di configurazione/permessi non sono errori del singolo messaggio.
+        if (!classifiedSendError.retryable && !isSystemic) {
           try {
             messageState.markFailureForCurrentBurst('error');
           } catch (markError) {
@@ -94,13 +96,13 @@ var ThreadDelivery = {
         } else if (ambiguousSendOutcome) {
           console.warn('   ⚠️ Esito invio incerto: invio bloccato in attesa di revisione umana');
         } else {
-          console.warn(`   ↻ Errore invio retryable (${classifiedSendError.type}) - nessuna marcatura permanente`);
+          console.warn(`   ↻ Errore invio retryable o sistemico (${classifiedSendError.type}) - nessuna marcatura permanente`);
         }
 
         result.status = ambiguousSendOutcome ? 'validation_failed' : 'error';
         if (ambiguousSendOutcome) result.validationFailed = true;
         result.error = `gmail_send_failed: ${errorMessage}`;
-        result.errorClass = classifiedSendError.type;
+        result.errorClass = isSystemic ? 'SYSTEM_ERROR' : classifiedSendError.type;
         return { terminal: true };
       }
     }
