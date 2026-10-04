@@ -4237,8 +4237,9 @@ ${safeAiCoreLiteText}
    * @returns {string} KB troncata
    */
   _truncateKbSemantically(kbContent, charLimit) {
-    const budgetChars = Math.max(1, Number(charLimit) || 0);
-    const truncationMarker = '\n\n... [SEZIONI OMESSE PER LIMITI LUNGHEZZA - INFO PRINCIPALI PRESERVATE] ...\n\n';
+    const budgetChars = Math.max(0, Math.floor(Number(charLimit) || 0));
+    if (budgetChars === 0) return '';
+    let truncationMarker = '\n\n... [SEZIONI OMESSE PER LIMITI LUNGHEZZA - INFO PRINCIPALI PRESERVATE] ...\n\n';
 
     if (kbContent.length <= budgetChars) {
       return kbContent;
@@ -4261,14 +4262,26 @@ ${safeAiCoreLiteText}
         if (result.length > 0) {
           break;
         }
-        // An overlong factual row cannot be presented as an intact fact.
-        break;
+        // Cerca una riga completa successiva prima di ricorrere a testo parziale.
+        continue;
       }
 
       result.push(trimmedPara);
       currentLength += separatorLength + trimmedPara.length;
     }
 
+    if (result.length === 0) {
+      const firstParagraph = paragraphs.find(para => para.trim());
+      // Le righe tabellari contengono vincoli collegati: non spezzarle a metà.
+      if (firstParagraph && !firstParagraph.includes('|') && contentLimit > 1) {
+        const chunk = firstParagraph.trim().slice(0, contentLimit);
+        const boundary = Math.max(chunk.lastIndexOf('. '), chunk.lastIndexOf('; '), chunk.lastIndexOf('! '), chunk.lastIndexOf('? '));
+        const lastSpace = chunk.lastIndexOf(' ');
+        result.push(boundary > 0 ? chunk.slice(0, boundary + 1)
+          : lastSpace > contentLimit * 0.8 ? chunk.slice(0, lastSpace) : chunk);
+        truncationMarker = '\n\n... [SEZIONI OMESSE: TESTO PARZIALE, NON INFERIRE DATI MANCANTI] ...\n\n';
+      }
+    }
     const truncatedContent = result.join('\n\n').slice(0, contentLimit);
 
     const originalParagraphs = paragraphs.filter(p => p.trim()).length;

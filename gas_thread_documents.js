@@ -442,6 +442,13 @@ var ThreadDocuments = {
       // inventare richieste operative non presenti.
       let directiveText = '';
       let prefixMsg = '';
+      const expectedDocumentLabel = String(
+        (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
+        (quickAttachmentIntent && quickAttachmentIntent.expected_attachment_description) || ''
+      ).trim();
+      const expectedDocOrReason = expectedDocumentLabel
+        ? `${expectedDocumentLabel}${effectiveDocumentMismatchReason ? ` (${effectiveDocumentMismatchReason})` : ''}`
+        : (effectiveDocumentMismatchReason || 'non specificato');
 
       const inspectionSkippedForSize = effectiveDocumentMismatchReason === 'attachment_inspection_skipped_for_size';
       if (hasDocumentDeliveryUnverified && inspectionSkippedForSize) {
@@ -476,14 +483,14 @@ var ThreadDocuments = {
         const questionPriority = hasDocumentDeliveryUnverified
           ? "Senza imporre un avviso preliminare, rispondi comunque in modo completo e operativo alla richiesta contenuta nell'email, usando il testo del messaggio e il resto del contesto disponibile."
           : "Subito dopo l'avviso, rispondi comunque in modo completo e operativo alla richiesta contenuta nell'email, usando il testo del messaggio e il resto del contesto disponibile.";
-        injectedMismatchDirective = `${prefixMsg} ${directiveText} Documento atteso/motivo: ${effectiveDocumentMismatchReason}. ${questionPriority}`;
+        injectedMismatchDirective = `${prefixMsg} ${directiveText} Documento atteso/motivo: ${expectedDocOrReason}. ${questionPriority}`;
       } else {
         const receiptInstruction = inspectionSkippedForSize
           ? 'Per una consegna senza domande, conferma solo il messaggio, senza confermare la ricezione del documento.'
           : hasDocumentDeliveryUnverified
           ? 'Per una consegna senza domande, conferma la ricezione senza richiedere reinvio per la sola incertezza di classificazione.'
           : 'Per una consegna senza domande, usa solo questo avviso e il saluto istituzionale.';
-        injectedMismatchDirective = `${prefixMsg} ${directiveText} Documento atteso/motivo: ${effectiveDocumentMismatchReason}. ${receiptInstruction}`;
+        injectedMismatchDirective = `${prefixMsg} ${directiveText} Documento atteso/motivo: ${expectedDocOrReason}. ${receiptInstruction}`;
       }
       systemDirectives.unshift(injectedMismatchDirective);
     } else if (hasRiskyUnknownReceived) {

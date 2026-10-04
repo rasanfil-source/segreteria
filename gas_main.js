@@ -768,13 +768,13 @@ function _loadResourcesInternal(knownSheetModifiedAt, forceReload = false) {
   // Hardening: evita crash se CONFIG non è ancora inizializzato (ordine file GAS)
   // Nota manutenzione: questo caricamento risorse deve avere priorità su processUnreadEmails
   // per assicurare che KB e Dottrina siano disponibili.
-  const cfg = (typeof CONFIG !== 'undefined' && CONFIG) ? CONFIG : {
+  const cfg = Object.assign({
     KB_SHEET_NAME: 'Istruzioni',
     AI_CORE_LITE_SHEET: 'AI_CORE_LITE',
     AI_CORE_SHEET: 'AI_CORE',
     DOCTRINE_SHEET: 'Dottrina',
     REPLACEMENTS_SHEET_NAME: 'Sostituzioni'
-  };
+  }, (typeof CONFIG !== 'undefined' && CONFIG) ? CONFIG : {});
 
   const newCacheData = {
     knowledgeBase: '',

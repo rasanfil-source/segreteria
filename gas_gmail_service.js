@@ -247,6 +247,7 @@ var GmailService = class GmailService {
      */
     getOrCreateLabel(labelName) {
         this._ensureLabelCache_();
+        const gmailApp = this._gmailApp || (typeof GmailApp !== 'undefined' ? GmailApp : null);
         const cacheKey = this._getLabelCacheKey_(labelName);
         const cachedEntry = this._labelCache.get(labelName);
         const now = Date.now();
@@ -265,8 +266,8 @@ var GmailService = class GmailService {
                 console.warn(`⚠️ CacheService.get fallito per label '${labelName}': ${e.message}`);
             }
         }
-        if (cachedExists) {
-            const label = GmailApp.getUserLabelByName(labelName);
+        if (cachedExists && gmailApp && typeof gmailApp.getUserLabelByName === 'function') {
+            const label = gmailApp.getUserLabelByName(labelName);
             if (label) {
                 this._labelCache.set(labelName, { ...(this._labelCache.get(labelName) || {}), label: label, ts: now });
                 console.log(`📦 Label '${labelName}' trovata in cache persistente`);
@@ -279,7 +280,10 @@ var GmailService = class GmailService {
             }
         }
 
-        const labels = GmailApp.getUserLabels();
+        const labels = gmailApp && typeof gmailApp.getUserLabels === 'function'
+            ? (gmailApp.getUserLabels() || [])
+            : (gmailApp && typeof gmailApp.getUserLabelByName === 'function'
+                ? [gmailApp.getUserLabelByName(labelName)].filter(Boolean) : []);
         for (const label of labels) {
             if (label.getName() === labelName) {
                 this._labelCache.set(labelName, { ...(this._labelCache.get(labelName) || {}), label: label, ts: now });
@@ -294,12 +298,16 @@ var GmailService = class GmailService {
         }
 
         let newLabel;
+        if (!gmailApp || typeof gmailApp.createLabel !== 'function') {
+            throw new Error('CONFIG_ERROR: GmailApp non disponibile per creare etichette');
+        }
         try {
-            newLabel = GmailApp.createLabel(labelName);
+            newLabel = gmailApp.createLabel(labelName);
         } catch (e) {
             // Possibile race condition: un'altra esecuzione parallela ha creato la label
             // dopo il nostro check ma prima della createLabel().
-            const existingLabel = GmailApp.getUserLabelByName(labelName);
+            const existingLabel = typeof gmailApp.getUserLabelByName === 'function'
+                ? gmailApp.getUserLabelByName(labelName) : null;
             if (existingLabel) {
                 this._labelCache.set(labelName, { label: existingLabel, ts: now });
                 if (this._scriptCache) {
@@ -409,8 +417,8 @@ var GmailService = class GmailService {
                 this._clearPersistentLabelCache(labelName);
                 this.clearLabelCache();
                 try {
-                    this._ensureLabelExistsForMessageRetry_(labelName);
-                    const labelIdFromCache = this._getOptionalLabelIdByName(labelName);
+                    const refreshedLabelId = this._ensureLabelExistsForMessageRetry_(labelName);
+                    const labelIdFromCache = refreshedLabelId !== undefined ? refreshedLabelId : this._getOptionalLabelIdByName(labelName);
                     const labelId = labelIdFromCache || null;
                     if (!labelId) throw new Error("Label ID non trovato tramite API Avanzata");
                     this._incrementGmailCallCounterOrThrow_('messages.modify:addLabel:retry');
@@ -455,8 +463,8 @@ var GmailService = class GmailService {
                 this._clearPersistentLabelCache(labelName);
                 this.clearLabelCache();
                 try {
-                    this._ensureLabelExistsForMessageRetry_(labelName);
-                    const retryLabelId = this._getOptionalLabelIdByName(labelName);
+                    const refreshedLabelId = this._ensureLabelExistsForMessageRetry_(labelName);
+                    const retryLabelId = refreshedLabelId !== undefined ? refreshedLabelId : this._getOptionalLabelIdByName(labelName);
                     if (!retryLabelId) throw new Error('Label ID non trovato tramite API Avanzata');
                     this._incrementGmailCallCounterOrThrow_('messages.modify:removeLabel:retry');
                     const retryPayload = { removeLabelIds: [retryLabelId] };
@@ -476,8 +484,16 @@ var GmailService = class GmailService {
     _ensureLabelExistsForMessageRetry_(labelName) {
         if (!labelName || typeof this.getOrCreateLabel !== 'function') return;
         try {
-            this.getOrCreateLabel(labelName);
+            const gmailApp = this._gmailApp || (typeof GmailApp !== 'undefined' ? GmailApp : null);
+            if (gmailApp && (typeof gmailApp.getUserLabels === 'function' ||
+                typeof gmailApp.getUserLabelByName === 'function')) {
+                this.getOrCreateLabel(labelName);
+            } else {
+                // Riutilizza cache Map e contatore API; non spaccia un oggetto API per GmailLabel.
+                return this._getOptionalLabelIdByName(labelName);
+            }
         } catch (e) {
+            if (/GMAIL_DAILY_CALL_LIMIT_REACHED|GMAIL_COUNTER_LOCK_NOT_ACQUIRED_RETRYABLE/.test(String(e.message || e))) throw e;
             console.warn(`⚠️ Riallineamento label '${labelName}' prima del retry fallito: ${e.message}`);
         }
     }

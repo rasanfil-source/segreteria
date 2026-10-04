@@ -1,5 +1,5 @@
 # Ignora file git
-.git/
+.git/**
 .gitignore
 
 # Ignora la configurazione sanitizzata (su GAS usiamo quella vera)
@@ -11,8 +11,8 @@ gas_config_esemple.js
 
 ID dei due progetti.txt
 # Cartelle da ignorare
-2. Evoluzione/
-docs/
+2. Evoluzione/**
+docs/**
 node_modules/**
 .github/**
 .agent/**
@@ -27,4 +27,4 @@ outputs/**
 *.html
 !appsscript.json
 **/tests/**
-maintenance/**/*
+maintenance/**

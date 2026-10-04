@@ -3192,8 +3192,7 @@ var EmailProcessor = class EmailProcessor {
     const targetDateFallbackReason = requestedDateInfo.isExplicit && !resolvedRequestDate
       ? 'invalid_requested_date'
       : '';
-    const summerRange = this._extractSummerScheduleRange_(knowledgeBaseText, targetDate.getFullYear()) ||
-      this._getFormulaSummerScheduleRange_(targetDate.getFullYear());
+    const summerRange = this._resolveSummerScheduleRange_(knowledgeBaseText, targetDate.getFullYear());
     const season = this._isDateWithinInclusive_(targetDate, summerRange.start, summerRange.end)
       ? 'estivo'
       : 'invernale';
@@ -3445,6 +3444,17 @@ var EmailProcessor = class EmailProcessor {
     if (pastPattern.test(normalized)) return 'past';
 
     return 'unspecified';
+  }
+
+  _resolveSummerScheduleRange_(knowledgeBaseText, year) {
+    const text = String(knowledgeBaseText || '');
+    const cached = this._summerScheduleCache;
+    if (!cached || cached.text !== text || cached.year !== year) {
+      this._summerScheduleCache = { text, year, value:
+        this._extractSummerScheduleRange_(text, year) || this._getFormulaSummerScheduleRange_(year) };
+    }
+    const value = this._summerScheduleCache.value;
+    return { ...value, start: new Date(value.start.getTime()), end: new Date(value.end.getTime()) };
   }
 
   _extractSummerScheduleRange_(knowledgeBaseText = '', year) {
