@@ -1523,11 +1523,34 @@ var GmailService = class GmailService {
                     if (disposition && /\battachment\b/i.test(String(disposition.value || ''))) return true;
                     return Array.isArray(part.parts) && part.parts.some(partHasAttachment);
                 };
-                if (!payloadMimeType.startsWith('multipart/')) {
+                if (payloadMimeType && !payloadMimeType.startsWith('multipart/')) {
                     hasAttachments = partHasAttachment(payload);
                 } else if (payloadParts) {
                     hasAttachments = payloadParts.some(partHasAttachment);
                 }
+            }
+            if (hasAttachments === null) {
+                // METADATA non espone l'albero MIME. Richiedi solo l'inventario,
+                // senza body/data: anche i file grandi non vengono scaricati.
+                let partFields = 'mimeType,filename,headers';
+                for (let depth = 0; depth < 8; depth++) partFields = `mimeType,filename,headers,parts(${partFields})`;
+                const inventory = this._getMessageMetadataWithResilience(messageId, {
+                    format: 'full', fields: `id,payload(${partFields})`
+                });
+                const inspectPart = part => {
+                    if (!part || typeof part !== 'object') return null;
+                    if (isDecorativeAttachment_(part.filename, part.mimeType)) return false;
+                    if (String(part.filename || '').trim() || (Array.isArray(part.headers) ? part.headers : []).some(header =>
+                        header && String(header.name || '').toLowerCase() === 'content-disposition' &&
+                        /\battachment\b/i.test(String(header.value || '')))) return true;
+                    if (Array.isArray(part.parts)) {
+                        const children = part.parts.map(inspectPart);
+                        return children.includes(true) ? true : children.includes(null) ? null : false;
+                    }
+                    const mime = String(part.mimeType || '').toLowerCase();
+                    return !mime || mime.startsWith('multipart/') || mime === 'message/rfc822' ? null : false;
+                };
+                hasAttachments = inspectPart(inventory && inventory.payload);
             }
             if (rawMessage && rawMessage.payload && rawMessage.payload.headers) {
                 headersFound = true;
@@ -3604,7 +3627,8 @@ var GmailService = class GmailService {
             }
             try {
                 guardNativeSend('gmailapp.reply:plain');
-                mailEntity.reply(plainText || this._stripHtmlTags(finalResponse));
+                const plainOptions = stableFrom && stableFromIsAlias ? { from: stableFrom } : {};
+                mailEntity.reply(plainText || this._stripHtmlTags(finalResponse), plainOptions);
                 console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (alternativa)`);
             } catch (fallbackError) {
                 if (fallbackError.sendNotAttempted === true) throw fallbackError;
@@ -3621,7 +3645,8 @@ var GmailService = class GmailService {
                         this._assertNativeReplyRecipient_(threadEntity, messageDetails.senderEmail);
                         guardNativeSend('gmailapp.reply:thread');
                         threadSendAttempted = true;
-                        threadEntity.reply(plainText || this._stripHtmlTags(finalResponse));
+                        const plainOptions = stableFrom && stableFromIsAlias ? { from: stableFrom } : {};
+                        threadEntity.reply(plainText || this._stripHtmlTags(finalResponse), plainOptions);
                         console.log(`✓ Risposta plain text inviata a ${messageDetails.senderEmail} (fallback thread-level)`);
                         return;
                     }

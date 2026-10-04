@@ -48,9 +48,16 @@ var ThreadValidation = {
         : 0;
 
       let retryCount = 0;
-      while (!validation.isValid && retryEnabled && retryCount < maxRetries && !deps._isNearDeadline(deps.config.maxExecutionTimeMs)) {
+      const deferCorrection = () => {
+        result.status = 'dilata';
+        result.reason = 'near_deadline_before_correction';
+        result.retryDelayMs = 60000;
+        return { terminal: true };
+      };
+      while (!validation.isValid && retryEnabled && retryCount < maxRetries) {
         const shouldRetry = deps._shouldAttemptIntelligentRetry(validation, detectedLanguage, retryConfig);
         if (!shouldRetry) break;
+        if (deps._isNearDeadline(deps.config.maxExecutionTimeMs)) return deferCorrection();
 
         retryAttempted = true;
         retryCount++;
@@ -77,6 +84,7 @@ var ThreadValidation = {
         const regenerateData = ThreadValidation.regenerate(deps, {
           retryInfrastructureFailure, retryPermanentApiFailure, retryPlans, retryPayload, attachmentBlobs
         });
+        if (regenerateData.deadlineReached) return deferCorrection();
         let { retryResponse } = regenerateData;
         ({ retryInfrastructureFailure, retryPermanentApiFailure } = regenerateData);
         if (!retryResponse) break;
@@ -259,7 +267,7 @@ var ThreadValidation = {
       const currentRetryPlan = retryPlans[retryPlanIndex];
       if (deps._isNearDeadline(deps.config.maxExecutionTimeMs)) {
         console.warn('   ⏱️ Deadline vicina: interrompo la catena di retry.');
-        break;
+        return { retryResponse: null, retryInfrastructureFailure, retryPermanentApiFailure, deadlineReached: true };
       }
       try {
         console.log(`   ↻ Correzione con modello: ${currentRetryPlan.model || 'default'}`);
@@ -282,6 +290,8 @@ var ThreadValidation = {
       } catch (retryError) {
         const retryErrorClass = deps._classifyError(retryError);
         const isTransientRetryError = retryErrorClass.retryable === true || retryError.isTransient === true;
+        const canUseAlternative = retryErrorClass.type === 'INVALID_API_KEY' ||
+          /\b(401|403|404)\b/.test(String(retryError.message || retryError));
         console.warn(`⚠️ Retry fallito per errore API: ${retryError.message} [${retryErrorClass.type}]`);
         if (isTransientRetryError) {
           retryInfrastructureFailure = { error: retryError, classification: retryErrorClass };
@@ -293,6 +303,7 @@ var ThreadValidation = {
         } else {
           retryInfrastructureFailure = null;
           retryPermanentApiFailure = { error: retryError, classification: retryErrorClass };
+          if (canUseAlternative && retryPlanIndex < retryPlans.length - 1) continue;
         }
         break;
       }

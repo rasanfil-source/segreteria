@@ -423,7 +423,7 @@ var ThreadPolicy = {
       isReplyBySubject
     );
     // Un saluto o una conferma nel corpo non descrivono il contenuto dei documenti.
-    if (messageDetails.hasAttachments === true && classification.shouldReply === false &&
+    if ((messageDetails.hasAttachments === true || messageDetails.hasAttachments === null) && classification.shouldReply === false &&
         ['empty_email', 'greeting_only', 'ultra_simple_acknowledgment'].includes(classification.reason)) {
       classification = Object.assign({}, classification, {
         shouldReply: true, reason: 'attachment_requires_analysis'
@@ -565,7 +565,7 @@ var ThreadPolicy = {
     // Il quick check vede soltanto il testo: una decisione negativa valida deve
     // attendere la lettura dei documenti. Gli errori restano nel percorso di errore.
     if (!quickCheck.shouldRespond && quickCheck.reason !== 'quick_check_failed' &&
-        messageDetails.hasAttachments === true) {
+        (messageDetails.hasAttachments === true || messageDetails.hasAttachments === null)) {
       quickCheck = Object.assign({}, quickCheck, { shouldRespond: true, reason: 'attachment_requires_analysis' });
     }
     if (!quickCheck.shouldRespond) {

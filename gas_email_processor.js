@@ -3476,20 +3476,23 @@ var EmailProcessor = class EmailProcessor {
   _parseItalianDateRange_(text, year, options = {}) {
     const monthMap = this._getItalianMonthMap_();
     const monthNames = Object.keys(monthMap).join('|');
-    const pattern = new RegExp(`\\b(?:dall['’]?|dal|da)\\s*(\\d{1,2})[°º]?\\s+(${monthNames})(?:\\s+\\d{4})?\\s+(?:fino\\s+)?(?:all['’]?|al|a)\\s*(\\d{1,2})[°º]?\\s+(${monthNames})(?:\\s+\\d{4})?\\b`, 'gi');
+    const pattern = new RegExp(`\\b(?:dall['’]?|dal|da)\\s*(\\d{1,2})[°º]?\\s+(${monthNames})(?:\\s+(\\d{4}))?\\s+(?:fino\\s+)?(?:all['’]?|al|a)\\s*(\\d{1,2})[°º]?\\s+(${monthNames})(?:\\s+(\\d{4}))?\\b`, 'gi');
     let match;
     while ((match = pattern.exec(String(text || '').toLowerCase())) !== null) {
       const startMonth = monthMap[match[2]];
-      const endMonth = monthMap[match[4]];
+      const endMonth = monthMap[match[5]];
       if (options.preferSummerMonths && (startMonth < 5 || startMonth > 8 || endMonth < startMonth || endMonth > 9)) continue;
-      const start = this._makeValidDateOnly_(year, startMonth, parseInt(match[1], 10));
-      const endYear = endMonth < startMonth ? year + 1 : year;
-      const end = this._makeValidDateOnly_(endYear, endMonth, parseInt(match[3], 10));
+      const crossesYear = endMonth < startMonth;
+      const startYear = match[3] ? Number(match[3]) : match[6] ? Number(match[6]) - (crossesYear ? 1 : 0) : Number(year);
+      const endYear = match[6] ? Number(match[6]) : startYear + (crossesYear ? 1 : 0);
+      if (options.preferSummerMonths && (startYear !== Number(year) || endYear !== Number(year))) continue;
+      const start = this._makeValidDateOnly_(startYear, startMonth, parseInt(match[1], 10));
+      const end = this._makeValidDateOnly_(endYear, endMonth, parseInt(match[4], 10));
       if (!start || !end || this._dateOnlyEpochDay_(end) < this._dateOnlyEpochDay_(start)) continue;
       return {
         start: start,
         end: end,
-        text: `Dal ${parseInt(match[1], 10)} ${match[2]} al ${parseInt(match[3], 10)} ${match[4]}`,
+        text: `Dal ${parseInt(match[1], 10)} ${match[2]}${match[3] ? ` ${startYear}` : ''} al ${parseInt(match[4], 10)} ${match[5]}${match[6] ? ` ${endYear}` : ''}`,
         source: 'knowledge_base'
       };
     }
