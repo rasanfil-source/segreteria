@@ -84,6 +84,17 @@ function runScenario(root, scenario = {}, instrumentation = {}) {
   if (scenario.lookBack) {
     const past = makeMessage('past', 'Documento inviato', -86400000, 'user@example.org', true);
     past.isUnread = () => false;
+    if (scenario.historicalAttachmentError) {
+      const readAttachments = past.getAttachments;
+      let failed = false;
+      past.getAttachments = (...args) => {
+        if (!failed || !scenario.historicalAttachmentRecovers) {
+          failed = true;
+          throw new Error(scenario.historicalAttachmentError);
+        }
+        return readAttachments(...args);
+      };
+    }
     messages.unshift(past);
   }
   if (scenario.reverse) messages.reverse();
@@ -192,6 +203,7 @@ function runScenario(root, scenario = {}, instrumentation = {}) {
   let repeatResult;
   if (scenario.repeat) {
     record('second.processing');
+    if (scenario.historicalAttachmentRecovers) cache.delete('sender_throttle_user@example.org');
     repeatResult = processor.processThread(thread, 'Catechismo: iscrizioni in segreteria.', 'Dottrina', labeled, false, skipped);
   }
   const restored = Object.entries(services).every(([key, value]) => value.logger === originals[key]);

@@ -68,10 +68,25 @@ var ThreadAttachments = {
         // e SOLO se quel messaggio precedente non è nostro. Nessuna scansione profonda del
         // thread: un solo salto indietro, ancorato semanticamente, per evitare di ripescare
         // allegati di mesi prima non più pertinenti al messaggio corrente.
-        const lookBackData = ThreadAttachments.lookBack(deps, {
-          messageDetails, hasAttachments, attachmentPreCheckFailed, messages, candidate, ownAddresses,
-          attachmentSourceMessages, attachmentSkipped, maxAttachmentMessageBytes, threadLogger
-        });
+        let lookBackData;
+        try {
+          lookBackData = ThreadAttachments.lookBack(deps, {
+            messageDetails, hasAttachments, attachmentPreCheckFailed, messages, candidate, ownAddresses,
+            attachmentSourceMessages, attachmentSkipped, maxAttachmentMessageBytes, threadLogger
+          });
+        } catch (error) {
+          const classification = deps._classifyError(error);
+          // Conserva la gestione batch di quote, rete e configurazione.
+          if (classification.retryable ||
+              ['SYSTEM_ERROR', 'CONFIG_ERROR', 'INVALID_API_KEY'].includes(classification.type)) throw error;
+          // Il documento storico è richiesto dal testo corrente: rinvia senza
+          // rispondere con contesto incompleto né consumare il nuovo messaggio.
+          threadLogger.warn(`Lettura allegato storico fallita: ${error && error.message ? error.message : String(error)}`);
+          result.status = 'dilata';
+          result.reason = 'historical_attachment_read_failed';
+          result.retryDelayMs = 60000;
+          return { terminal: true };
+        }
         ({ hasAttachments } = lookBackData);
         usedLookbackAttachments = Boolean(lookBackData.usedLookbackAttachments);
         physicalAttachmentsDetected = Boolean(hasAttachments);

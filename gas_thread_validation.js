@@ -162,6 +162,18 @@ var ThreadValidation = {
 
         if (retryPermanentApiFailure) {
           const retryFailure = retryPermanentApiFailure;
+          const errorMessage = String(retryFailure.error && retryFailure.error.message ? retryFailure.error.message : retryFailure.error);
+          const isSystemic = ['SYSTEM_ERROR', 'CONFIG_ERROR', 'INVALID_API_KEY'].includes(retryFailure.classification.type) ||
+            /\b(401|403|404)\b/.test(errorMessage);
+          if (isSystemic) {
+            console.warn('   ↻ Correzione interrotta per errore sistemico: nessuna label terminale applicata.');
+            result.status = 'error';
+            result.reason = 'intelligent_retry_systemic_failure';
+            result.error = errorMessage;
+            result.errorClass = 'SYSTEM_ERROR';
+            result.retryable = false;
+            return { terminal: true };
+          }
           console.warn('   🛑 Correzione interrotta per errore API definitivo: applico la gestione Errore, non Verifica.');
           markFailureForCurrentBurst('error');
           result.status = 'error';

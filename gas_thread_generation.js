@@ -244,10 +244,13 @@ var ThreadGeneration = {
         result.retryable = false;
         return { terminal: true };
       }
-      if (!errorClass.retryable) {
+      const errorMessage = errorToReport ? String(errorToReport.message || errorToReport) : '';
+      const isSystemic = ['SYSTEM_ERROR', 'CONFIG_ERROR', 'INVALID_API_KEY'].includes(errorClass.type) ||
+        /\b(401|403|404)\b/.test(errorMessage);
+      if (!errorClass.retryable && !isSystemic) {
         markFailureForCurrentBurst('error');
       } else {
-        console.warn(`   ↻ Errore generazione retryable (${errorClass.type}) - nessuna marcatura permanente`);
+        console.warn(`   ↻ Errore generazione retryable o sistemico (${errorClass.type}) - nessuna marcatura permanente`);
       }
       result.status = 'error';
       result.error = errorToReport ? String(errorToReport.message || errorToReport) : 'Generation strategies exhausted';
@@ -258,7 +261,7 @@ var ThreadGeneration = {
       if (initialError && generationError && initialError !== generationError) {
         result.error += ` (Ultimo fallback: ${String(generationError.message || generationError)})`;
       }
-      result.errorClass = errorClass.type;
+      result.errorClass = isSystemic ? 'SYSTEM_ERROR' : errorClass.type;
       return { terminal: true };
     }
 

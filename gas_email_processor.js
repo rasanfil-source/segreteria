@@ -960,6 +960,7 @@ var EmailProcessor = class EmailProcessor {
         responseContextMessages: messageState.responseContextMessages, candidate: messageState.candidate, threadLogger,
         messages, result
       });
+      if (attachments.terminal) return result;
       const documents = ThreadDocuments.interpret(documentsServices, {
         ...message, ...classified, ...analysis, ...documentCategory, ...attachments,
         requestType
@@ -1143,6 +1144,7 @@ var EmailProcessor = class EmailProcessor {
   /** Dipendenze specifiche di ThreadAttachments, risolte a ogni chiamata per rispettare le personalizzazioni. */
   _threadAttachmentsServices_() {
     return {
+      _classifyError: this._classifyError.bind(this),
       _hasPastAttachmentReference_: this._hasPastAttachmentReference_.bind(this),
       _isNearDeadline: this._isNearDeadline.bind(this),
       config: this.config,
