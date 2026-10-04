@@ -1578,7 +1578,17 @@ var EmailProcessor = class EmailProcessor {
           break;
         }
 
-        if (!this._hasUnreadMessagesToProcess(thread, labeledMessageIds, skippedMessageIds)) {
+        let hasUnread;
+        try {
+          hasUnread = this._hasUnreadMessagesToProcess(thread, labeledMessageIds, skippedMessageIds);
+        } catch (precheckError) {
+          const quota = this._isGmailDailyQuotaError_(precheckError && precheckError.message);
+          runLogger.warn(`Pre-check Gmail interrotto: ${precheckError.message}. Conservo i thread pendenti.`);
+          stats.errors += quota ? 0 : 1;
+          deferBatchCheckpoint(threads, index, quota ? -1 : 60000);
+          break;
+        }
+        if (!hasUnread) {
           runLogger.info(`Thread ${index + 1}/${threads.length} - Skip: già etichettato IA`);
           stats.total++;
           stats.skipped++;
@@ -2024,8 +2034,9 @@ var EmailProcessor = class EmailProcessor {
       const isExactMatch = email === domain;
       const isConfiguredUsername = !domain.includes('@') && !domain.includes('.') &&
         BOT_USERNAMES.has(domain) && localPart === domain;
-      const isDomainMatch = (domain.startsWith('@') || !domain.includes('@')) && senderDomain === blacklistDomain;
-      const isSubdomainMatch = !domain.startsWith('@') && !domain.includes('@') &&
+      const isDomainPattern = (domain.startsWith('@') || !domain.includes('@')) && blacklistDomain.includes('.');
+      const isDomainMatch = isDomainPattern && senderDomain === blacklistDomain;
+      const isSubdomainMatch = isDomainPattern &&
         senderDomain.endsWith('.' + blacklistDomain);
       return isExactMatch || isConfiguredUsername || isDomainMatch || isSubdomainMatch;
     })) {
@@ -2756,15 +2767,12 @@ var EmailProcessor = class EmailProcessor {
     let deletionsCount = 0;
     const MAX_DELETIONS_PER_RUN = 20;
 
-    // Retention limitata: almeno sette giorni e mai meno del backup confermato.
-    const uncertainMaxAgeMs = Math.max(this._getSendIdempotencyBackupTtlMs_(), 7 * 24 * 60 * 60 * 1000);
+    // L'età del marker non prova la mancata consegna: elimina l'incertezza
+    // soltanto quando esiste una conferma durevole ancora valida.
     for (const key of Object.keys(allProps)) {
       if (!key.startsWith('send_uncertain_') || deletionsCount >= MAX_DELETIONS_PER_RUN) continue;
       const confirmed = this._parseSendIdempotencyBackupValue_(allProps['sent_backup_' + key.slice('send_uncertain_'.length)]);
-      const uncertainTs = Number(allProps[key]);
-      const isExpiredOrInvalid = !Number.isFinite(uncertainTs) || uncertainTs <= 0 ||
-        (nowTs - uncertainTs) > uncertainMaxAgeMs;
-      if ((confirmed && nowTs <= confirmed.expiresAt) || isExpiredOrInvalid) {
+      if (confirmed && nowTs <= confirmed.expiresAt) {
         try { props.deleteProperty(key); deletionsCount++; } catch (_) { }
       }
     }
@@ -2867,7 +2875,8 @@ var EmailProcessor = class EmailProcessor {
         }
         return { ok: false, reason: 'already_sent' };
       }
-      if (props.getProperty(`send_uncertain_${messageId}`)) {
+      const uncertainMarker = props.getProperty(`send_uncertain_${messageId}`);
+      if (uncertainMarker !== null && typeof uncertainMarker !== 'undefined') {
         if (lockAcquired) {
           try { scriptLock.releaseLock(); } catch (_) { }
         }
@@ -3831,6 +3840,7 @@ var EmailProcessor = class EmailProcessor {
         thread.refresh();
       }
     } catch (refreshError) {
+      if (this._isGmailDailyQuotaError_(refreshError && refreshError.message)) throw refreshError;
       const targetLogger = logger && typeof logger.warn === 'function' ? logger : console;
       const idPart = threadId ? ` ${threadId}` : '';
       targetLogger.warn(`⚠️ Refresh thread${idPart} fallito prima della lettura unread: ${refreshError.message}`);
@@ -3866,7 +3876,9 @@ var EmailProcessor = class EmailProcessor {
         return labelIds.includes('UNREAD');
       } catch (metadataError) {
         targetLogger.warn(`⚠️ Fallback metadata unread fallito: ${metadataError.message}`);
-        return false;
+        // Una lettura fallita non equivale a un messaggio letto: il batch
+        // deve conservare il thread e rinviare senza ulteriori chiamate.
+        throw metadataError;
       }
     });
 
@@ -3917,9 +3929,15 @@ var EmailProcessor = class EmailProcessor {
         : fetchLabeledIds();
 
       const mode = this._getLanguageProcessingMode_();
+      const fetchSkippedIds = () => {
+        if (mode !== 'foreign_only' || !String(this.config.skipLabelName || '').trim() ||
+            !this.gmailService || typeof this.gmailService.getMessageIdsWithLabel !== 'function') return new Set();
+        const ids = this.gmailService.getMessageIdsWithLabel(this.config.skipLabelName, true, { onlyUnread: true });
+        return ids instanceof Set ? ids : new Set(ids || []);
+      };
       const effectiveSkippedIds = (mode === 'foreign_only' && skippedMessageIds instanceof Set)
         ? skippedMessageIds
-        : new Set();
+        : fetchSkippedIds();
 
       return unreadMessages.some(message => {
         const messageId = message.getId();
@@ -3928,9 +3946,8 @@ var EmailProcessor = class EmailProcessor {
         return true;
       });
     } catch (e) {
-      // Fallback sicuro: in caso di errore non bloccare il thread, lasciamo decidere a processThread.
       this.logger.warn(`⚠️ Fast-skip check fallito: ${e.message}`);
-      return true;
+      throw e;
     }
   }
 
@@ -5065,7 +5082,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       .replace(/\b(?:Sig\.ra|Sig\.ri|S|SS|San|Sant|Santa|Don|Padre|Mons|Sig|Dott|Prof|tel|cell|uff|n|civ|int)\./gi,
         abbreviation => abbreviation.replace(/\./g, abbreviationDot))
       .replace(/\b([A-ZÀ-ÖØ-Þ])\.(?=\s+[A-ZÀ-ÖØ-Þ])/g, `$1${abbreviationDot}`);
-    const sentenceMatches = (protectedText.match(/(?:\d[.]\d|[^.!?\n]|(?<=\d)[.](?=\d))+(?:[.!?]+|$)|[^\n]+$/gm) || [])
+    const sentenceMatches = (protectedText.match(/(?:[^.!?\n]|(?<=\d)[.](?=\d))+(?:[.!?]+|$)|[^\n]+$/gm) || [])
       .map(sentence => sentence.replace(/\uE000/g, '.'));
     const candidateSentences = sentenceMatches
       .map(sentence => sentence.replace(/^(?:gentile|caro|cara|buongiorno|buonasera|salve|ciao)\b[^,\n]{0,40},\s*/i, '').trim())
@@ -5078,7 +5095,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       summarySentence = `Risposta con informazioni su: ${providedTopics.join(', ')}.`;
     }
     if (!summarySentence) {
-      summarySentence = plainText.slice(0, 200);
+      summarySentence = plainText.replace(/\s+/g, ' ').trim().slice(0, 200);
     }
 
     // Confronto semantico: controlla il testo privo di data per evitare duplicati giornalieri.
@@ -5127,7 +5144,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       { reason: 'no_longer_identifies', confidence: 0.9, pattern: /\bnon\s+(?:mi\s+)?(?:ritengo|sento)\s+(?:piu|più)\s+(?:cattolic[oa]|cristian[oa])\b/i },
       { reason: 'church_unregister', confidence: 0.92, pattern: /\b(?:cancellarmi|disiscrivermi)\s+dalla\s+chiesa\b/i },
       { reason: 'baptism_renunciation', confidence: 0.94, pattern: /\brinunciare\s+al\s+battesim[oa]\b/i },
-      { reason: 'registry_removal', confidence: 0.94, pattern: /\b(?:togliermi|rimuovermi|essere\s+rimosso)\s+dai\s+registr/i },
+      { reason: 'registry_removal', confidence: 0.94, pattern: /\b(?:togliermi|rimuovermi|essere\s+rimoss[oa])\s+dai\s+registr/i },
       { reason: 'baptism_registry_cancellation', confidence: 0.95, pattern: /\bcancellazion[ea]\b[\s\S]{0,60}\bregistr[oi]\b[\s\S]{0,40}\bbattesim[oa]\b/i },
       { reason: 'registered_catholic_removal', confidence: 0.94, pattern: /\bnon\s+essere\s+(?:piu|più)\s+registrat[oa]\s+come\s+cattolic[oa]\b/i },
       { reason: 'faith_abandonment', confidence: 0.82, pattern: /\b(?:abbandonare\s+la\s+(?:fede|religione)|rinnegare\s+la\s+fede)\b/i }
@@ -5950,10 +5967,16 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       if (!cache && !props) return 0;
 
       const key = "empty_inbox_streak";
-      streak = parseInt((cache ? cache.get(key) : null) || (props ? props.getProperty(key) : null) || "0", 10);
+      const cachedValue = cache ? cache.get(key) : null;
+      const storedValue = props && typeof props.getProperty === 'function' ? props.getProperty(key) : null;
+      const parseStreak = value => {
+        const parsed = Number(value);
+        return value !== null && value !== '' && Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+      };
+      streak = parseStreak(cachedValue) ?? parseStreak(storedValue) ?? 0;
 
       if (isEmpty) {
-        streak++;
+        streak = Math.min(Number.MAX_SAFE_INTEGER, streak + 1);
         if (cache) cache.put(key, streak.toString(), 21600); // 6 ore
         if (props && typeof props.setProperty === 'function' && streak % 10 === 0) props.setProperty(key, streak.toString());
       } else {
@@ -5961,7 +5984,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
         // Usa put a "0" invece di remove() per mantenere semantica idempotente nella lettura dello stato 
         // in polyfill/mock usati in ambienti di test (props.removeProperty non è una funzione)
         if (cache) cache.put(key, "0", 21600);
-        if (props && typeof props.setProperty === 'function') props.setProperty(key, "0");
+        if (props && typeof props.setProperty === 'function' && storedValue !== null && storedValue !== '0') props.setProperty(key, "0");
       }
       return streak;
     } catch (e) {

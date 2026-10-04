@@ -602,7 +602,7 @@ var Classifier = class Classifier {
     const escaped = normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const keywordRegex = new RegExp(`(?:^|[^\\p{L}\\p{N}_])${escaped}(?=$|[^\\p{L}\\p{N}_])`, 'iu');
     if (!keywordRegex.test(textLower)) return false;
-    if (category === 'sbattezzo' && normalizedKeyword === 'uscire dalla chiesa') {
+    if (category === 'sbattezzo' && ['uscire dalla chiesa', 'registri del battesimo'].includes(normalizedKeyword)) {
       return this._isSbattezzoFormalRequest_(textLower);
     }
 
@@ -642,7 +642,7 @@ var Classifier = class Classifier {
 
   _isSbattezzoFormalRequest_(text) {
     const source = String(text || '').toLowerCase();
-    const explicitRequest = /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|\babbandonare\s+la\s+(?:fede|religione)\b|\brinnegare\s+la\s+fede\b|cancellazione\s+(?:dal|dai|dei)\s+registr|registr[oi]\s+del\s+battesim[oa]|cancellarmi\s+dalla\s+chiesa|disiscrivermi\s+dalla\s+chiesa|rinunciare\s+al\s+battesim[oa]|(?:togliermi|rimuovermi|essere\s+rimosso)\s+dai\s+registr|non\s+(?:voglio|desidero)\s+(?:piu|più)\s+essere\s+(?:cattolic[oa]|cristian[oa])|non\s+(?:mi\s+)?(?:ritengo|sento)\s+(?:piu|più)\s+(?:cattolic[oa]|cristian[oa])|non\s+essere\s+(?:piu|più)\s+registrat[oa]\s+come\s+cattolic[oa]/i.test(source);
+    const explicitRequest = /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|\babbandonare\s+la\s+(?:fede|religione)\b|\brinnegare\s+la\s+fede\b|cancellazione\s+(?:dal|dai|dei)\s+registr|cancellarmi\s+dalla\s+chiesa|disiscrivermi\s+dalla\s+chiesa|rinunciare\s+al\s+battesim[oa]|(?:togliermi|rimuovermi|essere\s+rimoss[oa])\s+dai\s+registr|non\s+(?:voglio|desidero)\s+(?:piu|più)\s+essere\s+(?:cattolic[oa]|cristian[oa])|non\s+(?:mi\s+)?(?:ritengo|sento)\s+(?:piu|più)\s+(?:cattolic[oa]|cristian[oa])|non\s+essere\s+(?:piu|più)\s+registrat[oa]\s+come\s+cattolic[oa]/i.test(source);
     if (explicitRequest) return true;
     // Valuta ogni dichiarazione di uscita nel suo contesto, indipendentemente da eventi estranei.
     return source.split(/[.!?;\n]+/).some(clause => {
@@ -731,8 +731,10 @@ var Classifier = class Classifier {
       const match = safeText.match(pattern);
       if (match && match[1]) {
         return match[1]
+          .split(/\s+[-–—]\s+/)[0]
+          .split(/\s+(?:le|gli)\s+(?:ha|aveva|ho|hanno|avevano|sono|siamo)\b/iu)[0]
           // Termina prima dei complementi narrativi e conserva i cognomi composti, come De Luca.
-          .split(/\s+(?:ieri|oggi|domani|stamattina|stasera|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|questa|questo|scorsa|scorso|per|con|che|e|ed|alle|alla|al|sul|sulla|durante|dopo|prima|in|telefonicamente|abbiamo|avevamo|vorrei|vorremmo|chiedo|chiediamo|scrivo|invio|allego|confermo|grazie|saluti|buongiorno|buonasera)(?=$|[^\p{L}\p{N}_])/iu)[0]
+          .split(/\s+(?:ieri|oggi|domani|stamattina|stasera|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|questa|questo|scorsa|scorso|per|con|che|e|ed|ma|per[oò]|perch[eé]|quando|circa|riguardo|relativamente|invece|mi|ci|vi|ha|aveva|sono|siamo|alle|alla|al|sul|sulla|durante|dopo|prima|in|telefonicamente|abbiamo|avevamo|vorrei|vorremmo|chiedo|chiediamo|scrivo|invio|allego|confermo|grazie|saluti|buongiorno|buonasera)(?=$|[^\p{L}\p{N}_])/iu)[0]
           .replace(/\s+/g, ' ')
           .replace(/[.,;:!?]+$/g, '')
           .trim()
@@ -763,7 +765,12 @@ var Classifier = class Classifier {
    * visita, non la categoria primaria della risposta.
    */
   _isOfficeVisitLogisticsRequest(text) {
-    const safeText = String(text || '');
+    // Mantiene le proposte affermative successive ("non posso oggi, ma posso
+    // domani"), rimuovendo il predicato negato con gli avverbi intermedi.
+    const safeText = String(text || '').replace(
+      /\b(?:non|mai|neanche|nemmeno)\s+(?:(?:posso|possiamo|potrei|potremmo|vorrei|vorremmo|riesco|riusciamo)\s+)?(?:(?:proprio|pi[uù]|purtroppo|assolutamente|davvero|neanche|nemmeno|mai|a)\s+)*(?:passare|venire|presentarmi|presentarci|passo|passiamo|vengo|veniamo)\b/gi,
+      ' '
+    );
     return /\b(?:posso|possiamo|potrei|potremmo|vorrei|vorremmo)\s+(?:passare|venire|presentarmi|presentarci)\b/i.test(safeText) ||
       /\b(?:passo|passiamo|vengo|veniamo)\s+(?:oggi|domani|dopodomani|lunedi|lunedì|martedi|martedì|mercoledi|mercoledì|giovedi|giovedì|venerdi|venerdì|sabato|domenica)\b/i.test(safeText) ||
       /\b(?:passare|venire|presentarmi|presentarci)\s+(?:oggi|domani|dopodomani|in\s+segreteria|presso\s+la\s+segreteria)\b/i.test(safeText);

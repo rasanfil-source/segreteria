@@ -634,7 +634,7 @@ console.log('--- Test thread lock: scrive lock logico solo su CacheService ---')
 
   global.PropertiesService = {
     getScriptProperties: () => ({
-      getProperty: (k) => props.get(k) || '',
+      getProperty: (k) => props.has(k) ? props.get(k) : null,
       getProperties: () => Object.fromEntries(props.entries()),
       setProperty: (k, v) => props.set(k, v),
       deleteProperty: (k) => props.delete(k)
@@ -742,7 +742,7 @@ console.log('--- Test thread lock: lockAlreadyCovered salta solo lo ScriptLock m
 
   global.PropertiesService = {
     getScriptProperties: () => ({
-      getProperty: (k) => props.get(k) || '',
+      getProperty: (k) => props.has(k) ? props.get(k) : null,
       setProperty: (k, v) => props.set(k, v),
       deleteProperty: (k) => props.delete(k)
     })
@@ -788,7 +788,7 @@ console.log('--- Test thread lock: skipLock dichiara copertura del chiamante com
 
   global.PropertiesService = {
     getScriptProperties: () => ({
-      getProperty: (k) => props.get(k) || '',
+      getProperty: (k) => props.has(k) ? props.get(k) : null,
       setProperty: (k, v) => props.set(k, v),
       deleteProperty: (k) => props.delete(k)
     })
@@ -841,7 +841,7 @@ console.log('--- Test thread lock: fallisce chiuso se CacheService fallisce ---'
   };
   global.PropertiesService = {
     getScriptProperties: () => ({
-      getProperty: (k) => props.get(k) || '',
+      getProperty: (k) => props.has(k) ? props.get(k) : null,
       setProperty: (k, v) => props.set(k, v),
       deleteProperty: (k) => props.delete(k)
     })
@@ -1162,7 +1162,7 @@ console.log('--- Test processUnreadEmails: lock batch locale propagato a process
 console.log('--- Test _beginSendTransaction: skipLock evita riacquisizione ScriptLock ---');
 const sendProperties = new Map();
 global.PropertiesService = { getScriptProperties: () => ({
-  getProperty: key => sendProperties.get(key) || '',
+  getProperty: key => sendProperties.has(key) ? sendProperties.get(key) : null,
   setProperty: (key, value) => sendProperties.set(key, value),
   deleteProperty: key => sendProperties.delete(key),
   getProperties: () => Object.fromEntries(sendProperties)
@@ -1350,7 +1350,7 @@ console.log('--- Test _beginSendTransaction: backup PropertiesService blocca rei
   const originalPropertiesService = global.PropertiesService;
   global.PropertiesService = {
     getScriptProperties: () => ({
-      getProperty: (k) => props.get(k) || '',
+      getProperty: (k) => props.has(k) ? props.get(k) : null,
       setProperty: (k, v) => props.set(k, v),
       getProperties: () => Object.fromEntries(props),
       deleteProperty: (k) => props.delete(k)
@@ -1388,7 +1388,7 @@ console.log('--- Test _beginSendTransaction: backup PropertiesService scaduto no
   const originalPropertiesService = global.PropertiesService;
   global.PropertiesService = {
     getScriptProperties: () => ({
-      getProperty: (k) => props.get(k) || '',
+      getProperty: (k) => props.has(k) ? props.get(k) : null,
       setProperty: (k, v) => props.set(k, v),
       deleteProperty: (k) => props.delete(k)
     })
@@ -1560,7 +1560,7 @@ function createDuplicateGuardPropertyStore() {
   const store = new Map();
   return {
     store: store,
-    getProperty: (key) => store.get(key) || '',
+    getProperty: (key) => store.has(key) ? store.get(key) : null,
     setProperty: (key, value) => store.set(key, String(value)),
     deleteProperty: (key) => store.delete(key),
     getProperties: () => Object.fromEntries(store.entries())
@@ -6183,7 +6183,7 @@ console.log('--- Test checkpoint payload include version e runId ---');
   global.PropertiesService = {
     getScriptProperties: () => ({
       setProperty: (k, v) => props.set(k, v),
-      getProperty: (k) => props.get(k) || ''
+      getProperty: (k) => props.has(k) ? props.get(k) : null
     })
   };
   global.ScriptApp = {
@@ -6218,7 +6218,7 @@ console.log('--- Test checkpoint trigger: preserva trigger esistenti se create f
   global.PropertiesService = {
     getScriptProperties: () => ({
       setProperty: (k, v) => props.set(k, v),
-      getProperty: (k) => props.get(k) || ''
+      getProperty: (k) => props.has(k) ? props.get(k) : null
     })
   };
   global.ScriptApp = {
@@ -6253,7 +6253,7 @@ console.log('--- Test checkpoint trigger: elimina trigger di ripresa vecchi dopo
   global.PropertiesService = {
     getScriptProperties: () => ({
       setProperty: (k, v) => props.set(k, v),
-      getProperty: (k) => props.get(k) || '',
+      getProperty: (k) => props.has(k) ? props.get(k) : null,
       deleteProperty: (k) => props.delete(k)
     })
   };
@@ -6288,7 +6288,7 @@ console.log('--- Test checkpoint clear: elimina checkpoint e trigger di ripresa 
   const originalScriptApp = global.ScriptApp;
   global.PropertiesService = {
     getScriptProperties: () => ({
-      getProperty: (k) => props.get(k) || '',
+      getProperty: (k) => props.has(k) ? props.get(k) : null,
       deleteProperty: (k) => props.delete(k)
     })
   };
@@ -6316,7 +6316,7 @@ console.log('--- Test checkpoint retryCount: incrementa solo sullo stesso pendin
   global.PropertiesService = {
     getScriptProperties: () => ({
       setProperty: (k, v) => props.set(k, v),
-      getProperty: (k) => props.get(k) || '',
+      getProperty: (k) => props.has(k) ? props.get(k) : null,
       deleteProperty: (k) => props.delete(k)
     })
   };
@@ -6358,7 +6358,7 @@ console.log('--- Test checkpoint retryCount: pendingCount evita falsi same-check
   global.PropertiesService = {
     getScriptProperties: () => ({
       setProperty: (k, v) => props.set(k, v),
-      getProperty: (k) => props.get(k) || '',
+      getProperty: (k) => props.has(k) ? props.get(k) : null,
       deleteProperty: (k) => props.delete(k)
     })
   };
@@ -6476,7 +6476,7 @@ console.log('--- Test processUnreadEmails: dilata salva checkpoint e rispetta MA
   global.PropertiesService = {
     getScriptProperties: () => ({
       setProperty: (k, v) => props.set(k, v),
-      getProperty: (k) => props.get(k) || '',
+      getProperty: (k) => props.has(k) ? props.get(k) : null,
       deleteProperty: (k) => props.delete(k)
     })
   };
@@ -6539,7 +6539,7 @@ console.log('--- Test processUnreadEmails: dilata rispetta retryDelayMs esplicit
   global.PropertiesService = {
     getScriptProperties: () => ({
       setProperty: (k, v) => props.set(k, v),
-      getProperty: (k) => props.get(k) || '',
+      getProperty: (k) => props.has(k) ? props.get(k) : null,
       deleteProperty: (k) => props.delete(k)
     })
   };

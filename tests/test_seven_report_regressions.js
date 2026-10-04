@@ -43,12 +43,13 @@ const values = new Map([
 const props = {getProperties: () => Object.fromEntries(values), deleteProperty: k => values.delete(k),
   getProperty: k => values.get(k), setProperty: (k,v) => values.set(k,v)};
 p._pruneExpiredSendIdempotencyBackups_(props, now);
-assert.equal(values.has('send_uncertain_old'), false);
-assert.equal(values.has('send_uncertain_bad'), false);
+assert.equal(values.has('send_uncertain_old'), true);
+assert.equal(values.has('send_uncertain_bad'), true);
 assert.equal(values.has('send_uncertain_confirmed'), false);
 assert.equal(values.has('send_uncertain_recent'), true);
 assert.equal(values.has('send_uncertain_boundary'), true);
-for (let i = 0; i < 25; i++) values.set('send_uncertain_expired' + i, '1');
+// Il limite di manutenzione resta valido sui backup confermati scaduti.
+for (let i = 0; i < 25; i++) values.set('sent_backup_expired' + i, JSON.stringify({ts: now - 2 * day, expiresAt: now - day}));
 const sizeBefore = values.size;
 p._pruneExpiredSendIdempotencyBackups_(props, now);
 assert.equal(sizeBefore - values.size, 20);
