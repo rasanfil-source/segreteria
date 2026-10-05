@@ -220,7 +220,20 @@ for (const [name, output] of Object.entries(actual)) {
     event === 'props.delete' && String(value).startsWith('generation_progress_')
   ));
   const newDocumentProcessing = output.effects.some(([event, value]) => event === 'prompt' && value.attachmentIntentContext?.phase === 'document_analysis');
-  if (newDocumentProcessing) {
+  if (name === 'attachment_crash') {
+    // Un errore di estrazione rinvia il messaggio senza generazione o invio.
+    assert.deepStrictEqual(output.result, {
+      status: 'dilata', validationFailed: false, dryRun: false, error: null,
+      reason: 'attachment_read_failed', retryDelayMs: 60000
+    });
+    const stopIndex = expected[name].effects.findIndex(([event]) => event === 'prompt');
+    assert(stopIndex > 0);
+    assert.deepStrictEqual(output.effects, [
+      ...expected[name].effects.slice(0, stopIndex),
+      ...expected[name].effects.slice(-3)
+    ]);
+    assert.deepStrictEqual(output.props, []);
+  } else if (newDocumentProcessing) {
     // L’analisi documentale determina le decisioni prima del routing.
     // La verifica conserva la transazione di consegna e il risultato; la suite dedicata
     // verifica direttamente analisi, routing, prompt, contesto di validazione e percorsi di errore.

@@ -170,6 +170,14 @@ var ThreadValidation = {
 
         if (retryPermanentApiFailure) {
           const retryFailure = retryPermanentApiFailure;
+          if (retryFailure.error && retryFailure.error.code === 'TRUNCATED_OUTPUT') {
+            markFailureForCurrentBurst('validation', { reason: 'truncated_output' });
+            result.status = 'validation_failed';
+            result.validationFailed = true;
+            result.reason = 'truncated_output';
+            result.retryable = false;
+            return { terminal: true };
+          }
           const errorMessage = String(retryFailure.error && retryFailure.error.message ? retryFailure.error.message : retryFailure.error);
           const isSystemic = ['SYSTEM_ERROR', 'CONFIG_ERROR', 'INVALID_API_KEY'].includes(retryFailure.classification.type) ||
             /\b(401|403|404)\b/.test(errorMessage);

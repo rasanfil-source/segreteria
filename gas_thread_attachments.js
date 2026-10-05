@@ -58,6 +58,7 @@ var ThreadAttachments = {
             return attachments.length > 0;
           }, false);
         } catch (e) {
+          ThreadAttachments.propagateServiceFailure(deps, e);
           console.warn(`⚠️ Impossibile leggere allegati per pre-check: ${e.message}`);
           attachmentPreCheckFailed = true;
         }
@@ -104,6 +105,16 @@ var ThreadAttachments = {
               attachmentSettings, attachmentSourceMessages, threadLogger, maxAttachmentMessageBytes
             });
             let { attachmentData, countProcessedAttachments } = collectData;
+            // Gli errori restituiti come dati non devono diventare documenti assenti.
+            for (const skipped of attachmentData.skipped || []) {
+              if (skipped.error) ThreadAttachments.propagateServiceFailure(deps, new Error(skipped.error));
+            }
+            if ((attachmentData.skipped || []).some(item => ['read_error', 'extraction_crash'].includes(item.reason))) {
+              result.status = 'dilata';
+              result.reason = 'attachment_read_failed';
+              result.retryDelayMs = 60000;
+              return { terminal: true };
+            }
             attachmentBlobs = attachmentData.blobs || [];
             textFromAttachments = attachmentData.textContext || '';
             attachmentSkipped = attachmentSkipped.concat(attachmentData.skipped || []);
@@ -237,6 +248,7 @@ var ThreadAttachments = {
           break;
         }
       } catch (attError) {
+        ThreadAttachments.propagateServiceFailure(deps, attError);
         let messageId = 'unknown';
         try {
           messageId = attachmentSourceMessages[i] && attachmentSourceMessages[i].getId ? attachmentSourceMessages[i].getId() : 'unknown';
@@ -248,6 +260,13 @@ var ThreadAttachments = {
       }
     }
     return { attachmentData, countProcessedAttachments };
+  },
+  /** Conserva gli errori di servizio per la gestione centralizzata del batch. */
+  propagateServiceFailure(deps, error) {
+    const classification = deps._classifyError(error);
+    if (classification.retryable ||
+        ['SYSTEM_ERROR', 'CONFIG_ERROR', 'INVALID_API_KEY'].includes(classification.type) ||
+        /\b(401|403|404)\b/.test(String(error && error.message || error))) throw error;
   },
   /** interpretOcr: restituisce attachmentIntentContext, categoryHintSource, forceReceiptOnlyForSubmission; conserva l’ordine delle operazioni sui servizi. */
   interpretOcr(deps, {
