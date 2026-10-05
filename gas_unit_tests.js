@@ -2601,7 +2601,7 @@ function runAllTests() {
             })).toString();
             return prompt.includes('TONO DI VOCE E STILE RELAZIONALE') &&
                 prompt.includes('CONTESTO SENSIBILE E GERARCHIA') &&
-                prompt.includes('come una lettera scritta a mano');
+                prompt.includes('Sul piano stilistico, usa prosa sobria e umana');
         });
         test('Renders newInformationProvided slots appropriately with Italian labels', results, () => {
             const prompt = engine.buildPrompt(Object.assign({}, baseOptions, {

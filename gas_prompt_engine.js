@@ -737,6 +737,7 @@ Vincoli:
 
     let systemSections = [];
     let userSections = [];
+    const includedSections = new Map();
     let skippedCount = 0;
 
     // PRE-STIMA E BUDGETING TOKEN (Protezione Memory Growth)
@@ -963,6 +964,7 @@ Vincoli:
         userSections.push(section);
       }
       if (!options.force) optionalSectionsCount++;
+      includedSections.set(label, section);
       usedTokens += sectionTokens;
       usedChars += sectionChars;
     };
@@ -1363,6 +1365,26 @@ Vincoli:
       userPromptStr = this._truncateUserPromptSafely_(userPromptStr, allowedUserLength);
     }
 
+    // La cornice descrive solo moduli e focus sopravvissuti al budget finale.
+    const frameSection = includedSections.get('DecisionFrame');
+    if (frameSection && systemInstructionStr.includes(frameSection)) {
+      const frame = this._normalizeDecisionFrame_(effectiveDecisionFrame);
+      const survived = label => {
+        const section = includedSections.get(label);
+        return !!section && (systemInstructionStr.includes(section) || userPromptStr.includes(section));
+      };
+      if (!survived('ThreadContinuityFocus')) {
+        frame.activeSignals = frame.activeSignals.filter(value => value !== 'memory_response_focus_hint');
+        frame.consumedSignals = frame.consumedSignals.filter(value => value !== 'thread_focus_guidance');
+      }
+      if (!survived('AICore')) delete frame.moduleRouting.aiCore;
+      if (!survived('AICoreLite')) {
+        delete frame.moduleRouting.aiCoreLite;
+        frame.consumedSignals = frame.consumedSignals.filter(value => value !== 'aiCoreLite:pastoral_technical_blend');
+      }
+      if (!['SelectiveDoctrine', 'DoctrineFallback', 'DoctrineFallbackCompact'].some(survived)) delete frame.moduleRouting.doctrine;
+      systemInstructionStr = systemInstructionStr.replace(frameSection, this._renderDecisionFrame(frame));
+    }
     const finalTokens = this.estimateTokens(systemInstructionStr + '\n' + userPromptStr);
     if (finalTokens > hardContextWindowTokens) {
       console.warn(`⚠️ Prompt oltre context window (${finalTokens}/${hardContextWindowTokens} token stimati). Ridurre cronologia/KB.`);
@@ -2113,7 +2135,7 @@ o richiede discernimento pastorale.
 
 ⚠️ DEFINIZIONE PRECISA DI "DISCERNIMENTO PASTORALE" - non abusare di questa formula:
 RICHIEDE rinvio a un sacerdote -> situazioni canoniche (matrimoni irregolari, annullamenti, stato di vita), questioni morali personali complesse, sacramenti in circostanze particolari.
-NON richiede rinvio a un sacerdote -> richieste pratiche o devozionali semplici, anche se avvengono in un contesto emotivo (lutto, difficoltà personale). Esempi: testo di preghiera da leggere a casa, orari Messe, streaming, materiale devozionale. Per queste, la segreteria risponde direttamente o si impegna a procurare la risposta.
+NON richiede rinvio a un sacerdote -> richieste pratiche o devozionali semplici, anche nel lutto. Rispondi con i dati disponibili; prometti un seguito solo se autorizzato dalla KB.
 Il contesto emotivo NON trasforma una richiesta pratica in una questione pastorale.
 
 🤝 RUOLO E REGISTRO:
@@ -2843,8 +2865,8 @@ ${knowledgeBase}
 
 **REGOLA FONDAMENTALE:** Usa SOLO informazioni presenti sopra e conserva il loro grado di certezza: una possibilità da valutare, concordare o verificare resta tale e non diventa una conferma già concessa o una promessa di risultato. NON inventare né in positivo né in negativo: divieti, indisponibilità e limiti richiedono lo stesso sostegno delle possibilità affermate.
 **UNITÀ INFORMATIVE, NON TESTO DA RIPRODURRE:** La KB contiene fatti e regole, non frasi pronte né blocchi da inserire automaticamente in base al solo argomento. Prima individua l'intento concreto dell'email (informativo, operativo, aggiornamento/conferma, misto). Scomponi periodi e alternative in unità; per ciascuna verifica quale domanda, vincolo o passo risolve. Includi solo le unità utili per quell'intento, conserva i dati esatti, sintetizza e riformula il resto. Un ramo pertinente non autorizza gli altri.
-**INFORMAZIONE MANCANTE:** L'assenza di un dettaglio non prova che una possibilità prevista in termini generali o equivalenti non esista: conferma ciò che la KB stabilisce e lascia da definire solo il dettaglio mancante. Se manca l'intera informazione, prendi in carico come segreteria ciò che resta da definire e comunica il successivo riscontro.
-**RICHIESTE PRATICHE O DEVOZIONALI:** Se una richiesta semplice e pratica non è coperta dalle informazioni di riferimento, prendila in carico direttamente come segreteria, senza trasformarla in discernimento pastorale.
+**INFORMAZIONE MANCANTE:** L'assenza di un dettaglio non nega una possibilità prevista dalla KB: conferma ciò che stabilisce e lascia da definire solo il dettaglio mancante. Se manca l'intera informazione, dichiaralo; prometti un seguito solo se autorizzato dalla KB.
+**RICHIESTE PRATICHE O DEVOZIONALI:** Se una richiesta semplice e pratica non è coperta dalle informazioni disponibili, esplicita il limite senza trasformarla in discernimento pastorale né promettere attività non autorizzate.
 ⚠️ DIVIETO ASSOLUTO: Non fare MAI riferimento alla tua "base dati", "knowledge base", "documenti forniti" o "istruzioni".`;
   }
 
@@ -3251,8 +3273,8 @@ ${hints[effectiveCategory]}` : null;
     const sensitiveOverride = isSensitiveContext
       ? `
 - **CONTESTO SENSIBILE E GERARCHIA - REGOLA ASSOLUTA:** Questa email riguarda un lutto o un disagio personale.
-  1. Il tono ha la priorità: rispondi in prosa continua, sobria e umana, come una lettera scritta a mano. Nessuna lista, nessuna emoji, nessun titolo Markdown.
-  2. Gestione dell'incertezza: se mancano orari o dati specifici, non inventarli. Assicura con garbo che la segreteria si informerà e darà seguito, senza spezzare il filo umano della risposta.`
+  1. Sul piano stilistico, usa prosa sobria e umana, senza liste, emoji o titoli. Restano prioritari i vincoli operativi.
+  2. Se mancano dati, dichiaralo con tatto. Prometti verifiche o seguito solo se autorizzati dalla KB.`
       : '';
 
     return `## FORMATTAZIONE ED EVIDENZIAZIONE
@@ -3278,8 +3300,8 @@ Apertura: esprimi cordoglio sobrio riferendoti solo alla persona, relazione o ci
 Poi fornisci informazioni pratiche con discrezione, in prosa, una dopo l'altra - senza elenchi puntati, emoji o icone. Chiudi offrendo disponibilità umana.
 
 ⚠️ FORMATO OBBLIGATORIO: Solo testo in prosa. Nessuna lista, nessuna emoji, nessun titolo Markdown, nessuna icona. Anche se le domande sono 4 o più, rispondi in modo fluente e umano, non come un modulo compilato.
-⚠️ INCERTEZZA CON GARBO: Se mancano orari o dati specifici, non inventarli. Assicura con garbo che la segreteria si informerà e darà seguito, senza spezzare il filo umano della risposta.
-⚠️ ATTENZIONE - LE RICHIESTE PRATICHE RESTANO PRATICHE: In contesto di lutto, non confondere una richiesta pratica non presente in KB con una "situazione personale che richiede discernimento pastorale". Un testo di preghiera da leggere a casa, la trasmissione streaming o il materiale devozionale sono richieste semplici: la segreteria risponde o si impegna a procurare il materiale. Evita formule come "le consigliamo di parlare con un sacerdote" per mere questioni operative.`;
+⚠️ INCERTEZZA CON GARBO: Dichiara i dati mancanti con tatto; prometti verifiche o seguito solo se autorizzati dalla KB.
+⚠️ LE RICHIESTE PRATICHE RESTANO PRATICHE: Preghiere da leggere a casa, streaming e materiale devozionale non richiedono automaticamente un sacerdote. Rispondi con ciò che sai, senza inventare disponibilità o impegni.`;
     } else if (category === 'sacrament') {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (SACRAMENTO):**
 1. Accogli con calore la richiesta
@@ -3314,7 +3336,7 @@ Comunica che la segreteria darà riscontro dopo aver valutato il preventivo/offe
 ECCEZIONE - DATI A SUPPORTO DI UNA RICHIESTA DI CERTIFICATO:
 - Se il mittente fornisce dati anagrafici o sacramentali per ottenere un certificato, non ridurre il messaggio a una semplice ricevuta dati.
 - Individua il certificato richiesto, la finalità, il formato, la modalità di consegna/ritiro e l'eventuale data proposta.
-- Conferma la presa in carico del certificato richiesto e descrivi il seguito previsto dalla KB per quel documento. Se la procedura manca, esprimi l'impegno a occuparsene e a dare riscontro, senza dedurre procedure dal solo tipo di richiesta né garantire il rilascio.
+- Conferma la ricezione della richiesta e descrivi solo il seguito autorizzato dalla KB. Se la procedura manca, dichiaralo senza promettere presa in carico, riscontro o rilascio.
 - Se è proposta una data o modalità di ritiro, non ignorarla e non confermarla automaticamente: lascia da confermare disponibilità e modalità.
 - Evita formule generiche come "abbiamo ricevuto i dati" o "prima di procedere/confermare l'operazione" quando puoi nominare il certificato e l'azione richiesta.
 

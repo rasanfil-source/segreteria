@@ -136,9 +136,8 @@ console.log('--- Test certificati: procedure dalla KB, non dalla categoria ---')
         salutation: 'Buongiorno,',
         closing: 'Cordiali saluti,'
       });
-      assertMatches(prompt, /descrivi il seguito previsto dalla KB per quel documento/, 'il seguito deve dipendere dalla procedura del documento');
-      assertMatches(prompt, /senza dedurre procedure dal solo tipo di richiesta/, 'la categoria non deve inventare procedure');
-      assertMatches(prompt, /Se la procedura manca, esprimi l'impegno a occuparsene e a dare riscontro/, 'senza procedura deve restare la presa in carico');
+      assertMatches(prompt, /descrivi solo il seguito autorizzato dalla KB/, 'il seguito deve dipendere dalla procedura del documento');
+      assertMatches(prompt, /Se la procedura manca, dichiaralo senza promettere presa in carico, riscontro o rilascio/, 'la categoria non deve inventare procedure o impegni');
       assertMatches(prompt, /rilascio richiede la verifica nei registri battesimali/, 'la procedura battesimale documentata deve restare disponibile');
       assertMatches(prompt, /partecipazione al corso di Cresima per adulti non viene registrata/, 'il fatto relativo al corso adulti deve restare disponibile');
       assertDoesNotMatch(prompt, /se i dati troveranno corrispondenza nei registri\/archivi|dopo verifica\/preparazione/, 'non reintrodurre una procedura universale sui certificati');
@@ -305,10 +304,9 @@ assert(
   'un dettaglio assente deve restare circoscritto senza negare ciò che la KB stabilisce'
 );
 assert(
-  /prendi in carico/i.test(fullInformationMissingInstruction) &&
-    /come segreteria/i.test(fullInformationMissingInstruction) &&
-    /successivo riscontro/i.test(fullInformationMissingInstruction),
-  'se manca l’intera informazione, la segreteria deve assumere la presa in carico e comunicare il seguito'
+  /dichiaralo/i.test(fullInformationMissingInstruction) &&
+    /solo se autorizzato dalla KB/i.test(fullInformationMissingInstruction),
+  'informazione assente non autorizza promesse di seguito'
 );
 assert(
   !/(?:per esempio|ad esempio|scrivi\b|["“”])/i.test(missingInformationRule) &&
@@ -979,8 +977,8 @@ const bereavementPrompt = engine.buildPrompt({
 
 assert(
   bereavementPrompt.includes('CONTESTO SENSIBILE E GERARCHIA - REGOLA ASSOLUTA') &&
-  bereavementPrompt.includes('Nessuna lista, nessuna emoji, nessun titolo Markdown') &&
-  bereavementPrompt.includes('rispondi in prosa continua, sobria e umana'),
+  bereavementPrompt.includes('senza liste, emoji o titoli') &&
+  bereavementPrompt.includes('usa prosa sobria e umana'),
   'il prompt deve attivare un override sobrio nei contesti di lutto'
 );
 assert(
@@ -1010,16 +1008,16 @@ const practicalMissingInformationRule = bereavementPrompt.toString().match(
 assert(
   /richiesta semplice e pratica/i.test(practicalMissingInformationRule) &&
     /non è coperta dalle informazioni/i.test(practicalMissingInformationRule) &&
-    /prendila in carico/i.test(practicalMissingInformationRule) &&
-    /come segreteria/i.test(practicalMissingInformationRule) &&
+    /esplicita il limite/i.test(practicalMissingInformationRule) &&
+    /né promettere attività non autorizzate/i.test(practicalMissingInformationRule) &&
     /senza trasformarla in discernimento pastorale/i.test(practicalMissingInformationRule) &&
     !/(?:esempio|es\.|["“”])/i.test(practicalMissingInformationRule),
   'una richiesta pratica non coperta deve essere presa in carico senza formule da copiare né rinvii pastorali'
 );
 assert(
-  bereavementPrompt.includes('ATTENZIONE - LE RICHIESTE PRATICHE RESTANO PRATICHE') &&
-  bereavementPrompt.includes('Un testo di preghiera da leggere a casa') &&
-  bereavementPrompt.includes('Evita formule come "le consigliamo di parlare con un sacerdote" per mere questioni operative'),
+  bereavementPrompt.includes('LE RICHIESTE PRATICHE RESTANO PRATICHE') &&
+  bereavementPrompt.includes('Preghiere da leggere a casa') &&
+  bereavementPrompt.includes('non richiedono automaticamente un sacerdote'),
   'la struttura lutto deve prevenire il deferral pastorale improprio su richieste pratiche'
 );
 
