@@ -3806,6 +3806,8 @@ var GmailService = class GmailService {
 
         for (const [bad, good] of Object.entries(replacements)) {
             if (!bad) continue;
+            // Compatibilità con KB non ancora aggiornate: non trasformare un impegno futuro in un fatto compiuto.
+            if (/^prender[aà] in carico$/i.test(bad.trim()) && /^ha preso in carico$/i.test(String(good).trim())) continue;
 
             const escaped = bad.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const left = /^[\p{L}\p{N}_]/u.test(bad) ? '(?<![\\p{L}\\p{N}_])' : '';

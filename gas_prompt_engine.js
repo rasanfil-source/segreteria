@@ -182,6 +182,10 @@ var PromptEngine = class PromptEngine {
     subIntents = {},
     memoryContext = null
   } = {}) {
+    // La storia personale non attiva procedure matrimoniali per altre richieste.
+    if (this._isSbattezzoRequest_({ topic, category, requestType, subIntents })) return false;
+    if (!/matrimon|sposar|sposiam|nozze|marri|wedding|casar|mariage|heirat|hochzeit/i.test(
+      [emailSubject, emailContent, topic].join(' '))) return false;
     const normalizedSubIntents = (subIntents && typeof subIntents === 'object') ? subIntents : {};
     if (
       normalizedSubIntents.canonical_complexity === true ||
@@ -1303,7 +1307,7 @@ Vincoli:
     }
 
     if (isSbattezzoRequest) {
-      addSection(this._renderSbattezzoTemplate(senderName, detectedLanguage), 'SbattezzoTemplate', { isSystem: true });
+      addSection(this._renderSbattezzoTemplate(senderName, detectedLanguage, normalizedRequestPurpose, salutationMode, memoryContext), 'SbattezzoTemplate', { isSystem: true });
     }
 
     // 23. LINEE GUIDA TONO UMANO
@@ -1989,7 +1993,11 @@ ${rules.join('\n')}`;
       }
     }
 
-    const fullTextLower = `${emailSubject} ${emailContent}`.toLowerCase();
+    const normalizeRetrieval = text => String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      .replace(/\b(?:comunione|eucharist\w*|eucaristia)\b/g, 'eucaristia');
+    topicLower = normalizeRetrieval(topicLower);
+    const fullTextLower = normalizeRetrieval(`${topicLower} ${emailSubject} ${emailContent}`);
+    const topicTokens = new Set(topicLower.match(/[a-z]{4,}/g) || []);
 
     const DOCTRINE_STEMS = [
       'confess', 'riconciliaz',
@@ -2008,14 +2016,17 @@ ${rules.join('\n')}`;
     const candidates = doctrineDB.map(row => {
       let score = 0;
       if (!row) return { row: {}, score: -1 };
-      const sottotema = String(row['Sotto-tema'] || '').toLowerCase();
+      const sottotema = normalizeRetrieval(row['Sotto-tema']);
       const rowCat = String(row.Categoria || '');
 
       if (topicLower && sottotema.includes(topicLower)) score += 10;
+      const titleTokens = sottotema.match(/[a-z]{4,}/g) || [];
+      if (titleTokens.length && titleTokens.every(token => topicTokens.has(token))) score += 10;
       DOCTRINE_STEMS.forEach(stem => {
         if (fullTextLower.includes(stem) && sottotema.includes(stem)) score += 3;
       });
-      if (fullTextLower.includes(sottotema)) score += 2;
+      if (sottotema && fullTextLower.includes(sottotema)) score += 2;
+      if (score === 0) return { row, score: 0 };
 
       const catWeight = getCatWeight(rowCat);
       score = (score * (1 + catWeight)) + (catWeight * 2);
@@ -2048,12 +2059,14 @@ ${rules.join('\n')}`;
       const r = item.row;
       const principio = r['Principio dottrinale'] ? `• Principio: ${r['Principio dottrinale']}` : '';
       const criterio = r['Criterio pastorale'] ? `• Leva Pastorale: ${r['Criterio pastorale']}` : '';
+      const limiti = r['Limiti da non superare'] ? `• Limiti: ${r['Limiti da non superare']}` : '';
       const tono = r['Tono consigliato'] ? `• Tono: ${r['Tono consigliato']}` : '';
       const note = r['Indicazioni operative AI'] ? `⚠️ Nota AI: ${r['Indicazioni operative AI']}` : '';
 
       return `📌 ${String(r['Sotto-tema']).toUpperCase()}
 ${principio}
 ${criterio}
+${limiti}
 ${tono}
 ${note}`;
     }).join('\n\n');
@@ -2887,7 +2900,7 @@ ${territoryContext}
 ⚠️⚠️⚠️ ISTRUZIONI VINCOLANTI SUI DATI SOPRA ⚠️⚠️⚠️
 
 1. I DATI QUI SOPRA SONO L'UNICA VERITÀ. Ignora qualsiasi tua conoscenza pregressa.
-2. PRECEDENZA ASSOLUTA: prima controlla se compare "NON RIENTRA". Se compare "NON RIENTRA", l'esito è NO anche se dentro la frase compare la parola "RIENTRA".
+2. Applica ogni esito solo al suo indirizzo e alla persona interessata. Per la competenza usa la residenza attuale, non quella precedente; se il ruolo è ambiguo chiedi quale indirizzo riguarda la pratica.
 3. SE LEGGI "NON RIENTRA" -> Devi dire NO.
 4. SE LEGGI "RIENTRA" senza "NON RIENTRA" nella stessa verifica -> Devi dire SÌ.
 5. SE LEGGI "CIVICO NECESSARIO" -> Devi chiedere il civico.
@@ -2909,7 +2922,8 @@ Devi dare la risposta SÌ/NO adesso, basandoti ESCLUSIVAMENTE sui dati qui sopra
   }
 
   _isNegativeTerritoryContext_(territoryContext) {
-    return /\bNON\s+RIENTRA\b/i.test(String(territoryContext || ''));
+    const text = String(territoryContext || '');
+    return /\bNON\s+RIENTRA\b/i.test(text) && !/\bRIENTRA\b/i.test(text.replace(/\bNON\s+RIENTRA\b/gi, ''));
   }
 
   // ========================================================================
@@ -2991,6 +3005,7 @@ ORIENTAMENTO:
     const season = String(context.season || currentSeason || 'invernale').toLowerCase();
     const targetDate = context.targetDate || currentDate || '';
     return {
+      targets: Array.isArray(context.targets) ? context.targets : [],
       season: season,
       currentDate: context.currentDate || currentDate || '',
       targetDate: targetDate,
@@ -3018,6 +3033,11 @@ ORIENTAMENTO:
       ? scheduleContext
       : this._normalizeScheduleContext_(null, scheduleContext || 'invernale', '');
     const season = String(context.season || 'invernale').toLowerCase();
+    if (Array.isArray(context.targets) && context.targets.length > 1) {
+      return `**ORARI STAGIONALI:**
+Date richieste: ${context.targets.map(item => `${item.targetDate}: ${item.season}`).join('; ')}.
+Rispondi per ciascuna data con gli orari pertinenti della KB, mantenendo distinti i periodi. Non presentare date trascorse come future.`;
+    }
     const targetLabel = context.targetDateText || context.targetDate || 'data corrente';
     const sourceLabel = context.source === 'knowledge_base'
       ? 'Knowledge Base'
@@ -3038,11 +3058,11 @@ ORIENTAMENTO:
       : '';
 
 return `**ORARI STAGIONALI:**
-IMPORTANTE: usa gli orari del periodo applicabile alla data richiesta, non dedurre il periodo dal solo mese solare.
+Periodo dalla KB, non dal solo mese solare.
 Data di riferimento per gli orari: ${targetLabel}${dateCaveat}.
 Periodo applicabile: ${season.toUpperCase()}.
 ${summerLine}
-Usa SOLO gli orari ${season}. Non mostrare mai entrambi i set di orari.
+Orari ${season} per questa data; per altre date o periodi richiesti usa i rispettivi orari della KB.
 Se l'utente chiede quando inizia o finisce il periodo estivo, rispondi con il periodo di riferimento indicato dalla KB.${nextYearInferenceWarning}${pastDateWarning}`;
   }
 
@@ -4097,7 +4117,7 @@ ${formatSection}
 
 ${contentSection}
 
-5. **Orari:** Mostra SOLO orari del periodo applicabile alla data richiesta (${season}${scheduleTarget ? `, ${scheduleTarget}` : ''})
+5. **Orari:** Per ciascuna data o periodo richiesto mostra gli orari pertinenti; riferimento principale: ${season}${scheduleTarget ? `, ${scheduleTarget}` : ''}.
 
 ${languageReminder}`;
   }
@@ -4108,7 +4128,7 @@ ${languageReminder}`;
 
   _renderCanonicalComplexityBudgetGuardrail_() {
     return `## CASI SPECIALI - SITUAZIONI CANONICAMENTE COMPLESSE (BUDGET CRITICO)
-Se l'email menziona uno di questi elementi, questa regola prevale sulle procedure standard:
+Solo per una richiesta attuale di matrimonio con uno di questi elementi, questa regola prevale sulle procedure matrimoniali standard:
 - Divorziato/a o separato/a che vuole sposarsi in chiesa.
 - Risposato/a civilmente.
 - Convivente che chiede matrimonio.
@@ -4128,31 +4148,26 @@ ALLORA:
 
 • **Cresima:** Se genitore → info Cresima ragazzi. Se adulto → info Cresima adulti.
 • **Padrino/Madrina:** includi criteri idoneità solo se la domanda li chiede o se una POLICY esplicita autorizza il contesto (es. Cresima come prerequisito).
-• **Impegni lavorativi:** Se impossibilitato → offri programmi flessibili.
+• **Impegni lavorativi:** proponi alternative solo se previste dalla KB e con le verifiche di disponibilità richieste.
 • **Filtro temporale:** "a giugno" → rispondi SOLO con info di giugno.
 
 ### ⚠️ SITUAZIONI CANONICAMENTE COMPLESSE
 
-Se l'email menziona uno di questi elementi:
-• **Divorziato/a** o **separato/a** che vuole sposarsi
-• **Risposato/a** civilmente
-• **Convivente** che chiede matrimonio
-• **Non cattolico** che vuole sposarsi in chiesa
-• **Matrimonio precedente** non annullato
-
-ALLORA:
-1. ✅ Accogli con calore e senza giudizio
-2. ✅ Invita a parlare DIRETTAMENTE con un sacerdote
-3. ✅ Fornisci SOLO i contatti per fissare un appuntamento
-4. Mantieni fuori dalla risposta le procedure matrimoniali standard finché il caso non è stato ascoltato
-5. Formula con prudenza, senza dare per scontato che il matrimonio sia possibile`;
+Solo per una richiesta attuale di matrimonio: Divorziato/a, separato/a, risposato/a civilmente, convivente, non cattolico o matrimonio precedente non annullato.
+Accogli senza giudizio. Invita a parlare DIRETTAMENTE con un sacerdote; fornisci il contatto per l'appuntamento. Non applicare procedure matrimoniali standard prima dell'ascolto né dare per certa la possibilità di sposarsi.`;
   }
 
   // ========================================================================
   // TEMPLATE: SBATTEZZO (Casi formali)
   // ========================================================================
 
-  _renderSbattezzoTemplate(senderName, detectedLanguage = 'it') {
+  _renderSbattezzoTemplate(senderName, detectedLanguage = 'it', purpose = null, salutationMode = 'full', memoryContext = null) {
+    const purposeType = typeof purpose === 'string' ? purpose : (purpose && purpose.type);
+    const hasRelatedHistory = memoryContext && memoryContext.exists && /sbattezz|apostasi|baptis\w*\s+register/i.test(String(memoryContext.memorySummary || ''));
+    if (['information_request', 'status_update', 'acknowledgment', 'mixed'].includes(purposeType) || salutationMode === 'session' || hasRelatedHistory) {
+      return `## ANNOTAZIONE NEI REGISTRI BATTESIMALI
+Rispetta lo scopo attuale: informazioni = rispondi senza avviare pratiche; aggiornamento o ringraziamento = riscontro breve; seguito operativo = prossimo passo verificato; richiesta mista = azione richiesta e domande residue. Usa la KB senza riavviare la procedura, attestare azioni non svolte o invitare a colloqui pastorali.`;
+    }
     const sanitizedName = this._sanitizeSenderNameForPrompt_(senderName, detectedLanguage);
     const lang = String(detectedLanguage || 'it').toLowerCase();
     if (lang !== 'it' && lang !== 'en') {

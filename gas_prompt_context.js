@@ -332,7 +332,7 @@ var PromptContext = class PromptContext {
         const relationalThreshold = (typeof CONFIG !== 'undefined' && Number.isFinite(Number(CONFIG.RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD)))
             ? Math.max(0, Math.min(1, Number(CONFIG.RELATIONAL_POSTURE_CONFIDENCE_THRESHOLD)))
             : 0.70;
-        const currentRelationalWarmth = ['appreciative', 'grateful', 'gratitude', 'enthusiastic', 'open'].includes(relationalPostureRaw) &&
+        const currentRelationalWarmth = ['appreciative', 'grateful', 'gratitude', 'enthusiastic', 'open', 'personal'].includes(relationalPostureRaw) &&
             Number.isFinite(relationalPostureConfidence) &&
             relationalPostureConfidence >= relationalThreshold;
         const hasRelationalWarmth = currentRelationalWarmth ||
@@ -511,8 +511,17 @@ var PromptContext = class PromptContext {
             return { critical: false, strong: false };
         }
 
+        // Espressioni personali di rischio, non la mera menzione dell'argomento (es. prevenzione).
+        const riskText = text
+            .replace(/\bnon\s+(?:voglio|intendo)\s+(?:morire|suicidarmi|farmi\s+del\s+male)\b/g, '')
+            .replace(/\bi\s+(?:do\s+not|don't|don’t)\s+want\s+to\s+(?:die|kill\s+myself|hurt\s+myself)\b/g, '')
+            .replace(/\b(?:no\s+quiero|nao\s+quero)\s+(?:morir|morrer|suicidarme|me\s+matar)\b/g, '')
+            .replace(/\bje\s+ne\s+veux\s+pas\s+(?:mourir|me\s+suicider)\b/g, '')
+            .replace(/\bich\s+will\s+(?:nicht\s+sterben|mich\s+nicht\s+umbringen)\b/g, '');
         const hasCriticalSignal = Boolean(
-            /\b(?:suicid(?:io|a|armi|arsi)|autolesionismo|autolesionist[aoie]|farmi\s+del\s+male|togliermi\s+la\s+vita|farla\s+finita|la\s+faccio\s+finita|vorrei\s+morire|voglio\s+morire|non\s+voglio\s+piu\s+vivere|non\s+riesco\s+piu\s+a\s+vivere|vorrei\s+sparire|voglio\s+sparire|scomparire\s+per\s+sempre)\b/.test(text) ||
+            /\b(?:suicidarmi|farmi\s+del\s+male|togliermi\s+la\s+vita|farla\s+finita|la\s+faccio\s+finita|vorrei\s+morire|voglio\s+morire|non\s+voglio\s+piu\s+vivere|non\s+riesco\s+piu\s+a\s+vivere|vorrei\s+sparire|voglio\s+sparire|scomparire\s+per\s+sempre)\b/.test(riskText) ||
+            /\b(?:i\s+(?:want|plan|intend)\s+to\s+(?:kill\s+myself|die|hurt\s+myself)|i\s+am\s+suicidal|i['’]m\s+suicidal|i\s+(?:cannot|can't|can’t|do\s+not\s+want\s+to|don't\s+want\s+to)\s+(?:live|go\s+on)|je\s+veux\s+(?:mourir|me\s+suicider)|je\s+ne\s+veux\s+plus\s+vivre|quiero\s+(?:morir|suicidarme|matarme)|no\s+quiero\s+seguir\s+viviendo|quero\s+(?:morrer|me\s+matar|me\s+suicidar)|nao\s+quero\s+mais\s+viver|ich\s+will\s+(?:sterben|mich\s+umbringen|nicht\s+mehr\s+leben))\b/.test(riskText) ||
+            /\b(?:(?:penso|sto\s+pensando)\s+al\s+suicidio|pensieri\s+suicidari|(?:pratico|soffro\s+di)\s+autolesionismo|sono\s+suicida|mi\s+faccio\s+del\s+male|mi\s+taglio\s+(?:i\s+polsi|le\s+braccia)|sta\s+per\s+suicidarsi|vuole\s+(?:morire|suicidarsi)|wants\s+to\s+kill\s+(?:himself|herself)|veut\s+se\s+suicider)\b/.test(riskText) ||
             /\b(?:non\s+so\s+piu\s+come\s+andare\s+avanti|non\s+vedo\s+via\s+d[' ]?uscita|non\s+trovo\s+via\s+d[' ]?uscita|non\s+riesco\s+piu\s+ad?\s+andare\s+avanti)\b/.test(text)
         );
         const hasAcuteSignal = /\b(?:sono\s+in\s+crisi|mi\s+sento\s+disperat[oaie]?|sono\s+disperat[oaie]?|sto\s+crollando|sono\s+a\s+pezzi|attacco\s+di\s+panico|angoscia\s+fortissima|trauma|emergenza\s+personale)\b/.test(text);

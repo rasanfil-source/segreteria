@@ -3202,8 +3202,23 @@ var EmailProcessor = class EmailProcessor {
     const mentionedDateInCurrentYearIsPast = requestedDateInfo.originalInferredDate
       ? this._dateOnlyEpochDay_(requestedDateInfo.originalInferredDate) < currentEpochDay
       : false;
+    const targets = [];
+    let remainingDates = String(requestText || '').normalize('NFC').toLowerCase();
+    for (let index = 0; index < 20; index++) {
+      const found = this._extractExplicitDateFromText_(remainingDates, requestAnchorDate.getFullYear());
+      if (!found || !Number.isInteger(found.matchIndex) || !found.matchLength) break;
+      const normalized = this._normalizeExplicitDateForTemporalIntent_(found, requestText, requestAnchorDate);
+      const range = this._resolveSummerScheduleRange_(knowledgeBaseText, normalized.date.getFullYear());
+      const iso = this._formatDateOnlyIso_(normalized.date);
+      if (!targets.some(item => item.targetDate === iso)) targets.push({
+        targetDate: iso,
+        season: this._isDateWithinInclusive_(normalized.date, range.start, range.end) ? 'estivo' : 'invernale'
+      });
+      remainingDates = remainingDates.slice(0, found.matchIndex) + ' '.repeat(found.matchLength) + remainingDates.slice(found.matchIndex + found.matchLength);
+    }
 
     return {
+      ...(targets.length > 1 ? { targets } : {}),
       season: season,
       currentDate: this._formatDateOnlyIso_(responseDate),
       requestAnchorDate: this._formatDateOnlyIso_(requestAnchorDate),
@@ -3308,6 +3323,8 @@ var EmailProcessor = class EmailProcessor {
         return {
           date: date,
           source: 'explicit:textual',
+          matchIndex: textualMatch.index,
+          matchLength: textualMatch[0].length,
           hasExplicitYear: Boolean(textualMatch[3]),
           leapYearAdjusted: leapYearAdjusted
         };
@@ -3346,6 +3363,8 @@ var EmailProcessor = class EmailProcessor {
         return {
           date: date,
           source: 'explicit:numeric',
+          matchIndex: numericMatch.index,
+          matchLength: numericMatch[0].length,
           hasExplicitYear: Boolean(numericMatch[4]),
           leapYearAdjusted: leapYearAdjusted
         };

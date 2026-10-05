@@ -254,7 +254,7 @@ for (const lang of ['it', 'en', 'es', 'fr', 'de', 'pt']) {
 }
 assertMatches(engine._renderResponseStructure('quotation', []), /darà riscontro dopo aver valutato/, 'il seguito del preventivo resta in carico alla segreteria');
 assertMatches(engine._renderSpecialCases(), /parlare DIRETTAMENTE con un sacerdote/, 'resta il rinvio per casi complessi');
-assertMatches(engine._renderSpecialCases(), /senza dare per scontato che il matrimonio sia possibile/, 'resta la prudenza canonica');
+assertMatches(engine._renderSpecialCases(), /né dare per certa la possibilità di sposarsi/, 'resta la prudenza canonica');
 
 assert(
   litePrompt.includes('Completezza domande') &&
@@ -445,8 +445,8 @@ const outOfTerritoryPrompt = engine.buildPrompt({
 });
 assert(
   outOfTerritoryPrompt.includes('SE LEGGI "NON RIENTRA" -> Devi dire NO') &&
-  outOfTerritoryPrompt.includes('prima controlla se compare "NON RIENTRA"') &&
-  outOfTerritoryPrompt.includes('anche se dentro la frase compare la parola "RIENTRA"') &&
+  outOfTerritoryPrompt.includes('Applica ogni esito solo al suo indirizzo') &&
+  outOfTerritoryPrompt.includes('residenza attuale, non quella precedente') &&
   outOfTerritoryPrompt.includes('NON dire MAI "non abbiamo informazioni"') &&
   outOfTerritoryPrompt.includes('NON fermarti a un rifiuto secco') &&
   outOfTerritoryPrompt.includes('SE LEGGI "Nessun indirizzo rilevato"') &&
@@ -1926,7 +1926,7 @@ const schedulePrompt = engine.buildPrompt({
 assert(
   schedulePrompt.includes('Data di riferimento per gli orari: 3 giugno 2026') &&
   schedulePrompt.includes('Periodo applicabile: INVERNALE') &&
-  schedulePrompt.includes('Mostra SOLO orari del periodo applicabile alla data richiesta (invernale, 3 giugno 2026)'),
+  schedulePrompt.includes('Per ciascuna data o periodo richiesto mostra gli orari pertinenti; riferimento principale: invernale, 3 giugno 2026'),
   'il prompt deve far prevalere il periodo KB calcolato sulla data richiesta'
 );
 assert(
