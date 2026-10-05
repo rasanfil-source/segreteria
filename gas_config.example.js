@@ -505,6 +505,8 @@ var LANGUAGE_MARKERS = {
  * Previene silent failures da typo o tipi errati
  * @returns {Object} Risultato validazione {valid: boolean, errors: string[]}
  */
+var _lastConfigWarningSignature = null;
+
 function validateConfig() {
   const errors = [];
   const warnings = [];
@@ -667,7 +669,12 @@ function validateConfig() {
     }
   }
 
-  warnings.forEach(message => console.warn('Configurazione: ' + message));
+  // Deduplica solo i log nella stessa esecuzione; il risultato conserva tutti gli avvisi.
+  const warningSignature = JSON.stringify(warnings);
+  if (_lastConfigWarningSignature !== warningSignature) {
+    warnings.forEach(message => console.warn('Configurazione: ' + message));
+    _lastConfigWarningSignature = warningSignature;
+  }
   // Se ci sono errori, logghiamoli subito
   if (errors.length > 0) {
     console.error("🚨 VALIDAZIONE CONFIGURAZIONE FALLITA 🚨");

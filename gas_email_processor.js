@@ -5967,6 +5967,10 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       return mkResult('NETWORK', true, rawMessage);
     }
 
+    if (error.type === 'INVALID_RESPONSE' || error.code === 'INVALID_RESPONSE' ||
+        /\binvalid[\s_-]+response\b|\bempty[\s_-]+response\b|\bno[\s_-]+candidates\b/i.test(msg)) {
+      return mkResult('INVALID_RESPONSE', false, rawMessage);
+    }
     return mkResult('UNKNOWN', false, rawMessage);
   }
 

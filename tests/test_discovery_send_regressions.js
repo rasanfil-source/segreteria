@@ -7,6 +7,11 @@ const properties = new Map();
 const context = {
   console,
   CONFIG: {},
+  // Il servizio è disponibile; questi test sostituiscono i wrapper resilienti.
+  Gmail: { Users: { Messages: {
+    list: () => { throw new Error('Unexpected raw messages.list'); },
+    get: () => { throw new Error('Unexpected raw messages.get'); }
+  } } },
   PropertiesService: { getScriptProperties: () => ({
     getProperty: key => properties.get(key) || null,
     setProperty: (key, value) => properties.set(key, value)
@@ -44,10 +49,10 @@ vm.runInContext(`
   service._incrementGmailCallCounterOrThrow_ = () => {};
   let apiAttempts = 0;
   let nativeAttempts = 0;
-  globalThis.Gmail = { Users: { Messages: { send: () => {
+  Gmail.Users.Messages.send = () => {
     apiAttempts++;
     throw new Error('Service unavailable');
-  } } } };
+  };
   const message = {
     getReplyTo: () => '', getFrom: () => 'user@example.org',
     getId: () => 'm1', getThread: () => ({ getId: () => 't1' }),

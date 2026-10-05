@@ -297,10 +297,15 @@ var ResponseValidator = class ResponseValidator {
     }
 
     // === SEMANTIC VALIDATION (score basso o rischio di trasferimento acritico dalla KB) ===
+    // Valuta solo i blocchi residui dopo l'eventuale perfezionamento.
+    const hasDeterministicBlocker = ['exposedReasoning', 'content'].some(key => {
+      const result = validationResult.details[key];
+      return result && Array.isArray(result.errors) && result.errors.length > 0;
+    });
     const knowledgeContextualization = validationResult.details.knowledgeContextualization || {};
     const forceKnowledgeRelevanceReview = knowledgeContextualization.requiresSemanticReview === true ||
       /\b(?:dispensa|nullit[aà]|invalid[oa]|garantiamo|garantito|non\s+(?:serve|occorre|[eè]\s+necessario)\s+(?:il\s+|un\s+)?(?:certificato|documento|permesso)|(?:pu[oò]|puoi|potete)\s+(?:comunque\s+)?(?:sposar[\p{L}]*|ricevere\s+il\s+sacramento))(?![\p{L}\p{N}_])/iu.test(currentResponse.normalize('NFC'));
-    if (forceKnowledgeRelevanceReview && !this.semanticValidator) {
+    if (!hasDeterministicBlocker && forceKnowledgeRelevanceReview && !this.semanticValidator) {
       validationResult.isValid = false;
       validationResult.errors.push('Semantica: controllo necessario non disponibile');
     }
@@ -315,6 +320,7 @@ var ResponseValidator = class ResponseValidator {
       temporalContext
     );
     if (
+      !hasDeterministicBlocker &&
       this.semanticValidator &&
       (this.semanticValidator.shouldRun(validationResult.score) || forceKnowledgeRelevanceReview)
     ) {

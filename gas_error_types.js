@@ -115,7 +115,9 @@ function classifyError(error) {
     if (message.includes('system_error')) {
         return { type: ErrorTypes.SYSTEM_ERROR, retryable: false, message: rawMessage };
     }
-    if (message.includes('malformed') ||
+    if ((error && (error.type === ErrorTypes.INVALID_RESPONSE || error.code === ErrorTypes.INVALID_RESPONSE)) ||
+        /\binvalid[\s_-]+response\b|\bempty[\s_-]+response\b|\bno[\s_-]+candidates\b/i.test(message) ||
+        message.includes('malformed') ||
         message.includes('non json valida')) {
         return { type: ErrorTypes.INVALID_RESPONSE, retryable: false, message: rawMessage };
     }

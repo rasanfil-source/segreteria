@@ -850,6 +850,11 @@ var GmailService = class GmailService {
     }
 
     _discoverByMetadata(labelName, errorLabel, validationLabel, safeMessageBuffer, safeTargetThreads, safeMaxPages, skipLabel = null, options = {}) {
+        if (typeof Gmail === 'undefined' || !Gmail || !Gmail.Users || !Gmail.Users.Messages ||
+            typeof Gmail.Users.Messages.list !== 'function' || typeof Gmail.Users.Messages.get !== 'function') {
+            console.warn('⚠️ [metadata] Servizio avanzato Gmail non disponibile: discovery metadata saltata.');
+            return { threads: [], threadIds: new Set(), messageIds: new Set() };
+        }
         const discoveryOptions = (options && typeof options === 'object') ? options : {};
         const processedLabelId = this._getOptionalLabelIdByName(labelName);
         const errorLabelId = this._getOptionalLabelIdByName(errorLabel);
