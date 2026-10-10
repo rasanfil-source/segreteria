@@ -468,6 +468,8 @@ var ThreadPolicy = {
     const memoryContext = deps.memoryService.getMemory(threadId) || {};
     const ownConversationAnchor = deps._getOwnConversationAnchor_(messages, messageState.candidate, ownAddresses);
     const hasPriorOwnMessage = ownConversationAnchor.exists === true;
+    const quickConversationHistory = typeof deps._buildQuickCheckHistory_ === 'function'
+      ? deps._buildQuickCheckHistory_(messages, messageState, ownAddresses) : [];
     const memoryMessageCount = Number.isFinite(Number(memoryContext.messageCount))
       ? Number(memoryContext.messageCount)
       : 0;
@@ -475,6 +477,7 @@ var ThreadPolicy = {
       ? memoryContext.contextualFlags
       : {};
     const hasConversationContext = Boolean(
+      quickConversationHistory.length > 0 ||
       hasPriorOwnMessage ||
       memoryMessageCount > 0 ||
       memoryContext.exists === true ||
@@ -494,6 +497,7 @@ var ThreadPolicy = {
         sponsorGuidanceCheck: sponsorGuidancePrecheck === 'ask_ai',
         sponsorGuidanceLocalDecision: sponsorGuidancePrecheck,
         hasConversationContext: hasConversationContext,
+        ...(quickConversationHistory.length ? { quickConversationHistory } : {}),
         quickMemoryContext: hasConversationContext
           ? deps._buildQuickCheckMemoryContext_(memoryContext)
           : null

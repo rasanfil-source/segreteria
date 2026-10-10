@@ -1098,6 +1098,7 @@ var EmailProcessor = class EmailProcessor {
       memoryService: this.memoryService,
       _getOwnConversationAnchor_: this._getOwnConversationAnchor_.bind(this),
       _buildQuickCheckMemoryContext_: this._buildQuickCheckMemoryContext_.bind(this),
+      _buildQuickCheckHistory_: this._buildQuickCheckHistory_.bind(this),
       _classifyError: this._classifyError.bind(this),
       _resolveQuickCheckAttachmentIntent_: this._resolveQuickCheckAttachmentIntent_.bind(this),
       _resolveQuickCheckDocumentDelivery_: this._resolveQuickCheckDocumentDelivery_.bind(this),
@@ -3681,6 +3682,39 @@ var EmailProcessor = class EmailProcessor {
     return normalizeCandidate(fallback) || 'it';
   }
 
+  _buildQuickCheckHistory_(messages, messageState, ownAddresses) {
+    if (!this.gmailService || typeof this.gmailService._extractMessageDetailsLite !== 'function') return [];
+    const candidate = messageState && messageState.candidate;
+    if (!candidate || !Array.isArray(messages)) return [];
+    const candidateId = candidate.getId();
+    const candidateIndex = messages.findIndex(message => message.getId() === candidateId);
+    if (candidateIndex < 0) return [];
+    const excluded = new Set(messageState.responseContextMessageIds || []);
+    excluded.add(candidateId);
+    const own = new Set(Array.from(ownAddresses || []).map(address => this._normalizeEmailAddress_(address)));
+    const previous = messages.slice(0, candidateIndex).filter(message => !excluded.has(message.getId())).slice(-4);
+    const history = [];
+    for (const message of previous) {
+      try {
+        const details = this.gmailService._extractMessageDetailsLite(message);
+        const body = String(details.body || '').trim();
+        if (!body) continue;
+        const date = message.getDate();
+        const marker = '\n[... parte centrale omessa ...]\n';
+        const budget = 800 - marker.length;
+        history.push({
+          role: own.has(this._normalizeEmailAddress_(details.senderEmail)) ? 'Segreteria' : 'Utente',
+          date: date && Number.isFinite(date.getTime()) ? date.toISOString() : null,
+          body: body.length <= 800 ? body : body.slice(0, Math.floor(budget / 2)) + marker + body.slice(-Math.ceil(budget / 2))
+        });
+      } catch (_) {
+        // Lettura storica best-effort: nessuna modifica a invii, etichette o memoria.
+        console.warn('QuickCheck: messaggio storico non leggibile, omesso dal contesto.');
+      }
+    }
+    return history;
+  }
+
   _buildQuickCheckMemoryContext_(memoryContext = {}) {
     const safeMemory = memoryContext && typeof memoryContext === 'object' ? memoryContext : {};
     const orderedTopics = typeof sortProvidedTopicsByRecency_ === 'function'
@@ -3717,11 +3751,35 @@ var EmailProcessor = class EmailProcessor {
     });
 
     return {
-      summary: String(safeMemory.memorySummary || '').substring(0, 500),
+      summary: this._selectRecentMemorySummary_(safeMemory.memorySummary),
       providedInfo: providedInfo,
       conversationState: conversationState,
       contextualFlags: contextualFlags
     };
+  }
+
+  _selectRecentMemorySummary_(value) {
+    const summary = String(value || '').trim();
+    const limit = 500;
+    if (summary.length <= limit) return summary;
+    const marker = '[... memoria precedente omessa ...]\n';
+    const budget = limit - marker.length;
+    const lines = summary.split('\n').map(line => line.trim()).filter(Boolean);
+    const kept = [];
+    let length = 0;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const extra = lines[i].length + (kept.length ? 1 : 0);
+      if (length + extra > budget) break;
+      kept.unshift(lines[i]);
+      length += extra;
+    }
+    if (kept.length) return marker + kept.join('\n');
+    // Un singolo punto lungo conserva inizio e fine: non presentare una coda
+    // isolata come frase completa (potrebbe perdere una negazione).
+    const latest = lines[lines.length - 1] || summary;
+    const gap = ' [... parte centrale omessa ...] ';
+    const head = Math.floor((budget - gap.length) / 2);
+    return marker + latest.slice(0, head) + gap + latest.slice(-(budget - gap.length - head));
   }
 
 

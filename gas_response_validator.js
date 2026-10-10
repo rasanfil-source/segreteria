@@ -337,7 +337,13 @@ var ResponseValidator = class ResponseValidator {
         semanticGroundingContext,
         {
           forceRelevanceReview: forceKnowledgeRelevanceReview,
-          requestPurpose: validationRequestPurpose
+          requestPurpose: validationRequestPurpose,
+          groundingParts: {
+            subject: emailSubject || '',
+            body: emailContent || '',
+            history: temporalContext && temporalContext.validationContext
+              ? temporalContext.validationContext.explicitThreadContext || '' : ''
+          }
         }
       );
 
@@ -3785,17 +3791,18 @@ var SemanticValidator = class SemanticValidator {
         ? options.requestPurpose.type
         : (options ? options.requestPurpose : '');
       const cacheMaterial = [
-        'grounding_relevance_schema_v4',
+        'grounding_relevance_schema_v5',
         response || '',
         knowledgeBase || '',
         emailContent || '',
-        requestPurpose || ''
+        requestPurpose || '',
+        JSON.stringify(options.groundingParts || null)
       ].join('\n<<SEMANTIC-HALLUCINATION-SCOPE>>\n');
       const cacheKey = this._cacheKey('halluc', cacheMaterial);
       const cached = this._readCache(cacheKey);
       if (cached) return cached;
 
-      const prompt = this._buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose);
+      const prompt = this._buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose, options.groundingParts);
       const apiResponse = this._generateSemantic(prompt);
       const result = this._parseSemanticResponse(apiResponse);
       this._writeCache(cacheKey, result);
@@ -3860,9 +3867,24 @@ var SemanticValidator = class SemanticValidator {
   // COSTRUTTORI PROMPT (ottimizzati per brevità)
   // ========================================================================
 
-  _buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose = '') {
+  _buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose = '', groundingParts = null) {
     const kbTruncated = knowledgeBase;
-    const emailTruncated = emailContent && emailContent.length > 2000
+    const bounded = (value, limit) => {
+      const text = String(value || '');
+      if (text.length <= limit) return text;
+      const marker = '\n[TRUNCATED: parte centrale omessa]\n';
+      const head = Math.floor((limit - marker.length) / 2);
+      return text.slice(0, head) + marker + text.slice(-(limit - marker.length - head));
+    };
+    // Budget indipendenti: un corpo lungo non deve eliminare lo storico.
+    // Mantieni il contratto testuale per i chiamanti legacy senza parti esplicite.
+    const emailTruncated = groundingParts && typeof groundingParts === 'object'
+      ? [
+        `OGGETTO DEL MESSAGGIO CORRENTE:\n${bounded(groundingParts.subject, 1000)}`,
+        `CORPO DEL MESSAGGIO CORRENTE:\n${bounded(groundingParts.body, 2000)}`,
+        ...(groundingParts.history ? [`STORICO ESPLICITO DEL THREAD:\n${bounded(groundingParts.history, 4000)}`] : [])
+      ].join('\n\n')
+      : emailContent && emailContent.length > 2000
       ? emailContent.substring(0, 2000) + '...[TRUNCATED]'
       : emailContent;
 
