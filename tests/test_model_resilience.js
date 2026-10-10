@@ -21,6 +21,24 @@ for (const file of ['gas_config.js', 'gas_config.example.js']) {
   assert.equal(ctx._getScriptProperty(' A ', true), 'updated');
   const cfg = ctx.CONFIG;
   assert.equal(cfg.MODEL_NAME, 'gemini-3.8-flash');
+  assert(!Object.keys(cfg.GEMINI_MODELS).some(key => key.includes('3.7')));
+  load(ctx, 'gas_gemini_service.js');
+  const generationService = Object.create(ctx.GeminiService.prototype);
+  Object.assign(generationService, {config:cfg, primaryKey:'primary', backupKey:'backup'});
+  const plan = generationService.buildGenerationStrategies();
+  assert.deepEqual(Array.from(plan.attemptStrategy, item => [item.model, item.key]), [
+    ['gemini-3.8-flash', 'primary'], ['gemini-3.8-flash', 'backup'],
+    ['gemini-3.6-flash', 'primary'], ['gemini-flash-latest', 'primary'],
+    ['gemini-flash-latest', 'backup'], ['gemini-3.5-flash-lite', 'primary'],
+    ['gemini-3.5-flash-lite', 'backup']
+  ]);
+  generationService.backupKey = null;
+  assert(generationService.buildGenerationStrategies().attemptStrategy.every(item => !item.usesBackupKey));
+  Object.assign(generationService, {config:{}, backupKey:'backup'});
+  assert.deepEqual(Array.from(generationService.buildGenerationStrategies().attemptStrategy, item => [item.model, item.key]), [
+    ['gemini-3.8-flash', 'primary'], ['gemini-3.8-flash', 'backup'],
+    ['gemini-3.5-flash-lite', 'primary'], ['gemini-3.5-flash-lite', 'backup']
+  ]);
   values.GEMINI_MODEL_PRIMARY = ' gemini-future-flash ';
   values.GEMINI_MODEL_LITE = 'gemini-future-lite';
   ctx._clearScriptPropertyCache();
@@ -33,8 +51,6 @@ for (const file of ['gas_config.js', 'gas_config.example.js']) {
   }
   assert(cfg.MODEL_STRATEGY.generation.includes('flash-3.6'));
   cfg.MODEL_STRATEGY.generation = ['flash-primary', 'flash-latest'];
-  delete cfg.GEMINI_MODELS['flash-3.7'];
-  delete cfg.GEMINI_MODELS['flash-3.7-backup'];
   assert.equal(ctx.validateConfig().valid, true, 'no mandatory historic model names');
   cfg.MODEL_STRATEGY.semantic = ['missing'];
   assert.equal(ctx.validateConfig().valid, false);

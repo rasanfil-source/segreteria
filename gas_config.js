@@ -386,18 +386,6 @@ var CONFIG = {
       contextWindowTokens: 1048576, ipm: null,
       useCases: ['generation', 'fallback', 'backup']
     },
-    'flash-3.7': {
-      name: 'gemini-3.7-flash',
-      rpm: 10, tpm: 250000, rpd: 1500,
-      contextWindowTokens: 1048576, ipm: null,
-      useCases: ['generation', 'fallback']
-    },
-    'flash-3.7-backup': {
-      name: 'gemini-3.7-flash',
-      rpm: 10, tpm: 250000, rpd: 1500,
-      contextWindowTokens: 1048576, ipm: null,
-      useCases: ['generation', 'fallback', 'backup']
-    },
     'flash-3.6': {
       name: 'gemini-3.6-flash',
       rpm: 10, tpm: 250000, rpd: 1500,
@@ -443,7 +431,7 @@ var CONFIG = {
   },
 
   MODEL_STRATEGY: {
-    generation: ['flash-primary', 'flash-primary-backup', 'flash-3.7', 'flash-3.7-backup', 'flash-3.6', 'flash-latest', 'flash-latest-backup', 'flash-lite', 'flash-lite-backup'],
+    generation: ['flash-primary', 'flash-primary-backup', 'flash-3.6', 'flash-latest', 'flash-latest-backup', 'flash-lite', 'flash-lite-backup'],
     quick_check: ['flash-lite', 'flash-lite-backup', 'flash-lite-latest', 'flash-lite-latest-backup', 'flash-primary', 'flash-primary-backup', 'flash-latest'],
     classification: ['flash-lite', 'flash-lite-backup', 'flash-lite-latest', 'flash-lite-latest-backup', 'flash-primary', 'flash-primary-backup', 'flash-latest'],
     language: ['flash-lite', 'flash-lite-backup', 'flash-lite-latest', 'flash-lite-latest-backup', 'flash-primary', 'flash-primary-backup', 'flash-latest'],

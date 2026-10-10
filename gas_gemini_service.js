@@ -1483,7 +1483,7 @@ var GeminiService = class GeminiService {
     // Alias accessibile per i moduli che usano la proprietà apiKey
     this.apiKey = this.primaryKey;
 
-    this.modelName = this.config.MODEL_NAME || 'gemini-3.7-flash';
+    this.modelName = this.config.MODEL_NAME || 'gemini-3.8-flash';
 
     if (!this.primaryKey || this.primaryKey.length < 20 || /YOUR_[A-Z0-9_]+_HERE/.test(this.primaryKey)) {
       throw new Error('GEMINI_API_KEY non configurata correttamente (usa Script Properties, non placeholder)');
@@ -1620,8 +1620,8 @@ var GeminiService = class GeminiService {
 
   _getDefaultGenerationModelNames_() {
     return {
-      'flash-3.7': 'gemini-3.7-flash',
-      'flash-3.7-backup': 'gemini-3.7-flash',
+      'flash-primary': 'gemini-3.8-flash',
+      'flash-primary-backup': 'gemini-3.8-flash',
       'flash-3.6': 'gemini-3.6-flash',
       'flash-3.6-backup': 'gemini-3.6-flash',
       'flash-lite': 'gemini-3.5-flash-lite',
@@ -1638,7 +1638,7 @@ var GeminiService = class GeminiService {
     const models = this.config && this.config.GEMINI_MODELS
       ? this.config.GEMINI_MODELS
       : {};
-    const defaultGenerationStrategy = ['flash-3.7', 'flash-3.7-backup', 'flash-lite', 'flash-lite-backup'];
+    const defaultGenerationStrategy = ['flash-primary', 'flash-primary-backup', 'flash-lite', 'flash-lite-backup'];
     const defaultGenerationModelNames = this._getDefaultGenerationModelNames_();
     const configuredGenerationStrategy = Array.isArray(strategy.generation) && strategy.generation.length > 0
       ? strategy.generation
@@ -1649,7 +1649,7 @@ var GeminiService = class GeminiService {
     const skipExhaustedPrimary = options.skipExhaustedPrimary !== false;
     const fallbackModelName = configuredGenerationStrategy
       .map(modelKey => (models[modelKey] && models[modelKey].name) || defaultGenerationModelNames[modelKey])
-      .find(Boolean) || 'gemini-3.7-flash';
+      .find(Boolean) || 'gemini-3.8-flash';
 
     const attemptStrategy = configuredGenerationStrategy
       .map((modelKey, index) => {
@@ -1747,7 +1747,7 @@ var GeminiService = class GeminiService {
   /**
    * Genera risposta con modello specifico
    * @param {string|Object} prompt - Prompt completo oppure {systemInstruction, prompt}
-   * @param {string} modelName - Nome modello API (es. 'gemini-3.7-flash')
+   * @param {string} modelName - Nome modello API (es. 'gemini-3.8-flash')
    * @param {string} apiKeyOverride - Chiave API opzionale (per strategia multi-key)
    * @param {Array<Blob>} attachments - Array di Blob (immagini/PDF) da inviare
    * @returns {string|null} Testo generato

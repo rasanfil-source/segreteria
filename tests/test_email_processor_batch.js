@@ -1812,7 +1812,7 @@ console.log('--- Test processThread: fallback default diversifica tier modello -
   
   const strategyCalls = calls.filter(c => typeof c === 'object');
   assert(
-    strategyCalls.map(call => call.modelName).join('|') === 'gemini-3.7-flash|gemini-3.7-flash|gemini-3.5-flash-lite|gemini-3.5-flash-lite',
+    strategyCalls.map(call => call.modelName).join('|') === 'gemini-3.8-flash|gemini-3.8-flash|gemini-3.5-flash-lite|gemini-3.5-flash-lite',
     `deve diversificare il tier fisico nel fallback default (fatto: ${strategyCalls.map(call => call.modelName).join('|')})`
   );
   assert(
@@ -1904,7 +1904,7 @@ console.log('--- Test processThread: primaria esaurita salta fallback su primary
   assert(res.status === 'error', 'con fallback esaurito deve restituire status error');
   const strategyCalls = calls.filter(c => typeof c === 'object');
   assert(
-    strategyCalls.map(call => call.modelName).join('|') === 'gemini-3.7-flash|gemini-3.7-flash|gemini-3.5-flash-lite',
+    strategyCalls.map(call => call.modelName).join('|') === 'gemini-3.8-flash|gemini-3.8-flash|gemini-3.5-flash-lite',
     `deve saltare il fallback lite su primary key esaurita (fatto: ${strategyCalls.map(call => call.modelName).join('|')})`
   );
   assert(strategyCalls[2].skipRateLimit === true, 'il fallback lite residuo deve usare la chiave di riserva');

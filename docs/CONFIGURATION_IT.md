@@ -70,7 +70,7 @@ La modalità compatibilità senza `LockService` usa lock logici e marcatori pers
 
 ## Modelli
 
-La generazione usa nell'ordine `flash-3.7`, `flash-3.7-backup`, `flash-lite`, `flash-lite-backup`. I primi due risolvono a `gemini-3.7-flash`; gli altri a `gemini-3.5-flash-lite`. Quick-check, classificazione, lingua, semantica e riassunto newsletter hanno strategie Lite. `MODEL_NAME` è `gemini-3.7-flash`.
+La generazione usa nell’ordine `flash-primary`, `flash-primary-backup`, `flash-3.6`, `flash-latest`, `flash-latest-backup`, `flash-lite`, `flash-lite-backup`. La coppia primaria usa `GEMINI_MODEL_PRIMARY` (predefinito `gemini-3.8-flash`) rispettivamente con la chiave principale e quella di riserva. I percorsi 3.7 sono rimossi perché reindirizzati a 3.8. Lite usa `GEMINI_MODEL_LITE` (predefinito `gemini-3.5-flash-lite`). I task ausiliari partono da Lite e mantengono i fallback configurati.
 
 Questi sono identificativi e budget configurati localmente: disponibilità, quote e condizioni effettive vanno verificate nell'ambiente del fornitore. Alias e chiavi backup non dimostrano quote indipendenti. Il conteggio token resta locale; `GEMINI_CONTEXT_CACHE` non è una configurazione implementata nel codice attuale.
 

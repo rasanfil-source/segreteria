@@ -50,7 +50,7 @@ Blocking checks can reject a response regardless of score. Diagnose review cause
 
 Checkpoint limits include the scheduled resumption: 1 allows one resumption, 3 allows three for the same pending set. Progress resets the counter. Reading and writing abandon a checkpoint only above the limit and respect its scheduled time and expiry. Without `LockService`, compatibility mode retains logical locks and persistent send markers without atomic concurrency guarantees. Uncertain markers are retained for at least seven days; see [functional contracts](CONTRATTI_FUNZIONALI_IT.md).
 
-Generation strategy: `flash-3.7` → `flash-3.7-backup` → `flash-lite` → `flash-lite-backup`. Quality aliases use `gemini-3.7-flash`; Lite aliases use `gemini-3.5-flash-lite`. Auxiliary task strategies use Lite. These are local settings, not a claim about provider availability, prices or independent backup quotas. Token estimation is local. `GEMINI_CONTEXT_CACHE` is not implemented by the current code.
+Generation strategy: `flash-primary` → `flash-primary-backup` → `flash-3.6` → `flash-latest` → `flash-latest-backup` → `flash-lite` → `flash-lite-backup`. The primary pair uses `GEMINI_MODEL_PRIMARY` (default `gemini-3.8-flash`) with the primary and backup API keys respectively. The retired 3.7 routes are removed because they redirect to 3.8. Lite uses `GEMINI_MODEL_LITE` (default `gemini-3.5-flash-lite`). Auxiliary tasks start with Lite and retain their configured fallbacks. These are local settings, not a claim about provider availability, prices or independent backup quotas. Token estimation is local. `GEMINI_CONTEXT_CACHE` is not implemented by the current code.
 
 ## Attachments
 

@@ -557,7 +557,7 @@ L'handler onEdit invalida le risorse per le modifiche utente pertinenti quando r
 | TTL cache etichette Gmail | 6 ore |
 | TTL checkpoint | 10 minuti |
 | Riprese rapide dello stesso checkpoint | massimo 3 |
-| Modello qualità | Gemini 3.7 Flash |
+| Modello qualità | Gemini 3.8 Flash |
 | Modello task rapidi | Gemini 3.5 Flash-Lite |
 
 Le quote indicate nel codice sono limiti locali di protezione e devono essere allineate periodicamente con quelle effettive del progetto Google.
