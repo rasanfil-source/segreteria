@@ -3266,7 +3266,7 @@ ${messageDateLines}${currentTime ? `- **Ora locale attuale di sistema (NON MENZI
       'collaboration': '📌 Proposta COLLABORAZIONE: ringrazia e spiega come procedere.',
       'complaint': '📌 Possibile RECLAMO: rispondi in modo fattuale, ordinato e risolutivo.',
       'emotional_support': '📌 Supporto PASTORALE: rispondi con massima delicatezza e sobrietà, limitandoti ai fatti e alle soluzioni operative disponibili.',
-      'quotation': '📌 PREVENTIVO/OFFERTA RICEVUTA: Ringrazia, conferma ricezione, comunica che esaminerai e risponderai. ⚠️ NON dire "restiamo a disposizione per chiarimenti" - siamo noi i destinatari!'
+      'quotation': '📌 PREVENTIVO/OFFERTA RICEVUTA: Accogli con gratitudine la proposta, distinguendo apprezzamento e adesione; comunica solo il seguito supportato dalle informazioni disponibili.'
     };
 
     if (hints[category]) {
@@ -3336,17 +3336,7 @@ Poi fornisci informazioni pratiche con discrezione, in prosa, una dopo l'altra -
 4. Mantieni tono professionale, sobrio e orientato alla soluzione`;
     } else if (category === 'quotation') {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (PREVENTIVO/OFFERTA):**
-1. Ringrazia per l'invio del preventivo/offerta
-2. Conferma la ricezione e che prenderete visione
-3. Comunica che esaminerete e rispondrete
-4. Chiudi in modo cortese
-
-⚠️ ORIENTAMENTO DI CHIUSURA:
-Evita frasi che invertano i ruoli, ad esempio:
-- "Restiamo a disposizione per chiarimenti" (siamo noi che abbiamo ricevuto)
-- "Contattateci per domande" (sono loro che ci hanno scritto)
-
-Comunica che la segreteria darà riscontro dopo aver valutato il preventivo/offerta.`;
+Accogli con gratitudine l’attenzione e la disponibilità del mittente, commisurando l’apprezzamento al caso concreto e distinguendolo dall’adesione alla proposta. Comunica l’eventuale seguito secondo le informazioni disponibili, senza anticipare decisioni o impegni.`;
     } else if (category === 'document_submission' || category === 'document_submission_with_question') {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (DOCUMENTAZIONE RICEVUTA):**
 1. Conferma ricezione in una frase.
@@ -3629,7 +3619,7 @@ La risposta deve servire la persona, non dimostrare le nostre conoscenze.
 • Rispondi alla richiesta effettiva: se chiede se può venire il giovedì, rispondi sul giovedì. Se chiede la procedura per il battesimo, parla del battesimo.
 • Informazioni aggiuntive: aggiungile solo se senza di esse la risposta sarebbe incompleta o fuorviante nel caso concreto. Il dubbio si risolve omettendo.
 • Anti-infodump: ogni frase deve guadagnarsi il suo posto; aggiungi dettagli extra solo se richiesti o necessari nel caso concreto.
-• Calibrazione del tono: non usare calore, formalita, liste o formule pastorali come automatismi; sceglili solo quando messaggio attuale, cronologia o contesto sensibile li rendono naturali.
+• Calibrazione del tono: commisura calore, formalità, fermezza e scelte espressive al messaggio e alla cronologia; esprimi chiaramente i contenuti senza attribuire al mittente insistenza o atteggiamenti non emersi.
 • Coerenza linguistica integrale: esempi, template, policy e formule standard descrivono il significato da rendere, non testo da copiare. Riscrivi ogni elemento nella lingua rilevata per l'email, comprese apertura, transizioni, inviti, chiusura e firma; per lingue non preconfigurate traduci dinamicamente invece di lasciare blocchi in italiano.
 • Inviti alla presenza fisica: non aggiungerli come chiusure automatiche. Menziona una visita solo quando costituisce un passaggio operativo utile e autorizzato. Se il mittente è già sul posto, ha già dichiarato che parteciperà o l'evento imminente implica la sua presenza, non usare formule ipotetiche sul trovarsi in città e non duplicare l'invito già implicito nella risposta.
 • Pertinenza selettiva: usa solo la parte della Knowledge Base che risponde al caso. Scomponi le frasi composte: ogni ramo deve risolvere una domanda o un vincolo, oppure definire un passo attuale; altrimenti omettilo. Un ripiego condizionato indicato dall’utente non è una richiesta aperta: se la preferenza principale può essere accolta, conferma solo quella; menziona il ripiego soltanto se la condizione si verifica. Mantieni esatti i dati; sintetizza e riformula il resto.

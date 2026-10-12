@@ -2542,8 +2542,8 @@ var EmailProcessor = class EmailProcessor {
 
   _hasPastAttachmentReference_(body) {
     const text = String(body || '');
-    return /\bcome\s.{0,25}\b(invi|alleg|trasmess|anticip)/i.test(text)
-      || /\b(documento|modulo|certificato|file)\b.{0,30}\b(precedente|di\s+prima|gi[aà]\s+(?:invi|alleg))/i.test(text);
+    return /\bcome\s[\s\S]{0,25}\b(invi|alleg|trasmess|anticip)/i.test(text)
+      || /\b(documento|modulo|certificato|file)\b[\s\S]{0,30}\b(precedente|di\s+prima|gi[aà]\s+(?:invi|alleg))/i.test(text);
   }
 
   _buildDuplicateReplyFingerprintContext_(message, messageDetails = {}) {
@@ -2773,7 +2773,8 @@ var EmailProcessor = class EmailProcessor {
     // L'età del marker non prova la mancata consegna: elimina l'incertezza
     // soltanto quando esiste una conferma durevole ancora valida.
     for (const key of Object.keys(allProps)) {
-      if (!key.startsWith('send_uncertain_') || deletionsCount >= MAX_DELETIONS_PER_RUN) continue;
+      if (deletionsCount >= MAX_DELETIONS_PER_RUN) break;
+      if (!key.startsWith('send_uncertain_')) continue;
       const confirmed = this._parseSendIdempotencyBackupValue_(allProps['sent_backup_' + key.slice('send_uncertain_'.length)]);
       if (confirmed && nowTs <= confirmed.expiresAt) {
         try { props.deleteProperty(key); deletionsCount++; } catch (_) { }
@@ -3978,8 +3979,13 @@ var EmailProcessor = class EmailProcessor {
       targetLogger.warn(`⚠️ Recuperati ${metadataUnread.length} messaggi UNREAD via metadata dopo cache GmailApp incoerente.`);
     }
 
-    const unreadMessages = new Set(nativeUnread.concat(metadataUnread));
-    return sourceMessages.filter(message => unreadMessages.has(message));
+    const unreadMessageIds = new Set(nativeUnread.concat(metadataUnread)
+      .map(message => (message && typeof message.getId === 'function') ? message.getId() : '')
+      .filter(Boolean));
+    return sourceMessages.filter(message => {
+      const id = (message && typeof message.getId === 'function') ? message.getId() : '';
+      return id && unreadMessageIds.has(id);
+    });
   }
 
   // Supporto per skippedMessageIds.

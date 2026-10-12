@@ -190,7 +190,7 @@ assert(
 );
 assert(
   litePrompt.includes('Calibrazione del tono') &&
-  litePrompt.includes('non usare calore, formalita, liste o formule pastorali come automatismi'),
+  litePrompt.includes('commisura calore, formalità, fermezza e scelte espressive al messaggio e alla cronologia'),
   'il contratto qualita deve evitare automatismi di tono e struttura'
 );
 assert(
@@ -252,7 +252,7 @@ for (const lang of ['it', 'en', 'es', 'fr', 'de', 'pt']) {
     assertDoesNotMatch(prompt, /procederemo alla verifica|Formula guida per schede|Vi ricontatteremo dopo aver valutato|Ci faremo sentire per una risposta|Comprendiamo la delicatezza della sua situazione/, 'nessuna formula universale pronta da copiare');
   }
 }
-assertMatches(engine._renderResponseStructure('quotation', []), /darà riscontro dopo aver valutato/, 'il seguito del preventivo resta in carico alla segreteria');
+assertMatches(engine._renderResponseStructure('quotation', []), /distinguendolo dall’adesione alla proposta/, 'l’apprezzamento dell’offerta resta distinto dall’adesione');
 assertMatches(engine._renderSpecialCases(), /parlare DIRETTAMENTE con un sacerdote/, 'resta il rinvio per casi complessi');
 assertMatches(engine._renderSpecialCases(), /né dare per certa la possibilità di sposarsi/, 'resta la prudenza canonica');
 
