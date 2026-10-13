@@ -464,7 +464,7 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
     const policies = {
       information_request: 'Rispondi alle domande aperte con la sola procedura pertinente; non aggiungere passaggi accessori non richiesti.',
       operational_request: 'L’utente sta già eseguendo una richiesta. Concentrati su presa in carico, esito possibile e minimo prossimo passo; se questo richiede un ricontatto non ancora programmato, esprimi la sollecitudine come intenzione, non come certezza. Non riaprire istruzioni preliminari (come, dove o a chi presentare la richiesta) che il messaggio mostra già comprese o soddisfatte. Usa la KB solo per dati necessari, impedimenti reali o informazioni mancanti indispensabili.',
-      status_update: 'Riconosci l’aggiornamento e indica soltanto l’eventuale conseguenza o prossimo passo necessario; non trasformarlo in una spiegazione generale della procedura.',
+      status_update: 'Dai un breve riscontro al contenuto concreto comunicato, coerente con il suo scopo, e indica soltanto l’eventuale conseguenza o prossimo passo necessario.',
       acknowledgment: 'Rispondi in modo breve e proporzionato senza riaprire argomenti, requisiti o procedure.',
       mixed: 'Gestisci prima l’azione richiesta e poi rispondi soltanto alle domande informative ancora aperte; non ripetere ciò che l’utente ha già fatto o dimostrato di sapere.'
     };

@@ -262,6 +262,11 @@ console.log('--- Test Gemini task profiles: generation e quick_check hanno confi
 console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documentale e guidance sponsor solo se richiesti ---');
 {
   const plainPrompt = EmailQuickCheckPolicy.buildPrompt('Vorrei informazioni sugli orari', 'Info', { hasConversationContext: false });
+  const posterSubject = 'LOCANDINA DA STAMPARE IN A3 PER PORTE E ICEF';
+  const posterPrompt = EmailQuickCheckPolicy.buildPrompt('', posterSubject, { hasConversationContext: false });
+  assert(posterPrompt.prompt.includes(posterSubject), 'il corpo vuoto deve preservare la richiesta contenuta nell oggetto');
+  assert(posterPrompt.prompt.includes('eseguire un\'azione') && posterPrompt.prompt.includes('nel solo oggetto'),
+    'il classificatore deve ricevere il criterio operativo anche per richieste senza corpo');
   const threadedPrompt = EmailQuickCheckPolicy.buildPrompt('Preferirei sabato prossimo', 'Re: Messa', { hasConversationContext: true });
   const visitPrompt = EmailQuickCheckPolicy.buildPrompt(
     'Buongiorno, posso passare domani in segreteria per un certificato di battesimo?',

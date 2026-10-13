@@ -783,7 +783,7 @@ COMPITI:
    - "acknowledgment": contiene soltanto ringraziamento o conferma di ricezione.
    - "mixed": contiene davvero sia una richiesta operativa sia una domanda informativa ancora aperta.
    - Non classificare come informativa una richiesta solo perche il suo argomento e un documento o una procedura; il criterio decisivo e cio che l'utente vuole ottenere adesso.
-   - Espressioni come "richiedo", "potete preparare", "verro a ritirare", "ho gia avviato la pratica" o "desidero prenotare", accompagnate dai dati necessari, indicano una richiesta operativa anche se formulate cortesemente.
+   - Ricava lo scopo da oggetto e corpo: la richiesta di eseguire un'azione ha scopo operativo anche se sintetica e presente nel solo oggetto, con corpo vuoto; distinguila dalla semplice comunicazione di dati.
    - Fornisci anche request_purpose_confidence (0.0-1.0).
 11. Determina physical_presence_constraint:
    - TRUE per impedimenti personali attuali: distanza da Roma, salute, mobilita, assistenza familiare, restrizioni legali, indisponibilita temporanea o richiesta di gestione remota.

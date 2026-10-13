@@ -113,6 +113,9 @@ const code = fs.readFileSync(promptEnginePath, 'utf8');
 vm.runInThisContext(code, { filename: promptEnginePath });
 
 const engine = new PromptEngine();
+const communicationPolicy = engine._renderRequestPurposePolicy_({ type: 'status_update', confidence: 0.9 });
+assert(communicationPolicy.includes('contenuto concreto comunicato'), 'il riscontro deve riferirsi al contenuto effettivo della comunicazione');
+assert(!communicationPolicy.includes('Riconosci l’aggiornamento'), 'la categoria interna non deve imporre il nome della comunicazione');
 
 console.log('--- Test precedenza nome firmato rispetto al nome account ---');
 {
