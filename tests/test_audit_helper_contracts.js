@@ -21,20 +21,21 @@ function test(name, run) {
   catch (error) { failures.push(name); console.error(`FAIL ${name}: ${error.message}`); }
 }
 
-test('missing skip list never confirms an announced but absent document', () => {
+test('missing inspection evidence leaves presence unverified; known presence survives skipped reading', () => {
   for (const attachmentSkipped of [undefined, null, []]) {
     const model = processor._buildDocumentDeliveryModel_({
       body: 'Allego il documento.', attachmentSkipped
     });
-    assert.equal(model.status, 'missing');
+    assert.equal(model.status, 'unverified_attachment');
     assert.equal(model.blocksReceiptOnly, true);
   }
   const model = processor._buildDocumentDeliveryModel_({
     body: 'Allego il documento.', physicalAttachmentsDetected: true,
     attachmentSkipped: [{ reason: 'message_too_large_for_attachment_download' }]
   });
-  assert.equal(model.status, 'unverified_attachment');
-  assert.equal(model.blocksReceiptOnly, true);
+  assert.equal(model.status, 'received_attachment');
+  assert.equal(model.hasPhysicalAttachment, true);
+  assert.equal(model.hasAttachmentAnalyzedContent, false);
   assert.throws(() => processor._buildDocumentDeliveryModel_({ attachmentSkipped: {} }),
     { name: 'TypeError' });
 });

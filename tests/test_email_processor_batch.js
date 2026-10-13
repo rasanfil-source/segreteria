@@ -254,7 +254,7 @@ console.log('--- Test document delivery: avviso di sistema allegati non vale com
   assert(model.hasUsableAttachmentText === false, 'l avviso di sistema non deve essere testo allegato utilizzabile');
   assert(model.hasUsableAttachmentContent === false, 'senza file fisico e senza testo utile non deve esserci contenuto allegato utilizzabile');
   assert(model.hasAttachmentContent === false, 'hasAttachmentContent non deve scattare su un solo avviso di sistema');
-  assert(model.status === 'missing', `documento annunciato senza contenuto utile deve essere missing, ottenuto ${model.status}`);
+  assert(model.status === 'unverified_attachment', `assenza di contenuto utile non prova assenza del file, ottenuto ${model.status}`);
   assert(model.blocksReceiptOnly === true, 'documento atteso missing deve bloccare il receipt-only');
 }
 
@@ -3152,9 +3152,9 @@ console.log('--- Test expected document missing: avviso di sistema allegati non 
     attachmentItems: [],
     textFromAttachments: '[Avviso di sistema: sono presenti allegati nel thread, ma sono stati esclusi perché già processati]'
   });
-  assert(model.status === 'missing', 'un avviso di sistema in textFromAttachments non deve diventare received_attachment');
+  assert(model.status === 'unverified_attachment', 'un avviso di sistema non prova ricezione o assenza del file');
   assert(model.hasUsableAttachmentText === false, 'un avviso di sistema in textFromAttachments non è testo allegato utilizzabile');
-  assert(model.hasExpectedDocumentMissing === true, 'documento atteso con solo avviso di sistema deve risultare mancante');
+  assert(model.hasExpectedDocumentMissing === false, 'documento atteso con solo avviso di sistema resta non verificato');
   assert(model.blocksReceiptOnly === true, 'documento atteso mancante deve impostare blocksReceiptOnly true');
 }
 
@@ -5618,7 +5618,7 @@ console.log('--- Test document delivery: annuncio esplicito senza file resta doc
   });
 
   assert(model.announcedByBody === true, 'l annuncio esplicito deve essere corroborato localmente');
-  assert(model.status === 'missing', `un allegato davvero annunciato ma assente deve restare missing, ottenuto ${model.status}`);
+  assert(model.status === 'unverified_attachment', `annuncio e mancata rilevazione senza controllo non provano assenza, ottenuto ${model.status}`);
 }
 
 console.log('--- Test attachment intent: modulo compilato con desiderio di partecipazione non diventa receipt-only ---');

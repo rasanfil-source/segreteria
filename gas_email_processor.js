@@ -2358,17 +2358,22 @@ var EmailProcessor = class EmailProcessor {
     const inspectionSkippedOther = skippedAttachments.some(s => ['near_deadline', 'attachment_precheck_failed'].includes(s.reason));
     const inspectionSkipped = inspectionSkippedForSize || inspectionSkippedOther;
 
+    // Una lista vuota non certifica un controllo: solo no_attachments prova
+    // l'assenza. Una presenza già rilevata sopravvive ai limiti di lettura.
     if (expectsDocument && bodyContainsUsableDocumentContent) {
       status = 'received_body';
       source = 'body';
-    } else if (expectsDocument && inspectionSkipped) {
+    } else if (expectsDocument && inspectionSkipped && !hasAttachmentContent) {
       status = 'unverified_attachment';
       source = 'announced';
     } else if (expectsDocument && hasAttachmentContent) {
       status = 'received_attachment';
       source = 'attachment';
-    } else if (expectsDocument) {
+    } else if (expectsDocument && skippedAttachments.some(s => s.reason === 'no_attachments')) {
       status = 'missing';
+      source = 'announced';
+    } else if (expectsDocument) {
+      status = 'unverified_attachment';
       source = 'announced';
     } else if (hasAttachmentContent) {
       status = 'unannounced_attachment';

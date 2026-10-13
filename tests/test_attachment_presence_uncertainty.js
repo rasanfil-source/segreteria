@@ -9,21 +9,21 @@ for (const file of ['gas_email_processor.js', 'gas_prompt_engine.js']) {
 const processor = Object.create(ctx.EmailProcessor.prototype);
 const engine = Object.create(ctx.PromptEngine.prototype);
 const base = { subject: 'Invio documento', body: 'Allego il documento richiesto.' };
-for (const skipped of [[{ reason: 'near_deadline' }], [{ reason: 'message_too_large_for_attachment_download' }]]) {
+for (const skipped of [undefined, null, [], [{ reason: 'attachment_precheck_failed' }], [{ reason: 'near_deadline' }], [{ reason: 'message_too_large_for_attachment_download' }]]) {
   const model = processor._buildDocumentDeliveryModel_({ ...base, attachmentSkipped: skipped });
   assert.equal(model.status, 'unverified_attachment');
   assert.equal(model.hasExpectedDocumentMissing, false);
 }
-for (const skipped of [undefined, null, [], [{ reason: 'no_attachments' }]]) {
+for (const skipped of [[{ reason: 'no_attachments' }]]) {
   assert.equal(processor._buildDocumentDeliveryModel_({ ...base, attachmentSkipped: skipped }).status, 'missing');
 }
 assert.equal(processor._buildDocumentDeliveryModel_({ ...base, physicalAttachmentsDetected: true,
   attachmentSkipped: [{ reason: 'too_large' }] }).status, 'received_attachment');
-for (const missing of [false, true]) {
+for (const missing of [undefined, null, false, true]) {
   const prompt = engine._renderAttachmentContext('Contesto', {
     intent: 'suspected_submission', hasPhysicalAttachments: false, hasExpectedDocumentMissing: missing
   });
-  assert.equal(prompt.includes('ALLEGATO DICHIARATO MA NON RICEVUTO'), missing);
+  assert.equal(prompt.includes('ALLEGATO DICHIARATO MA NON RICEVUTO'), missing === true);
 }
 for (const oversized of [false, true]) {
   const output = runScenario(root, {
@@ -37,5 +37,16 @@ for (const oversized of [false, true]) {
   assert(!/NON ha inviato|non risultano allegati/.test(prompt[1].attachmentsContext));
   assert(!prompt[1].attachmentIntentContext?.hasExpectedDocumentMissing);
   if (oversized) assert(!output.effects.some(([event]) => event === 'attachments.read'));
+}
+const informational = runScenario(root, { subject: 'Orari', body: 'Quali sono gli orari delle messe?' });
+assert.equal(informational.effects.find(([event]) => event === 'prompt')[1].attachmentsContext, '');
+const disabled = runScenario(root, { ...base, attachment: true, attachmentSettings: { enabled: false } });
+const disabledPrompt = disabled.effects.find(([event]) => event === 'prompt');
+assert(disabledPrompt, JSON.stringify(disabled.result));
+assert(!disabledPrompt[1].attachmentIntentContext?.hasExpectedDocumentMissing);
+assert(!/NON ha inviato|non risultano allegati/.test(disabledPrompt[1].attachmentsContext));
+for (const reason of ['near_deadline', 'message_too_large_for_attachment_download']) {
+  assert.equal(processor._buildDocumentDeliveryModel_({ ...base, physicalAttachmentsDetected: true,
+    attachmentSkipped: [{ reason }] }).status, 'received_attachment');
 }
 console.log('Attachment presence: unread, oversized, confirmed missing and subject-only poster regressions passed');

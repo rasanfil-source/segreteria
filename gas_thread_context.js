@@ -318,10 +318,8 @@ ${addressLines.join('\n\n')}
           ? "ATTENZIONE: il documento atteso non è disponibile: non risultano allegati fisici né dati compilati utilizzabili nel corpo del messaggio."
           : (bodyContainsUsableDocumentContent
             ? "ATTENZIONE: il documento/la scheda è riportato nel corpo del messaggio come dati compilati utilizzabili; non parlare di allegato."
-            : (attachmentIntentContext
-              ? (documentDeliveryModel && documentDeliveryModel.status === 'unverified_attachment'
+            : (documentDeliveryModel && documentDeliveryModel.status === 'unverified_attachment'
                 ? "La presenza di allegati non è confermata. La mancata elaborazione non prova che siano assenti: non dichiararli mancanti e non chiederne il reinvio per questo solo motivo."
-                : "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa.")
               : ''))),
       attachmentIntentContext: attachmentIntentContext
         ? Object.assign({}, attachmentIntentContext, {

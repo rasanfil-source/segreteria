@@ -1098,6 +1098,7 @@ const noAttachmentFollowupPrompt = engine.buildPrompt({
   attachmentIntentContext: {
     intent: 'suspected_submission',
     responseDirective: 'Confermare la ricezione della documentazione allegata.',
+    hasExpectedDocumentMissing: true,
     hasPhysicalAttachments: false
   }
 });
@@ -1127,6 +1128,7 @@ const missingAttachmentQuestionPrompt = engine.buildPrompt({
   attachmentIntentContext: {
     intent: 'suspected_submission_with_question',
     responseDirective: 'Segnalare che non risultano allegati fisici.',
+    hasExpectedDocumentMissing: true,
     hasPhysicalAttachments: false,
     hasQuestions: true
   }

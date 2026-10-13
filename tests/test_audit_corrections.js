@@ -41,7 +41,7 @@ assert.equal(model.blocksReceiptOnly, true);
 assert.equal(model.hasExpectedDocumentMissing, false);
 assert(attachments.attachmentSkipped.some(s => s.reason === 'message_too_large_for_attachment_download'));
 assert(!logs.some(line => line.includes('nessun allegato nel messaggio')));
-const missing = processor._buildDocumentDeliveryModel_({ ...details });
+const missing = processor._buildDocumentDeliveryModel_({ ...details, attachmentSkipped: [{ reason: 'no_attachments' }] });
 assert.equal(missing.status, 'missing', 'a checked message without attachments is still missing');
 const bodyModel = processor._buildDocumentDeliveryModel_({ ...details, ...attachments,
   quickDocumentDelivery: { ...quickDelivery, body_contains_filled_document: true } });
@@ -110,7 +110,8 @@ for (const scenario of [
   assert.equal(prompt.documentDelivery.status, 'unverified_attachment');
   assert.equal(prompt.documentDelivery.hasExpectedDocumentMissing, false);
   const runtime = output.effects.find(([event]) => event === 'validate')[1][7];
-  assert.equal(runtime.validationContext.documentMismatch.reason, 'attachment_inspection_skipped_for_size');
+  assert.equal(runtime.validationContext.documentMismatch.reason, scenario.burst
+    ? 'expected_document_with_unknown_attachment' : 'attachment_inspection_skipped_for_size');
   for (const id of Object.keys(scenario.sizeEstimates)) {
     assert(!output.effects.some(([event, value]) => event === 'attachments.read' && (value === id || value[0] === id)), `oversize read: ${id}`);
     assert(!output.effects.some(([event, value]) => event === 'attachments.process' && value[0] === id), `oversize process: ${id}`);

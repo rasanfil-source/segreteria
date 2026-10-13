@@ -61,6 +61,7 @@ var ThreadAttachments = {
           ThreadAttachments.propagateServiceFailure(deps, e);
           console.warn(`⚠️ Impossibile leggere allegati per pre-check: ${e.message}`);
           attachmentPreCheckFailed = true;
+          attachmentSkipped.push({ reason: 'attachment_precheck_failed' });
         }
 
         // LOOK-BACK STRETTO: se il messaggio corrente non ha allegati propri, recuperiamo
