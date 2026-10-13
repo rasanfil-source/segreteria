@@ -711,12 +711,20 @@ var ResponseValidator = class ResponseValidator {
       requiresSemanticReview: false,
       signals: []
     };
-    if (!response || !knowledgeBase) return result;
+    if (!response) return result;
 
     const normalizedClaimText = String(response)
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
+    // Il futuro istituzionale richiede riscontro semantico anche con KB vuota.
+    // Il segnale attiva una verifica, lasciando al contesto il giudizio sull'impegno.
+    const operationalCommitment = /\b(?:[a-z]+(?:eremo|iremo)|faremo|daremo|saremo|avremo|ci\s+impegniamo|garantiamo|assicuriamo|we\s+(?:will|shall)|we['’]ll|nous\s+\w+(?:erons|irons)|wir\s+werden)\b/i.test(normalizedClaimText);
+    if (operationalCommitment) result.signals.push('operational_commitment');
+    if (!knowledgeBase) {
+      result.requiresSemanticReview = result.signals.length > 0;
+      return result;
+    }
     const institutionalNegativeClaim = [
       /\bnon\s+(?:disponiamo|offriamo|prevediamo|organizziamo|forniamo|consentiamo)\b[^.\n]{0,120}\b(?:percors\w*|programm\w*|serviz\w*|modalit\w*|tutor\w*|incontr\w*|cors\w*|opzion\w*)\b/i,
       /\bnon\s+(?:e|sono)\s+(?:possibil\w*|disponibil\w*|previst\w*)\b[^.\n]{0,120}\b(?:seguire|concordare|organizzare|partecipare|ricevere|svolgere|anticipare|percors\w*|programm\w*|serviz\w*)\b/i,
@@ -3909,7 +3917,7 @@ ${response}
 
 COMPITO A — RADICAMENTO:
 1. Estrai orari, date, email, URL, telefoni, requisiti, procedure, eccezioni, promesse operative e affermazioni di disponibilità, indisponibilità, divieto o limite presenti nella RISPOSTA.
-2. Verifica che siano supportati, anche con sinonimi o varianti, e che conservino lo stesso grado di certezza della fonte: una possibilità da concordare o soggetta a disponibilità non supporta una conferma già concessa, una promessa di fattibilità o la garanzia del risultato entro una scadenza. Capacità e limitazioni istituzionali devono risultare dalla BASE CONOSCENZA: l'EMAIL ORIGINALE da sola non le dimostra e l'assenza di un dettaglio non autorizza una negazione, soprattutto se la base conferma una possibilità generale o equivalente.
+2. Conserva il grado di certezza delle fonti, anche con sinonimi: distingui richiesta del mittente, servizio previsto e impegno assunto per il caso concreto. Una promessa operativa richiede una procedura che ne autorizzi l'esecuzione o un accordo esplicito applicabile; una possibilità da concordare resta tale. Capacità e limiti istituzionali richiedono riscontro nella BASE CONOSCENZA; i dettagli mancanti restano da definire, preservando le possibilità generali previste.
 3. Per i dati personali considera come input autorizzato l'intero blocco EMAIL ORIGINALE, compresi oggetto, corpo e storico esplicito. Un nome o cognome presente in una di queste parti può essere ripetuto e non è un'invenzione.
 4. Distingui sempre l'esistenza di un'entità dal ruolo attribuito: la presenza del nome "Alberto" autorizza a ripetere "Alberto", ma non dimostra da sola che Alberto sia il figlio, il battezzando, il padrino o un'altra persona. Inserisci in "entityRoleMismatches" soltanto le associazioni nome-ruolo che la RISPOSTA afferma senza che tale relazione risulti esplicitamente dall'input.
 5. Lo storico supporta dati personali o fatti esplicitamente dichiarati dall'utente. Una precedente risposta della segreteria non è invece una fonte autonoma per procedure, requisiti o capacità istituzionali, che devono restare radicati nella BASE CONOSCENZA.

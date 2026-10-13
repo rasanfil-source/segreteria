@@ -2040,11 +2040,11 @@ console.log('--- Test knowledge contextualization: negazione istituzionale forza
   const semanticPrompt = semantic._buildHallucinationPrompt(unsupportedNegative, kb, email, 'information_request');
   assert(
     semanticPrompt.includes('affermazioni di disponibilità, indisponibilità, divieto o limite') &&
-      semanticPrompt.includes("l'EMAIL ORIGINALE da sola non le dimostra") &&
-      semanticPrompt.includes("l'assenza di un dettaglio non autorizza una negazione") &&
-      semanticPrompt.includes('conservino lo stesso grado di certezza della fonte') &&
-      semanticPrompt.includes('non supporta una conferma già concessa') &&
-      semanticPrompt.includes('garanzia del risultato entro una scadenza'),
+      semanticPrompt.includes('Capacità e limiti istituzionali richiedono riscontro nella BASE CONOSCENZA') &&
+      semanticPrompt.includes('i dettagli mancanti restano da definire, preservando le possibilità generali previste') &&
+      semanticPrompt.includes('Conserva il grado di certezza delle fonti') &&
+      semanticPrompt.includes('richiesta del mittente, servizio previsto e impegno assunto per il caso concreto') &&
+      semanticPrompt.includes('una possibilità da concordare resta tale'),
     'il validatore semantico deve applicare il radicamento alle affermazioni negative e preservare la modalità della fonte'
   );
 }
