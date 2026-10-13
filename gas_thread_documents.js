@@ -450,10 +450,10 @@ var ThreadDocuments = {
         ? `${expectedDocumentLabel}${effectiveDocumentMismatchReason ? ` (${effectiveDocumentMismatchReason})` : ''}`
         : (effectiveDocumentMismatchReason || 'non specificato');
 
-      const inspectionSkippedForSize = effectiveDocumentMismatchReason === 'attachment_inspection_skipped_for_size';
+      const inspectionSkippedForSize = ['attachment_inspection_skipped_for_size', 'attachment_presence_unverified'].includes(effectiveDocumentMismatchReason);
       if (hasDocumentDeliveryUnverified && inspectionSkippedForSize) {
         directiveText = [
-          'Il messaggio supera il limite di dimensioni per la lettura degli allegati: la loro presenza e il contenuto non sono verificati.',
+          'La lettura degli allegati non è stata completata: la loro presenza e il contenuto non sono verificati.',
           'Non affermare che il documento manca, è errato, è stato ricevuto, è corretto o completo.',
           'Conferma soltanto la ricezione del messaggio e rispondi alle domande usando i dati disponibili.',
           'Se il documento è indispensabile, spiega che non è stato possibile verificarlo e chiedi una copia di dimensioni ridotte o i dati nel corpo del messaggio.'

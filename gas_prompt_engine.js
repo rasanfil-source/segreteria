@@ -3659,7 +3659,7 @@ La risposta deve servire la persona, non dimostrare le nostre conoscenze.
     const bodyContainsUsableDocumentContent = Boolean(
       attachmentIntentContext && attachmentIntentContext.bodyContainsUsableDocumentContent === true
     );
-    const missingAttachmentGuardrail = (isSuspectedSubmission && !hasPhysicalAttachments && !bodyContainsUsableDocumentContent) ? `
+    const missingAttachmentGuardrail = (isSuspectedSubmission && attachmentIntentContext && attachmentIntentContext.hasExpectedDocumentMissing !== false && !hasPhysicalAttachments && !bodyContainsUsableDocumentContent) ? `
 ⚠️ ALLEGATO DICHIARATO MA NON RICEVUTO.
 Azione: segnala con garbo che non risultano allegati e chiedi di rinviarli.
 Se nel corpo c'è una domanda autonoma, rispondi comunque alla domanda usando Knowledge Base e contesto disponibile; poi chiarisci che la verifica finale della documentazione richiederà l'allegato.

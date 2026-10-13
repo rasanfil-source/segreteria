@@ -260,7 +260,7 @@ ${addressLines.join('\n\n')}
     responseStrategy, requestPurpose, hasStrongerResponseRoutingSignal, goalContinuity,
     goalContinuityConfidence, requestType, physicalAttachmentsDetected, textFromAttachments,
     hasExpectedDocumentMissing, bodyContainsUsableDocumentContent, systemDirectives, routedAiCoreLite,
-    routedAiCore, routedDoctrine, routedDoctrineStructured
+    routedAiCore, routedDoctrine, routedDoctrineStructured, documentDeliveryModel
   }) {
     const promptOptions = {
       runtimeContext: runtimeContext,
@@ -313,13 +313,15 @@ ${addressLines.join('\n\n')}
       },
       requestType: requestType,
       attachmentsContext: physicalAttachmentsDetected
-        ? textFromAttachments
+        ? (textFromAttachments || 'Allegato presente. Contenuto non esaminato: la ricezione non attesta corrispondenza, correttezza o completezza del documento.')
         : (hasExpectedDocumentMissing
           ? "ATTENZIONE: il documento atteso non è disponibile: non risultano allegati fisici né dati compilati utilizzabili nel corpo del messaggio."
           : (bodyContainsUsableDocumentContent
             ? "ATTENZIONE: il documento/la scheda è riportato nel corpo del messaggio come dati compilati utilizzabili; non parlare di allegato."
             : (attachmentIntentContext
-              ? "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa."
+              ? (documentDeliveryModel && documentDeliveryModel.status === 'unverified_attachment'
+                ? "La presenza di allegati non è confermata. La mancata elaborazione non prova che siano assenti: non dichiararli mancanti e non chiederne il reinvio per questo solo motivo."
+                : "ATTENZIONE: L'utente NON ha inviato allegati fisici. Ha fornito solo dati nel testo. NON usare formule come 'ricezione della documentazione'. Rispondi direttamente alla richiesta operativa.")
               : ''))),
       attachmentIntentContext: attachmentIntentContext
         ? Object.assign({}, attachmentIntentContext, {

@@ -2355,10 +2355,13 @@ var EmailProcessor = class EmailProcessor {
     const skippedAttachments = attachmentSkipped == null ? [] : attachmentSkipped;
     if (!Array.isArray(skippedAttachments)) throw new TypeError('attachmentSkipped deve essere un array');
     const inspectionSkippedForSize = skippedAttachments.some(s => s.reason === 'message_too_large_for_attachment_download');
+    const inspectionSkippedOther = skippedAttachments.some(s => ['near_deadline', 'attachment_precheck_failed'].includes(s.reason));
+    const inspectionSkipped = inspectionSkippedForSize || inspectionSkippedOther;
+
     if (expectsDocument && bodyContainsUsableDocumentContent) {
       status = 'received_body';
       source = 'body';
-    } else if (expectsDocument && inspectionSkippedForSize) {
+    } else if (expectsDocument && inspectionSkipped) {
       status = 'unverified_attachment';
       source = 'announced';
     } else if (expectsDocument && hasAttachmentContent) {
@@ -2391,7 +2394,7 @@ var EmailProcessor = class EmailProcessor {
       source: source,
       isCoherent: !blocksReceiptOnly,
       blocksReceiptOnly: blocksReceiptOnly,
-      blockReason: status === 'unverified_attachment' ? 'attachment_inspection_skipped_for_size' : (blocksReceiptOnly ? 'expected_document_missing' : ''),
+      blockReason: status === 'unverified_attachment' ? (inspectionSkippedForSize ? 'attachment_inspection_skipped_for_size' : 'attachment_presence_unverified') : (blocksReceiptOnly ? 'expected_document_missing' : ''),
       receiptOnlyDeliveryChannel: bodyContainsUsableDocumentContent && !hasAttachmentContent
         ? 'body'
         : 'attachment'
