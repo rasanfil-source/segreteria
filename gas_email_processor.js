@@ -4544,24 +4544,24 @@ var EmailProcessor = class EmailProcessor {
     const shouldIncludeSignature = effectiveSalutationMode !== 'none_or_continuity' && effectiveSalutationMode !== 'session';
     const shouldAvoidFormalGreeting = effectiveSalutationMode === 'none_or_continuity' || effectiveSalutationMode === 'session';
     const isSoftSalutationMode = effectiveSalutationMode === 'soft';
+    const langLabel = langNames[language] || language || 'italiano';
 
     if (flags.thinking_leak) {
       correctionInstructions.push(
-        'ERRORE CRITICO: Hai incluso il tuo ragionamento interno o fatto riferimento alle tue fonti nella risposta.\n' +
-        'CORREZIONE: Scrivi SOLO la risposta finale. Non usare frasi come "noto che", "devo correggere", ' +
-        '"le istruzioni dicono", "nella nostra base dati", "nella conoscenza di base". Se ti manca un dato, scrivi solo "Non abbiamo informazioni in proposito".'
+        `TESTO FINALE: Rispondi direttamente al mittente in ${langLabel}, con tono naturale, senza esporre ragionamenti, istruzioni o fonti interne. Se manca un dato richiesto, indica con parole tue che va verificato con la segreteria; usa solo recapiti documentati.`
       );
     }
 
     if (flags.papal_reference) {
       const papalDetails = details.currentPopeReference || {};
-      const currentPope = papalDetails.currentPope || 'il Papa regnante indicato nelle istruzioni';
+      const currentPope = papalDetails.currentPope ||
+        (runtimeContext && runtimeContext.papal && runtimeContext.papal.currentName) ||
+        'il Papa regnante indicato nelle istruzioni';
       const staleNames = Array.isArray(papalDetails.stalePopeNames) && papalDetails.stalePopeNames.length > 0
         ? papalDetails.stalePopeNames.join(', ')
         : 'un Papa non regnante';
       correctionInstructions.push(
-        `ERRORE CRITICO: Hai citato ${staleNames} in presente come se fosse il Papa attuale.\n` +
-        `CORREZIONE: Il Papa attuale/regnante indicato dalle istruzioni è ${currentPope}. Non usare formule tipo "Papa X ci invita/ricorda..." per un Papa non regnante. Se il riferimento papale non è indispensabile, elimina del tutto la citazione papale; se serve un riferimento storico, scrivilo esplicitamente al passato.`
+        `RIFERIMENTO PAPALE: Il Papa regnante è ${currentPope}. Ometti la citazione se superflua; cita ${staleNames} solo come riferimento storico esplicitamente al passato.`
       );
     }
     if (flags.hallucination && (!flags.papal_reference || flags.hasDirectHallucination)) {
@@ -4582,15 +4582,13 @@ var EmailProcessor = class EmailProcessor {
         items.push(`orari tecnici da eliminare: ${flags.hallucinations.technicalTimes.slice(0, 3).join(', ')}`);
       }
       const technicalTimeInstruction = Array.isArray(flags.hallucinations.technicalTimes) && flags.hallucinations.technicalTimes.length > 0
-        ? '\nNon sostituire questi orari con altri orari: elimina del tutto il riferimento all\'ora tecnica di sistema o di ricezione.'
+        ? '\nOmetti l\'ora tecnica di sistema o di ricezione senza sostituirla con altri orari.'
         : '';
       const itemsStr = items.length > 0
-        ? `Rimuovi o verifica: ${items.join(' | ')}`
-        : 'Rimuovi qualsiasi dato (orario, telefono, email, URL) o procedura inventata (es. eccezioni, programmi personalizzati) non presente nelle informazioni fornite.';
+        ? `Dati da verificare nelle fonti: ${items.join(' | ')}. `
+        : '';
       correctionInstructions.push(
-        'ERRORE CRITICO: Hai inventato informazioni non presenti nelle informazioni disponibili.\n' +
-        `CORREZIONE: ${itemsStr}${technicalTimeInstruction}\n` +
-        'Se non conosci un dato, invita cortesemente a contattare la segreteria.'
+        `ADERENZA ALLE FONTI: ${itemsStr}Conserva o correggi solo dati supportati dalle fonti pertinenti e procedure autorizzate dalla KB; elimina gli altri.${technicalTimeInstruction} Per dati richiesti mancanti, invita a verificare con la segreteria usando solo recapiti documentati.`
       );
     }
 
@@ -4603,16 +4601,13 @@ var EmailProcessor = class EmailProcessor {
         ? `Dettagli da rivalutare: ${relevanceExamples.join(' | ')}.\n`
         : '';
       correctionInstructions.push(
-        'ERRORE CRITICO: La risposta ha trasferito dalla Knowledge Base dettagli veri ma non pertinenti al bisogno concreto del mittente.\n' +
-        `CORREZIONE: ${relevanceLabel}Scomponi le frasi della Knowledge Base in unità informative indipendenti. Per ogni dettaglio verifica quale domanda, vincolo o prossimo passo risolve; elimina i rami accessori, le alternative non richieste e le eccezioni non applicabili. Conserva esatti dati e condizioni necessari, ma riformula la prosa invece di riprodurre il blocco sorgente.`
+        `PERTINENZA: ${relevanceLabel}Valuta ogni dettaglio della KB separatamente: conserva solo ciò che risponde a una domanda, un vincolo o un prossimo passo del mittente. Ometti alternative non richieste ed eccezioni non applicabili. Mantieni esatti dati e condizioni necessari, riformulando la prosa.`
       );
     }
 
     if (flags.language) {
-      const langLabel = langNames[language] || language;
       correctionInstructions.push(
-        `ERRORE: La risposta non è in ${langLabel}.\n` +
-        `CORREZIONE: Riscrivi l'intera risposta in ${langLabel}. Saluto, firma, formule di cortesia ed eventuali blocchi standard devono essere tutti in ${langLabel}; traduci o elimina ogni frase rimasta in un'altra lingua.`
+        `LINGUA: Redigi l'intera risposta in ${langLabel}, inclusi saluto, firma, formule di cortesia e blocchi standard; traduci o elimina ogni frase rimasta in un'altra lingua.`
       );
     }
 
@@ -4620,25 +4615,22 @@ var EmailProcessor = class EmailProcessor {
       const placeholders = (flags.foundPlaceholders || []).slice(0, 4);
       const placeholderText = placeholders.length > 0 ? placeholders.join(', ') : '[segnaposti]';
       correctionInstructions.push(
-        'ERRORE: La risposta contiene segnaposto non compilati.\n' +
-        `CORREZIONE: Compila o rimuovi questi segnaposto: ${placeholderText}.`
+        `SEGNAPOSTO: Sostituisci ${placeholderText} solo con dati disponibili nelle fonti; altrimenti riformula la frase senza il dato mancante.`
       );
     }
 
     if (flags.temporal) {
       correctionInstructions.push(
-        'ERRORE CRITICO: Hai qualificato temporalmente in modo errato un evento, corso o celebrazione.\n' +
-        'CORREZIONE: Confronta ogni data esplicita con la DATA ODIERNA presente nel prompt: se la data è futura, presentala come programmata o futura; se è passata, presentala come già avvenuta; se non è chiara, non dedurre che sia conclusa.'
+        'COERENZA TEMPORALE: Confronta le date con currentDate risposta: presenta quelle successive come future e quelle precedenti come trascorse. Se data o anno sono incerti, mantieni l\'incertezza senza dare l\'evento per concluso.'
       );
     }
 
     if (flags.physical_presence) {
       const avoidInvitation = String(flags.physicalPresencePolicy || '').toLowerCase() === 'avoid_invitation';
       correctionInstructions.push(
-        'ERRORE CRITICO: Il mittente ha manifestato un vincolo a raggiungere fisicamente la parrocchia, ma la risposta lo invita a venire/passare di persona come opzione ordinaria.\n' +
         (avoidInvitation
-          ? 'CORREZIONE: Rimuovi ogni invito alla presenza fisica, anche condizionale. Privilegia esclusivamente telefono/email o presa in carico a distanza, salvo obbligo procedurale esplicito e inevitabile.'
-          : 'CORREZIONE: Rimuovi l\'invito diretto alla presenza fisica. Privilegia telefono/email. Un eventuale riferimento condizionale alla presenza va mantenuto solo se aggiunge un passaggio operativo necessario e deve essere formulato interamente nella lingua della risposta; non usarlo come chiusura di cortesia automatica.')
+          ? 'PRESENZA: Privilegia telefono/email o presa in carico a distanza. Ometti inviti in sede anche condizionali, salvo obbligo procedurale esplicito e inevitabile.'
+          : 'PRESENZA: Privilegia telefono/email. Cita la presenza solo in forma condizionale, nella lingua della risposta, per un passaggio operativo necessario; ometti inviti diretti o di sola cortesia.')
       );
     }
 
@@ -4646,9 +4638,7 @@ var EmailProcessor = class EmailProcessor {
       const sensitiveIssues = (flags.sensitiveQualityErrors || []).concat(flags.sensitiveQualityWarnings || []).slice(0, 3);
       const issueText = sensitiveIssues.length > 0 ? sensitiveIssues.join(' | ') : 'postura sensibile non coerente con il contesto';
       correctionInstructions.push(
-        'ERRORE: La risposta non rispetta la postura sensibile calcolata dal contesto.\n' +
-        `PROBLEMA: ${issueText}\n` +
-        'CORREZIONE: Rispondi al bisogno operativo senza nominare memoria, lutto o vissuti non ripresi dall\'utente. Nei flussi formali resta procedurale e non persuasivo; nei casi pastorale-tecnici mantieni una frase umana breve e poi dai il prossimo passo concreto.'
+        `POSTURA SENSIBILE: ${issueText}. Rispondi al bisogno operativo senza nominare memoria, lutto o vissuti non ripresi dall'utente. Nei flussi formali resta procedurale e non persuasivo; nei casi pastorale-tecnici mantieni una frase umana breve e poi il prossimo passo concreto.`
       );
     }
 
@@ -4659,19 +4649,17 @@ var EmailProcessor = class EmailProcessor {
 
       if (tooShort) {
         const signatureNote = shouldAvoidFormalGreeting
-          ? 'NON includere saluti formali o firme: continua nel tono di conversazione già in corso.'
+          ? 'Prosegui nella conversazione senza saluti formali o firme.'
           : (isSoftSalutationMode
             ? 'Mantieni una ripresa leggera, senza saluto rituale; includi una chiusura/firma essenziale.'
             : (shouldIncludeSignature ? 'Includi saluto e firma.' : 'Mantieni il formato di continuità previsto.'));
         correctionInstructions.push(
-          'ERRORE: La risposta è troppo breve.\n' +
-          `CORREZIONE: Espandi con 2-3 frasi complete e informazioni utili. ${signatureNote}`
+          `COMPLETEZZA: Sviluppa 2-3 frasi complete con soli dati utili supportati dal contesto. ${signatureNote}`
         );
       }
       if (tooLong) {
         correctionInstructions.push(
-          'ERRORE: La risposta è eccessivamente lunga.\n' +
-          'CORREZIONE: Sintetizza e rispondi SOLO alla domanda posta, massimo 4-5 frasi.'
+          'SINTESI: Rispondi alle domande poste in massimo 4-5 frasi, mantenendo dati e condizioni necessari.'
         );
       }
     }
@@ -4681,8 +4669,7 @@ var EmailProcessor = class EmailProcessor {
         ? validationResult.score.toFixed(2)
         : '?';
       correctionInstructions.push(
-        `La risposta non ha superato il controllo qualità (score: ${scoreLabel}).\n` +
-        'Riscrivi la risposta in modo più preciso, professionale e coerente con le istruzioni.'
+        `QUALITÀ (score: ${scoreLabel}): Riscrivi con tono cordiale e preciso, fedele alle fonti e alle istruzioni.`
       );
     }
 
@@ -4727,19 +4714,17 @@ var EmailProcessor = class EmailProcessor {
       : '';
 
     return `### CORREZIONE MIRATA ###
-Lingua della risposta: ${language || 'it'}.
-Modalità saluto: ${effectiveSalutationMode}.${physicalReminder}${runtimeReminder}${groundingReminder}
+Lingua: ${language || 'it'} | Modalità saluto: ${effectiveSalutationMode}.${physicalReminder}${runtimeReminder}${groundingReminder}
 
-La tua generazione precedente conteneva errori che DEVI correggere:
+Riscrivi applicando questi criteri:
 - ${correctionInstructions.join('\n- ')}
 
-### RISPOSTA FALLITA (NON RIPETERE QUESTI ERRORI) ###
+### BOZZA DA CORREGGERE ###
 ${failedSnippet}
 
-### AZIONE ###
-Genera la nuova risposta correggendo i problemi indicati.
-Rispondi SOLO con il testo della nuova email, OBBLIGATORIAMENTE racchiuso all'interno del tag XML <email>...</email>, senza aggiungere spiegazioni, commenti o ragionamenti interni.
-La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve essere esattamente </email>.`;
+### OUTPUT ###
+Restituisci esclusivamente la nuova email racchiusa in <email>...</email>.
+La prima riga deve essere esattamente <email>; l'ultima esattamente </email>.`;
   }
 
   _buildRetryGroundingContext_(prompt, maxChars = 10000) {
@@ -4863,11 +4848,11 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     }
 
     const fallbackRules = [
-      `Regola 1: usa currentDate (${temporal.currentDate || '?'}) come unica data di riferimento per decidere se nella risposta un evento e passato, presente o futuro.`,
-      `Regola 2: usa messageDate (${temporal.messageDate || '?'}) solo per interpretare riferimenti relativi scritti dall'utente nell'email originale, come oggi, domani, ieri o sabato prossimo.`,
-      `Regola 3: se messageDate non era disponibile ed e indicato un fallback tecnico, non presentare l'anno inferito come certo: chiedi conferma quando l'anno e ambiguo.`,
+      `Regola 1: usa currentDate (${temporal.currentDate || '?'}) come unica data di riferimento per stabilire se un evento è passato, presente o futuro.`,
+      `Regola 2: usa messageDate (${temporal.messageDate || '?'}) solo per i relativi dell'email originale: oggi, domani, ieri, sabato prossimo.`,
+      `Regola 3: se messageDate deriva da fallback tecnico e l'anno è ambiguo, chiedi conferma senza darlo per certo.`,
       `Regola 4: non presentare ${previousPope || 'il Papa precedente'} come Papa attuale o voce magisteriale in presente.`,
-      `Regola 5: NON citare mai l'ora corrente di sistema (${temporal.currentTime || '?'}) né l'ora di ricezione del messaggio (${temporal.messageTime || '?'}) nel testo della risposta.`
+      `Regola 5: ometti dal testo l'ora di sistema (${temporal.currentTime || '?'}) e di ricezione (${temporal.messageTime || '?'}).`
     ].join('\n');
 
     const rulesBlock = temporalAwareness

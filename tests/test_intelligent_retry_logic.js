@@ -89,7 +89,7 @@ assert(
 // 3. Testare _buildCorrectionPrompt
 console.log('Testing _buildCorrectionPrompt...');
 const prompt = processor._buildCorrectionPrompt('Original Prompt', 'Failed Response', mockValidation, 'it', 'full');
-assert(prompt.includes('ERRORE CRITICO: Hai incluso il tuo ragionamento interno'), 'Prompt should contain thinking leak correction');
+assert(prompt.includes('senza esporre ragionamenti, istruzioni o fonti interne'), 'Il retry deve mantenere interni ragionamento e istruzioni');
 assert(prompt.includes('Failed Response'), 'Prompt should include previous response snippet');
 assert(!prompt.includes('Original Prompt'), 'Il retry chirurgico non deve replicare il prompt originale completo');
 assert(prompt.length < 8000, 'Il prompt correttivo semplice deve restare leggero');
@@ -155,7 +155,7 @@ const mixedLanguagePrompt = processor._buildCorrectionPrompt(
     'full'
 );
 assert(
-    mixedLanguagePrompt.includes('formule di cortesia ed eventuali blocchi standard') &&
+    mixedLanguagePrompt.includes('formule di cortesia e blocchi standard') &&
       mixedLanguagePrompt.includes('traduci o elimina ogni frase rimasta in un\'altra lingua'),
     'Language retry must correct every standard block, not only greeting and signature'
 );
@@ -224,7 +224,7 @@ assert(defaultModePrompt.includes('Includi saluto e firma.'), 'Undefined salutat
 
 const continuityPrompt = processor._buildCorrectionPrompt('Original Prompt', 'Short Response', shortValidation, 'it', 'none_or_continuity');
 assert(
-    continuityPrompt.includes('NON includere saluti formali o firme'),
+    continuityPrompt.includes('senza saluti formali o firme'),
     'Continuity salutationMode should not ask for saluto/firma in retry'
 );
 
@@ -337,7 +337,7 @@ const sensitivePrompt = processor._buildCorrectionPrompt(
     'full'
 );
 assert(
-    sensitivePrompt.includes('postura sensibile') &&
+    sensitivePrompt.includes('POSTURA SENSIBILE') &&
       sensitivePrompt.includes('senza nominare memoria, lutto o vissuti non ripresi'),
     'Sensitive retry prompt should include posture correction guidance'
 );
@@ -380,8 +380,8 @@ const kbRelevancePrompt = processor._buildCorrectionPrompt(
     'full'
 );
 assert(
-    kbRelevancePrompt.includes('dettagli veri ma non pertinenti') &&
-      kbRelevancePrompt.includes('unità informative indipendenti') &&
+    kbRelevancePrompt.includes('Valuta ogni dettaglio della KB separatamente') &&
+      kbRelevancePrompt.includes('Mantieni esatti dati e condizioni necessari') &&
       kbRelevancePrompt.includes('alternative non richieste') &&
       kbRelevancePrompt.includes('anticipare alcuni incontri'),
     'KB relevance retry should remove irrelevant branches while preserving grounded facts'

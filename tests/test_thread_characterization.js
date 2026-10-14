@@ -62,6 +62,21 @@ if (process.argv.includes('--record-baseline')) {
 }
 const originalExpected = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 const expected = JSON.parse(JSON.stringify(originalExpected));
+// Il prompt atteso del retry è separato dalla baseline storica immutabile.
+// Il confronto integrale conserva opzioni del modello, ordine ed effetti sui servizi.
+const retryPrompt = fs.readFileSync(path.join(__dirname, 'fixtures', 'thread_retry_prompt.txt'), 'utf8')
+  .replace(/\r\n/g, '\n').trimEnd();
+let retryPromptCount = 0;
+for (const scenario of Object.values(expected)) {
+  for (const [event, value] of scenario.effects) {
+    if (event === 'generate' && value[0]?.prompt?.startsWith('### CORREZIONE MIRATA ###')) {
+      assert(value[0].prompt.length > retryPrompt.length, 'Il prompt di retry deve restare più breve della baseline');
+      value[0].prompt = retryPrompt;
+      retryPromptCount++;
+    }
+  }
+}
+assert.equal(retryPromptCount, 5, 'Tutti i retry della baseline devono essere confrontati');
 // Il risultato pubblico conserva la motivazione del filtro del classificatore.
 expected.classifier_reject.result.reason = 'fixture';
 if (!process.argv.includes('--record-baseline')) {
