@@ -455,7 +455,7 @@ var Classifier = class Classifier {
 
     // Conta parole
     const wordCount = normalized.split(' ').filter(w => w.length > 0).length;
-    const hasOperationalInfo = /\b(oggi|domani|stamattina|stasera|alle|ore|appuntamento|vengo|veniamo|venite|vado|arrivo|passo|porto|documenti|pagato|bonifico)\b|\d/.test(normalized);
+    const hasOperationalInfo = /(?:^|\s)(?:oggi|domani|dopodomani|stamattina|stasera|mattina|pomeriggio|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|alle|ore|appuntamento|vengo|veniamo|venite|vado|arrivo|passo|porto|document[oi]|pagato|bonifico)(?=$|\s)|\d/.test(normalized);
     if (hasOperationalInfo || /\b(non|no|not|never|mai|niente|nulla|nessun[oa]?|neanche|nemmeno)\b/.test(normalized)) return false;
 
     // STRICT: max 3 parole
@@ -766,12 +766,13 @@ var Classifier = class Classifier {
   _isOfficeVisitLogisticsRequest(text) {
     // Mantiene le proposte affermative successive ("non posso oggi, ma posso
     // domani"), rimuovendo il predicato negato con gli avverbi intermedi.
-    const safeText = String(text || '').replace(
-      /\b(?:non|mai|neanche|nemmeno)\s+(?:(?:posso|possiamo|potrei|potremmo|vorrei|vorremmo|riesco|riusciamo)\s+)?(?:(?:proprio|pi[uù]|purtroppo|assolutamente|davvero|neanche|nemmeno|mai|a)\s+)*(?:passare|venire|presentarmi|presentarci|passo|passiamo|vengo|veniamo)\b/gi,
-      ' '
-    );
+    const visitVerbPattern = '(?:passare|venire|presentarmi|presentarci|passo|passiamo|vengo|veniamo)';
+    const coordinatedVisits = `${visitVerbPattern}(?:\\s+(?:o|oppure|n[eé])\\s+(?:a\\s+)?${visitVerbPattern})*\\b`;
+    const safeText = String(text || '')
+      .replace(new RegExp(`\\b(?:non|mai|neanche|nemmeno)\\s+(?:(?:posso|possiamo|potrei|potremmo|vorrei|vorremmo|riesco|riusciamo)\\s+)?(?:(?:proprio|pi[uù]|purtroppo|assolutamente|davvero|neanche|nemmeno|mai|a)\\s+)*${coordinatedVisits}`, 'gi'), ' ')
+      .replace(new RegExp(`\\b(?:senza\\s+(?:dover\\s+|poter\\s+)?|impossibilitat[oaie]\\s+a\\s+|impossibile\\s+|evitare\\s+di\\s+)${coordinatedVisits}`, 'gi'), ' ');
     return /\b(?:posso|possiamo|potrei|potremmo|vorrei|vorremmo)\s+(?:passare|venire|presentarmi|presentarci)\b/i.test(safeText) ||
-      /\b(?:passo|passiamo|vengo|veniamo)\s+(?:oggi|domani|dopodomani|lunedi|lunedì|martedi|martedì|mercoledi|mercoledì|giovedi|giovedì|venerdi|venerdì|sabato|domenica)\b/i.test(safeText) ||
+      /\b(?:passo|passiamo|vengo|veniamo)\s+(?:oggi|domani|dopodomani|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica)(?![\p{L}\p{N}_])/iu.test(safeText) ||
       /\b(?:passare|venire|presentarmi|presentarci)\s+(?:oggi|domani|dopodomani|in\s+segreteria|presso\s+la\s+segreteria)\b/i.test(safeText);
   }
 

@@ -1810,8 +1810,11 @@ var EmailProcessor = class EmailProcessor {
     }
     let deleted = 0;
     (Array.isArray(triggers) ? triggers : this._getResumeBatchTriggers_()).forEach(trigger => {
-      if (!trigger || (keepTrigger && trigger.getUniqueId() === keepTrigger.getUniqueId())) return;
+      if (!trigger) return;
       try {
+        if (keepTrigger && (trigger === keepTrigger ||
+          (typeof trigger.getUniqueId === 'function' && typeof keepTrigger.getUniqueId === 'function' &&
+            trigger.getUniqueId() === keepTrigger.getUniqueId()))) return;
         ScriptApp.deleteTrigger(trigger);
         deleted++;
       } catch (_) { }
@@ -3315,8 +3318,9 @@ var EmailProcessor = class EmailProcessor {
     const monthNames = Object.keys(monthMap).join('|');
     const sourceText = String(text || '');
     const birthDatePrefixPattern = /\b(?:nat[oaie](?:\s+a\s+[\p{L}'’ .-]{1,40})?\s+(?:il\s+)?|data\s+di\s+nascita\s*[:\-]?\s*|born(?:\s+on)?\s*[:\-]?\s*)$/iu;
-    const textualPattern = new RegExp(`(?<!\\d)(\\d{1,2})\\s+(${monthNames})(?![\\p{L}\\p{N}_])(?:\\s+(\\d{4}))?(?!\\d)`, 'giu');
+    const textualPattern = new RegExp(`(?<!\\d)(\\d{1,2})[°º]?\\s+(${monthNames})(?![\\p{L}\\p{N}_])(?:\\s+(\\d{4}))?(?!\\d)`, 'giu');
     let textualMatch;
+    let textualCandidate = null;
     while ((textualMatch = textualPattern.exec(sourceText)) !== null) {
       const textualPrefix = sourceText.slice(Math.max(0, textualMatch.index - 80), textualMatch.index);
       if (birthDatePrefixPattern.test(textualPrefix)) continue;
@@ -3330,7 +3334,7 @@ var EmailProcessor = class EmailProcessor {
         leapYearAdjusted = Boolean(date);
       }
       if (date) {
-        return {
+        textualCandidate = {
           date: date,
           source: 'explicit:textual',
           matchIndex: textualMatch.index,
@@ -3338,6 +3342,7 @@ var EmailProcessor = class EmailProcessor {
           hasExplicitYear: Boolean(textualMatch[3]),
           leapYearAdjusted: leapYearAdjusted
         };
+        break;
       }
     }
 
@@ -3370,6 +3375,7 @@ var EmailProcessor = class EmailProcessor {
         leapYearAdjusted = Boolean(date);
       }
       if (date) {
+        if (textualCandidate && textualCandidate.matchIndex < numericMatch.index) return textualCandidate;
         return {
           date: date,
           source: 'explicit:numeric',
@@ -3381,7 +3387,7 @@ var EmailProcessor = class EmailProcessor {
       }
     }
 
-    return null;
+    return textualCandidate;
   }
 
   _resolveNearestValidLeapDate_(referenceYear) {
@@ -4861,7 +4867,8 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
   }
 
   _trimPromptForRetry_(prompt, maxChars) {
-    if (typeof prompt !== 'string') return '';
+    if (typeof prompt !== 'string' && (!prompt || typeof prompt !== 'object')) return '';
+    prompt = this._normalizePromptForRetry_(prompt);
     if (!Number.isFinite(maxChars) || maxChars <= 0 || prompt.length <= maxChars) {
       return prompt;
     }
@@ -5187,7 +5194,7 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
     const protectedText = plainText
       .replace(/\b(?:Sig\.ra|Sig\.ri|S|SS|San|Sant|Santa|Don|Padre|Mons|Sig|Dott|Prof|tel|cell|uff|n|civ|int)\./gi,
         abbreviation => abbreviation.replace(/\./g, abbreviationDot))
-      .replace(/\b([A-ZÀ-ÖØ-Þ])\.(?=\s+[A-ZÀ-ÖØ-Þ])/g, `$1${abbreviationDot}`);
+      .replace(/(?<![\p{L}\p{N}_])([A-ZÀ-ÖØ-Þ])\.(?=\s+[A-ZÀ-ÖØ-Þ])/gu, `$1${abbreviationDot}`);
     const sentenceMatches = (protectedText.match(/(?:[^.!?\n]|(?<=\d)[.](?=\d))+(?:[.!?]+|$)|[^\n]+$/gm) || [])
       .map(sentence => sentence.replace(/\uE000/g, '.'));
     const candidateSentences = sentenceMatches
