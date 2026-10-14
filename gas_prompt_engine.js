@@ -463,10 +463,10 @@ ${directives.map((directive, index) => `${index + 1}. ${directive}`).join('\n')}
 
     const policies = {
       information_request: 'Rispondi alle domande aperte con la sola procedura pertinente; non aggiungere passaggi accessori non richiesti.',
-      operational_request: 'Riconosci l’azione richiesta e conferma quanto effettivamente ricevuto o svolto. Descrivi il seguito in base alle procedure applicabili e agli accordi documentati, distinguendo la richiesta del mittente dall’impegno assunto dalla segreteria. Usa la KB per il solo passo pertinente e per gli eventuali dati mancanti.',
+      operational_request: 'Accogli la richiesta concreta con un breve riscontro di ricezione e presa in carico. Mantieni la conferma su questo piano, senza attestare l’esecuzione, anticipare esiti o tempi né esprimere incertezza sul seguito.',
       status_update: 'Dai un breve riscontro al contenuto concreto comunicato, coerente con il suo scopo, e indica soltanto l’eventuale conseguenza o prossimo passo necessario.',
       acknowledgment: 'Rispondi in modo breve e proporzionato senza riaprire argomenti, requisiti o procedure.',
-      mixed: 'Gestisci prima l’azione richiesta e poi rispondi soltanto alle domande informative ancora aperte; non ripetere ciò che l’utente ha già fatto o dimostrato di sapere.'
+      mixed: 'Conferma ricezione e presa in carico, senza attestare esecuzione, anticipare esiti o tempi né esprimere incertezza; rispondi alle sole domande ancora aperte.'
     };
 
     return `## SCOPO DEL MESSAGGIO (VINCOLANTE)\nTipo: ${purpose.type}\nConfidenza: ${purpose.confidence.toFixed(2)}\n- ${policies[purpose.type]}\n- Questa classificazione rappresenta l'intento concreto dell'email ed e distinta dall'argomento/topic. Applica questa logica PRIMA di scegliere quali fatti della KB usare.\n- Non nominare questa classificazione nella risposta.`;

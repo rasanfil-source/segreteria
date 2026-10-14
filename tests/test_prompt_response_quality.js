@@ -1492,12 +1492,11 @@ assert(
     operationalCertificatePrompt.includes('distinta dall\'argomento/topic') &&
     operationalCertificatePrompt.includes('PRIMA di scegliere quali fatti della KB usare') &&
     operationalCertificatePrompt.includes('non frasi pronte né blocchi da inserire automaticamente in base al solo argomento') &&
-    operationalCertificatePrompt.includes('accordi documentati') &&
-    operationalCertificatePrompt.includes('distinguendo la richiesta del mittente dall’impegno assunto dalla segreteria') &&
-    !operationalCertificatePrompt.includes('la ricontatteremo a breve') &&
-    operationalCertificatePrompt.includes('solo passo pertinente') &&
-    operationalCertificatePrompt.includes('eventuali dati mancanti'),
-  'il prompt operativo distingue ricezione, richiesta e impegno documentato'
+    operationalCertificatePrompt.includes('riscontro di ricezione e presa in carico') &&
+    operationalCertificatePrompt.includes('senza attestare l’esecuzione, anticipare esiti o tempi') &&
+    operationalCertificatePrompt.includes('né esprimere incertezza sul seguito') &&
+    !operationalCertificatePrompt.includes('la ricontatteremo a breve'),
+  'il prompt operativo conferma ricezione e presa in carico senza attestare esecuzione o anticipare esiti e tempi'
 );
 
 console.log('--- Test prompt: territorio NON RIENTRA prevale su gestione digitale remota ---');
