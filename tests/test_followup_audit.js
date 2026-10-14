@@ -61,9 +61,9 @@ for (const withContext of [false,true]) {
   const c = new ctx.Classifier();
   assert.equal(c.classifyEmail('Sono disperato, voglio farla finita','Aiutatemi',false).reason,'pastoral_crisis_detected');
   assert.equal(c.classifyEmail('Voglio morire','Grazie',false).reason,'pastoral_crisis_detected');
-  for(const subject of ['Re: OK','Re: '+ 'Informazioni '.repeat(8)]) {
+  for(const [subject,shouldReply] of [['Re: OK',false],['Re: '+ 'Informazioni '.repeat(8),true]]) {
     for(const body of ['','> messaggio storico','--\nMario Rossi']) {
-      assert.equal(c.classifyEmail(subject,body,true).shouldReply,false,subject+'/'+body);
+      assert.equal(c.classifyEmail(subject,body,true).shouldReply,shouldReply,subject+'/'+body);
     }
   }
   assert.equal(c.classifyEmail('Re: Orari messe','',true).shouldReply,true);

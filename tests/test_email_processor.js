@@ -909,9 +909,10 @@ assert(
   processor._shouldIgnoreEmail({
     senderEmail: 'utente@example.com',
     subject: 'Newsletter settimanale',
-    body: 'ciao'
+    body: 'ciao',
+    headers: { Precedence: 'list' }
   }) === true,
-  'deve ignorare email con keyword blacklist'
+  'deve ignorare email di mailing list con keyword blacklist'
 );
 
 
@@ -1967,7 +1968,7 @@ console.log('--- Test processThread: ignore rules applica label IA (processato) 
         body: message.getPlainBody(),
         senderEmail: extractEmailAddress(message.getFrom()),
         senderName: 'Utente',
-        headers: {},
+        headers: { 'list-unsubscribe': '<mailto:unsubscribe@example.org>' },
         isNewsletter: false,
         date: message.getDate()
       }),

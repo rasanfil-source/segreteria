@@ -6112,7 +6112,7 @@ console.log('--- Test processUnreadEmails: stop su errore config usa backoff lun
   let checkpointDelayMs = null;
   let processCalls = 0;
   const threads = [createExternalThread('config-1'), createExternalThread('config-2')];
-  for (const errorClass of ['CONFIG_ERROR', 'INVALID_API_KEY', 'FATAL']) {
+  for (const errorClass of ['CONFIG_ERROR', 'INVALID_API_KEY', 'SYSTEM_ERROR']) {
   processCalls = 0;
   const processor = new EmailProcessor({
     gmailService: {

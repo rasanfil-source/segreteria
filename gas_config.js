@@ -260,7 +260,7 @@ var CONFIG = {
 
   // === Alias noti (anti-loop: il bot riconosce sé stesso anche quando invia da alias) ===
   get BOT_EMAIL() { return _getScriptProperty('BOT_EMAIL'); },
-  get KNOWN_ALIASES() { return _getScriptPropertyStringArray('KNOWN_ALIASES', ['info@parrocchiasanteugenio.it']); },
+  get KNOWN_ALIASES() { return _getScriptPropertyStringArray('KNOWN_ALIASES', []); },
 
   // === Knowledge Base ===
   get SPREADSHEET_ID() { return _getScriptProperty('SPREADSHEET_ID'); },

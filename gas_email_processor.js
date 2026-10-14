@@ -1662,7 +1662,9 @@ var EmailProcessor = class EmailProcessor {
           break;
         }
 
-        if (result && ['SYSTEM_ERROR', 'CONFIG_ERROR', 'INVALID_API_KEY', 'FATAL'].includes(result.errorClass)) {
+        // I guasti globali sospendono il batch; gli errori FATAL del messaggio
+        // sono gestiti dalla pipeline e lasciano proseguire i thread successivi.
+        if (result && ['SYSTEM_ERROR', 'CONFIG_ERROR', 'INVALID_API_KEY'].includes(result.errorClass)) {
           runLogger.warn('⚠️ Stop batch: errore di sistema/configurazione, salvo checkpoint per evitare cascata di error label.');
           deferBatchCheckpoint(
             threads,
@@ -2068,8 +2070,13 @@ var EmailProcessor = class EmailProcessor {
 
     const headers = Object.fromEntries(Object.entries(messageDetails.headers || {}).map(([key,value]) => [key.toLowerCase(),String(value || '')]));
     const hasMailingListHeaders = Boolean(headers['list-unsubscribe']) || /\b(?:bulk|list)\b/i.test(headers.precedence || '');
-    if (ignoreKeywords.some(keyword => subject.includes(keyword) || (hasMailingListHeaders && body.includes(keyword)))) {
-      console.log('🚫 Ignorato: keyword in oggetto o in corpo con header mailing list');
+    // Le parole promozionali richiedono evidenza di mailing list e confini lessicali.
+    const keywordText = `${subject}\n${body}`;
+    if (hasMailingListHeaders && ignoreKeywords.some(keyword => {
+      const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'u').test(keywordText);
+    })) {
+      console.log('🚫 Ignorato: keyword con header mailing list');
       return true;
     }
 
@@ -3317,16 +3324,20 @@ var EmailProcessor = class EmailProcessor {
     const monthMap = this._getItalianMonthMap_();
     const monthNames = Object.keys(monthMap).join('|');
     const sourceText = String(text || '');
-    const birthDatePrefixPattern = /\b(?:nat[oaie](?:\s+a\s+[\p{L}'’ .-]{1,40})?\s+(?:il\s+)?|data\s+di\s+nascita\s*[:\-]?\s*|born(?:\s+on)?\s*[:\-]?\s*)$/iu;
+    const birthDatePrefixPattern = /\b(?:nat[oaie](?:\s+a\s+[\p{L}'’ ().-]{1,60})?\s+(?:(?:il\s+)?giorno\s+|il\s+)?|data\s+di\s+nascita(?:\s+(?:di|del|della)\s+[\p{L}'’ -]{1,40})?\s*[:\-]?\s*|born(?:\s+on)?\s*[:\-]?\s*)$/iu;
+    const historicalEventPrefixPattern = /\b(?:battezzat[oaie]|sposat[oaie]|celebrat[oaie]|battesimo|matrimonio|cresima|comunione)\s*(?:[:\-]\s*)?(?:(?:il|del|in\s+data)\s+)?(?:giorno\s+)?$/iu;
+    // Il contesto biografico esclude date personali; l'anno da solo non esclude una richiesta storica.
+    const isPersonalDate = (prefix, year) => birthDatePrefixPattern.test(prefix) ||
+      (year < defaultYear && historicalEventPrefixPattern.test(prefix));
     const textualPattern = new RegExp(`(?<!\\d)(\\d{1,2})[°º]?\\s+(${monthNames})(?![\\p{L}\\p{N}_])(?:\\s+(\\d{4}))?(?!\\d)`, 'giu');
     let textualMatch;
     let textualCandidate = null;
     while ((textualMatch = textualPattern.exec(sourceText)) !== null) {
       const textualPrefix = sourceText.slice(Math.max(0, textualMatch.index - 80), textualMatch.index);
-      if (birthDatePrefixPattern.test(textualPrefix)) continue;
       const day = parseInt(textualMatch[1], 10);
       const month = monthMap[textualMatch[2].toLowerCase()];
       const year = textualMatch[3] ? parseInt(textualMatch[3], 10) : defaultYear;
+      if (isPersonalDate(textualPrefix, year)) continue;
       let date = this._makeValidDateOnly_(year, month, day);
       let leapYearAdjusted = false;
       if (!date && !textualMatch[3] && month === 2 && day === 29) {
@@ -3352,7 +3363,6 @@ var EmailProcessor = class EmailProcessor {
       if (numericMatch[2] === '.' && !numericMatch[4]) continue;
       const prefix = sourceText.slice(Math.max(0, numericMatch.index - 100), numericMatch.index);
       if (/\b(?:tel(?:efono)?\.?|phone|protocollo|prot\.?)\s*[:#-]?\s*$/i.test(prefix)) continue;
-      if (birthDatePrefixPattern.test(prefix)) continue;
       if (!numericMatch[4]) {
         const suffix = sourceText.slice(numericPattern.lastIndex, numericPattern.lastIndex + 35);
         const dateCue = /\b(?:il|del|dal|al|on|date|data|appuntamento|appointment|giorno)\s*[:\-]?\s*(?:(?:il|del)\s+)?$/i.test(prefix);
@@ -3368,6 +3378,7 @@ var EmailProcessor = class EmailProcessor {
       const month = parseInt(numericMatch[3], 10);
       let year = numericMatch[4] ? parseInt(numericMatch[4], 10) : defaultYear;
       if (year < 100) year += (year < 50 ? 2000 : 1900);
+      if (isPersonalDate(prefix, year)) continue;
       let date = this._makeValidDateOnly_(year, month, day);
       let leapYearAdjusted = false;
       if (!date && !numericMatch[4] && month === 2 && day === 29) {
@@ -5177,7 +5188,6 @@ La prima riga della risposta deve essere esattamente <email>; l'ultima riga deve
       /^buonasera/i,
       /^gentile/i,
       /^salve\b/i,
-      /^grazie\b/i,
       /^cordiali saluti/i,
       /^saluti\b/i
     ];

@@ -11,7 +11,8 @@ const mail={senderEmail:'persona@example.org',subject:'Battesimo',body:'Aspettia
 assert.equal(p._shouldIgnoreEmail(mail),false);
 assert.equal(p._shouldIgnoreEmail({...mail,headers:{'List-Unsubscribe':'<https://example.org>'}}),true);
 assert.equal(p._shouldIgnoreEmail({...mail,headers:{Precedence:'bulk'}}),true);
-assert.equal(p._shouldIgnoreEmail({...mail,subject:'Ultima occasione'}),true);
+assert.equal(p._shouldIgnoreEmail({...mail,subject:'Ultima occasione'}),false);
+assert.equal(p._shouldIgnoreEmail({...mail,subject:'Ultima occasione',headers:{Precedence:'bulk'}}),true);
 
 const own=new Set(['parish@example.org']);
 const makeMessages=(pairs,gap)=>Array.from({length:pairs*2},(_,i)=>({

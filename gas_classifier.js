@@ -138,7 +138,7 @@ var Classifier = class Classifier {
         safeBody = cut.substring(0, lastLt);
       } else {
         const boundary = Math.max(lastGt >= 0 ? lastGt + 1 : -1, cut.lastIndexOf(' '), cut.lastIndexOf('\n'));
-        safeBody = boundary > 0 ? cut.substring(0, boundary) : cut;
+        safeBody = boundary > 0 && cut.length - boundary <= 256 ? cut.substring(0, boundary) : cut;
       }
     }
 
@@ -213,7 +213,7 @@ var Classifier = class Classifier {
     }
     // Corpo vuoto + soggetto generico (es. "Re: Orari messe") → passa a Gemini
     if ((!mainContent || !mainContent.trim()) && isReply) {
-      if (subjectHasRequest && subjectForChecks.length > 3 && subjectForChecks.length < 50) {
+      if (subjectHasRequest && subjectForChecks.length > 3) {
         console.log('      ✓ Body vuoto ma subject ragionevole -> Passa a Gemini');
         return {
           shouldReply: true,
@@ -309,7 +309,6 @@ var Classifier = class Classifier {
       /^From:.*Sent:.*$/m,
       /^-{3,}.*Original Message.*$/m,
       /^-{3,}.*Messaggio originale.*$/m,
-      /^_{3,}$/m,
       /^Begin forwarded message:.*$/m,
       /^Inizio messaggio inoltrato:.*$/m,
       /^-------- Forwarded Message --------$/m,
@@ -323,7 +322,7 @@ var Classifier = class Classifier {
     let inQuoteBlock = false;
     let quoteMode = null; // intestazione, citazione con prefisso o storico senza prefisso
 
-    for (const line of lines) {
+    for (const [lineIndex, line] of lines.entries()) {
       const safeLine = line == null ? '' : String(line);
       const stripped = safeLine.trim();
 
@@ -336,6 +335,12 @@ var Classifier = class Classifier {
 
       // Salta blocchi citati, ma consenti inline-reply dopo quote
       let isQuote = false;
+      // Il separatore grafico apre lo storico solo insieme a un'intestazione email.
+      if (/^_{3,}$/.test(stripped)) {
+        const nextLine = lines.slice(lineIndex + 1, lineIndex + 5).find(value => value.trim()) || '';
+        if (!/^\s*(?:Da|From|De|Von|Inviato|Sent|Enviado|Envoyé|Gesendet):/iu.test(nextLine)) continue;
+        isQuote = true;
+      }
       for (const marker of quoteMarkers) {
         if (marker.test(stripped)) {
           isQuote = true;
