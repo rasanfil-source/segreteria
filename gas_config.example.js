@@ -194,7 +194,7 @@ var CONFIG = {
   // Configurazione dei limiti operativi per garantire stabilità e rispetto delle quote.
   MAX_EMAILS_PER_RUN: 2,
   SAFETY_VALVE_THRESHOLD: 0.8,       // Regolazione batch in base al carico operativo RPD
-  MAX_CONSECUTIVE_EXTERNAL: 5,        // Soglia per rilevamento email loop
+  MAX_CONSECUTIVE_BOT_REPLIES: 5,     // Risposte consecutive proprie che attivano la protezione anti-loop
   EMPTY_INBOX_WARNING_THRESHOLD: 5,   // Soglia per warning inbox vuota
   SUSPENSION_STALE_UNREAD_HOURS: 12,    // Garanzia di elaborazione dei messaggi non letti persistenti
   STRICT_SUSPENSION_CONFIG: false,    // Se true: foglio Controllo presente ma senza fasce valide => errore configurazione (no fallback statico)

@@ -67,7 +67,8 @@ const prompt = engine.buildPrompt({ emailSubject: 'Un chiarimento', emailContent
   memoryContext: { conversationState: state }, salutationMode: 'none_or_continuity',
   runtimeContext: { temporal: { currentDate: '2026-10-04', processingTimestampIso: '2026-10-04T09:00:00Z' } } });
 assert.ok(prompt.includes('CONTINUITÀ DEL THREAD'));
-assert.equal(ctx.isResponseFocusApplicable_(state, '', '2026-10-20T09:00:00Z'), false);
+assert.equal(ctx.isResponseFocusApplicable_(state, '', '2026-10-20T09:00:00Z'), true);
+assert.equal(ctx.isResponseFocusApplicable_(state, '', '2026-11-20T09:00:00Z'), false);
 assert.equal(ctx.isResponseFocusApplicable_(state, '', '2026-10-04T07:00:00Z'), false);
 // Isola l'orchestrazione: anche una risposta già valida deve ricevere le correzioni sicure.
 const cosmetic = new ctx.ResponseValidator();

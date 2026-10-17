@@ -10,7 +10,7 @@ const propertyService = {
 const ctx = {
   console: { log() {}, warn() {}, error() {}, info() {}, debug() {} },
   CONFIG: { LABEL_NAME: 'IA', ERROR_LABEL_NAME: 'Errore', VALIDATION_ERROR_LABEL: 'Verifica',
-    VALIDATION_ENABLED: false, MAX_CONSECUTIVE_EXTERNAL: 5, SEMANTIC_VALIDATION: { enabled: true } },
+    VALIDATION_ENABLED: false, MAX_CONSECUTIVE_BOT_REPLIES: 5, SEMANTIC_VALIDATION: { enabled: true } },
   GLOBAL_CACHE: { languageMode: 'all' },
   PropertiesService: { getScriptProperties: () => propertyService },
   CacheService: { getScriptCache: () => ({ get: k => cache.get(k), put: (k,v) => cache.set(k,v), remove: k => cache.delete(k) }) },

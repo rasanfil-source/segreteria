@@ -72,7 +72,7 @@ function isResponseFocusApplicable_(state, currentTopic = '', referenceDate = nu
     return value == null || value === '' || !Number.isFinite(number) ? fallback : Math.max(min, Math.min(max, number));
   };
   const threshold = bounded(settings.RESPONSE_FOCUS_MIN_CONFIDENCE, 0.65, 0, 1);
-  const maxAge = bounded(settings.RESPONSE_FOCUS_MAX_AGE_DAYS, 14, 1, 365);
+  const maxAge = bounded(settings.RESPONSE_FOCUS_MAX_AGE_DAYS, 45, 1, 365);
   if (!Number.isFinite(Number(state.responseFocusHintConfidence)) || Number(state.responseFocusHintConfidence) < threshold) return false;
   const normalize = value => String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
   const topic = normalize(state.appliesToTopic);

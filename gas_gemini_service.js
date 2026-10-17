@@ -2998,7 +2998,19 @@ Testo:
     }).filter(Boolean);
     const runDirectGeneration = (apiKey, contextLabel) => {
       const text = this._withRetry(
-        () => this._generateWithModel(prompt, targetModel, apiKey, preEncodedAttachments, options.generationConfigOverrides),
+        () => {
+          if (this.useRateLimiter && this.rateLimiter) {
+            return this.rateLimiter.executeRequest('generation',
+              (modelName) => this._generateWithModelEnvelope_(prompt, modelName, apiKey, preEncodedAttachments, options.generationConfigOverrides),
+              {
+                skipRateLimit: true,
+                usesBackupKey: !!(this.backupKey && apiKey === this.backupKey && apiKey !== this.primaryKey),
+                modelNameOverride: targetModel,
+                estimatedTokens: this._estimateTokens(prompt, attachments)
+              }).result;
+          }
+          return this._generateWithModel(prompt, targetModel, apiKey, preEncodedAttachments, options.generationConfigOverrides);
+        },
         contextLabel
       );
       return {

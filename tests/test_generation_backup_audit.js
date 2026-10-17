@@ -1,0 +1,112 @@
+const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
+const assert = require('node:assert/strict');
+const root = path.resolve(__dirname, '..');
+const ctx = vm.createContext({console: {log(){}, warn(){}, error(){}}, CONFIG: {},
+  Utilities: {sleep(){}}, LockService: {getScriptLock: () => ({tryLock: () => true, releaseLock(){}})}});
+for (const file of ['gas_error_types.js', 'gas_rate_limiter.js', 'gas_gemini_service.js',
+  'gas_email_processor.js', 'gas_thread_generation.js', 'gas_thread_policy.js']) {
+  vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), ctx, {filename: file});
+}
+function fixture() {
+  const props = new Map(), calls = [];
+  const limiter = Object.create(ctx.GeminiRateLimiter.prototype);
+  Object.assign(limiter, {models: {primary: {name: 'model', rpd: 100}, 'primary-backup': {name: 'model', rpd: 100}},
+    props: {getProperty: k => props.get(k), setProperty: (k,v) => props.set(k,v)},
+    _getPacificDate: () => '2026-10-17'});
+  const service = Object.create(ctx.GeminiService.prototype);
+  Object.assign(service, {primaryKey: 'p', backupKey: 'b', modelName: 'model', config: {MAX_OUTPUT_TOKENS: 6000},
+    useRateLimiter: true, rateLimiter: limiter, _estimateTokens: () => 20,
+    _generateWithModelEnvelope_(prompt, model, key, attachments, overrides) {
+      calls.push({key, budget: overrides?.maxOutputTokens || 6000});
+      return {__rateLimiterEnvelope: true, text: 'Risposta completa', actualTokens: 12};
+    }});
+  return {service, limiter, props, calls};
+}
+const truncated = () => Object.assign(new Error('Risposta troncata da Gemini (MAX_TOKENS)'),
+  {code: 'TRUNCATED_OUTPUT', isTransient: false});
+
+// Il bypass separa le quote della chiave di riserva e conta ogni tentativo.
+for (const mode of ['success', 'transient', 'truncated', 'exhausted', 'failover', 'unlisted']) {
+  const {service, limiter, props, calls} = fixture();
+  const generate = service._generateWithModelEnvelope_;
+  service._generateWithModelEnvelope_ = function(...args) {
+    const response = generate.apply(this, args);
+    if (mode === 'truncated') throw truncated();
+    if (mode === 'transient' && calls.length === 1) throw Object.assign(new Error('Network error'), {isTransient: true});
+    return response;
+  };
+  if (mode === 'exhausted') service.isPrimaryExhausted = true;
+  if (mode === 'unlisted') delete limiter.models['primary-backup'];
+  if (mode === 'failover') {
+    const execute = limiter.executeRequest;
+    limiter.executeRequest = function(task, fn, options) {
+      if (!options.skipRateLimit) throw new Error('PRIMARY_QUOTA_EXHAUSTED');
+      return execute.call(this, task, fn, options);
+    };
+  }
+  const options = {apiKey: ['exhausted', 'failover'].includes(mode) ? 'p' : 'b'};
+  if (mode === 'truncated') assert.throws(() => service.generateResponse('prompt', options), e => e.code === 'TRUNCATED_OUTPUT');
+  else assert.equal(service.generateResponse('prompt', options).text, 'Risposta completa');
+  const attempts = ['transient', 'truncated'].includes(mode) ? 2 : 1;
+  assert.equal(calls.length, attempts, mode);
+  assert(calls.every(call => call.key === 'b'), mode);
+  assert.equal(props.get('rpd_primary-backup'), String(attempts), mode);
+  assert.equal(props.get('tokens_primary-backup'), mode === 'truncated' ? '0' : '12', mode);
+  assert.equal(props.has('rpd_primary'), false, mode);
+  if (mode === 'truncated') assert.deepEqual(calls.map(c => c.budget), [6000, 12000]);
+}
+
+// Il retry con budget maggiore appartiene al servizio; la cascata termina dopo di esso.
+for (const primary of [false, true]) for (const successOnRetry of [false, true]) {
+  const {service, limiter, calls, props} = fixture();
+  if (primary) {
+    limiter._selectAndReserveModel = () => {
+      limiter._incrementCountersAtomic('primary', 0);
+      return {available: true, modelKey: 'primary', model: limiter.models.primary, reservationId: 'reserved'};
+    };
+    limiter._finalizeReservation = () => {};
+    limiter._getRequestsInWindow = () => 0;
+  }
+  const generate = service._generateWithModelEnvelope_;
+  service._generateWithModelEnvelope_ = function(...args) {
+    const response = generate.apply(this, args);
+    if (!successOnRetry || calls.length === 1) throw truncated();
+    return response;
+  };
+  const result = {}, marks = [];
+  const output = ctx.ThreadGeneration.generate({config: {}, geminiService: service,
+    _isNearDeadline: () => false, _isNoReplyToken_: () => false,
+    _classifyError: ctx.EmailProcessor.prototype._classifyError,
+    _buildGenerationStrategies_: () => ({attemptStrategy: [
+      {name: 'first', key: primary ? 'p' : 'b', model: 'model', usesBackupKey: !primary},
+      {name: 'next', key: 'p', model: 'other'}]})},
+  {result, messageDetails: {}, fullPrompt: 'prompt', attachmentBlobs: [],
+    markFailureForCurrentBurst: (...args) => marks.push(args)});
+  assert.equal(calls.length, 2);
+  assert.equal(props.get(primary ? 'rpd_primary' : 'rpd_primary-backup'), '2');
+  if (successOnRetry) { assert.equal(output.response, 'Risposta completa'); assert.equal(marks.length, 0); }
+  else { assert.equal(result.reason, 'truncated_output'); assert.equal(result.retryable, false); assert.equal(marks.length, 1); }
+}
+
+// Sequenze proprie bloccate anche prima dell'ultimo messaggio esterno; integrazioni esterne ammesse.
+for (const [senders, blocked] of [['BBBBBE', true], ['BBBBE', false], ['EEEEEE', false], ['BEBEBE', false]]) {
+  const result = {};
+  ctx.ThreadPolicy.loopAndSender({config: {maxConsecutiveBotReplies: 5}, _normalizeEmailAddress_: s => s,
+    _evaluatePreAiRules_: () => null, _applyPreAiRuleDecision_: () => false, _shouldIgnoreEmail: () => false},
+  {messages: [...senders].map((sender, i) => ({getFrom: () => sender, getDate: () => new Date(i * 1200000)})),
+    ownAddresses: new Set(['B']), messageState: {markFailureForCurrentBurst(){}},
+    messageDetails: {senderEmail: 'E'}, result, buildRuleContext: x => x});
+  assert.equal(result.reason === 'possible_email_loop', blocked, senders);
+}
+
+// Il throttle viene prenotato solo dopo una decisione positiva dei filtri.
+const {runScenario} = require('./helpers/thread_scenario');
+for (const scenario of [{newsletter: true}, {autoReply: true}, {quickReject: true}, {}]) {
+  const out = runScenario(root, scenario);
+  const throttles = out.effects.filter(([event, value]) => event === 'cache.put' && value[0].startsWith('sender_throttle_'));
+  assert.equal(throttles.length, Object.keys(scenario).length ? 0 : 1, JSON.stringify(scenario));
+}
+const throttled = runScenario(root, {throttled: true});
+assert.equal(throttled.result.reason, 'cross_thread_burst');
+assert(!throttled.effects.some(([event]) => event === 'generate' || event === 'send'));
+console.log('Regressioni troncamento, backup, anti-loop e throttle superate');

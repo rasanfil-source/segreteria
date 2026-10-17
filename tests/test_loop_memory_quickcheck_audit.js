@@ -20,7 +20,7 @@ const makeMessages=(pairs,gap)=>Array.from({length:pairs*2},(_,i)=>({
 }));
 for(const [pairs,gap,blocked] of [[3,60000,true],[4,300000,true],[2,60000,false],[5,1200000,false]]) {
   const marks=[],result={};
-  ctx.ThreadPolicy.loopAndSender({config:{maxConsecutiveExternal:4},_normalizeEmailAddress_:s=>s,
+  ctx.ThreadPolicy.loopAndSender({config:{maxConsecutiveBotReplies:4},_normalizeEmailAddress_:s=>s,
     _evaluatePreAiRules_:()=>null,_applyPreAiRuleDecision_:()=>false,_shouldIgnoreEmail:()=>false},
     {messages:makeMessages(pairs,gap),ownAddresses:own,messageState:{markFailureForCurrentBurst:(type)=>marks.push(type)},
     messageDetails:{senderEmail:'person@example.org',subject:'test'},result,buildRuleContext:x=>x});

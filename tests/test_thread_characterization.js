@@ -208,6 +208,23 @@ expected.send_reconciled.result.reason = 'send_reconciled';
 expected.send_reconciled.effects.splice(expected.send_reconciled.effects.findIndex(([event]) => event === 'send') + 1,
   0, originalExpected.send_reconciled.effects.find(([event]) => event === 'send.reconcile'));
 expected.uncertain_marker.labeled = ['m2'];
+// La prenotazione del mittente segue i filtri: gli scarti non consumano la finestra.
+const preThrottleEffects = expected.ordinary.effects.slice(
+  expected.ordinary.effects.findIndex(([event]) => event === 'language'),
+  expected.ordinary.effects.findIndex(([event]) => event === 'request.classify'));
+for (const [name, snapshot] of Object.entries(expected)) {
+  const effects = snapshot.effects;
+  if (name === 'throttled') {
+    const index = effects.findIndex(([event, value]) => event === 'lock.acquire' && value === 500);
+    effects.splice(index, 0, ...JSON.parse(JSON.stringify(preThrottleEffects)));
+    continue;
+  }
+  const index = effects.findIndex(([event, value]) => event === 'cache.put' && value[0].startsWith('sender_throttle_'));
+  if (index < 0) continue;
+  const reservation = effects.splice(index - 1, 3);
+  const target = effects.findIndex(([event]) => event === 'request.classify');
+  if (target >= 0) effects.splice(target, 0, ...reservation);
+}
 for (const [name, output] of Object.entries(actual)) {
   // Con modello non configurato, il controllo semantico simulato usa la risposta generica.
   for (const [event, value] of expected[name].effects) {

@@ -301,15 +301,14 @@ var ThreadPolicy = {
   /** loopAndSender: ingressi locali espliciti; restituisce i dati della fase. */
   loopAndSender(deps, { messages, ownAddresses, messageState, messageDetails, result, buildRuleContext }) {
     const MAX_THREAD_LENGTH = (typeof CONFIG !== 'undefined' && CONFIG.MAX_THREAD_LENGTH) ? CONFIG.MAX_THREAD_LENGTH : 8;
-    const MAX_CONSECUTIVE_EXTERNAL = deps.config.maxConsecutiveExternal;
+    const MAX_CONSECUTIVE_BOT_REPLIES = deps.config.maxConsecutiveBotReplies;
 
-    let consecutiveExternal = 0;
     let botRepliesCount = 0;
     let totalBotRepliesInThread = 0;
     const maxBotRepliesInLongThread = Math.max(2, Math.floor(MAX_THREAD_LENGTH / 2));
 
     // Percorriamo una finestra degli ultimi MAX_THREAD_LENGTH messaggi a ritroso
-    // per contare sequenze esterne e densità di risposte del bot.
+    // per contare sequenze e densità di risposte del bot.
     const startIndex = Math.max(0, messages.length - MAX_THREAD_LENGTH);
     const senderOf = message => {
       const from = message && typeof message.getFrom === 'function' ? message.getFrom() : '';
@@ -348,17 +347,15 @@ var ThreadPolicy = {
       if (isUs) {
         botRepliesCount++;
         totalBotRepliesInThread++;
-        consecutiveExternal = 0;
       } else {
-        consecutiveExternal++;
         botRepliesCount = 0;
       }
 
       if (
-        botRepliesCount >= MAX_CONSECUTIVE_EXTERNAL ||
+        botRepliesCount >= MAX_CONSECUTIVE_BOT_REPLIES ||
         (messages.length > MAX_THREAD_LENGTH && totalBotRepliesInThread > maxBotRepliesInLongThread)
       ) {
-        console.log(`   ⊖ Saltato: prevenzione loop email attivata (ping-pong/thread ripetitivo: interventiBot=${totalBotRepliesInThread}, sogliaBot=${maxBotRepliesInLongThread}, consecutivi=${Math.max(consecutiveExternal, botRepliesCount)})`);
+        console.log(`   ⊖ Saltato: prevenzione loop email attivata (ping-pong/thread ripetitivo: interventiBot=${totalBotRepliesInThread}, sogliaBot=${maxBotRepliesInLongThread}, consecutiviBot=${botRepliesCount})`);
         messageState.markFailureForCurrentBurst('validation', { reason: 'possible_email_loop', subject: messageDetails.subject }, false);
         result.status = 'validation_failed';
         result.validationFailed = true;

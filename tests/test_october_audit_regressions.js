@@ -48,7 +48,7 @@ for(const code of ['TRUNCATED_OUTPUT','NETWORK']) {
  const result={}, marks=[]; let attempts=0;
  const error=Object.assign(new Error(code),{code,isTransient:true});
  ctx.ThreadGeneration.generate({config:{},_isNearDeadline:()=>false,_buildGenerationStrategies_:()=>({attemptStrategy:[{name:'first',key:'mock'},{name:'second',key:'mock'}]}),_classifyError:ctx.classifyError,geminiService:{generateResponse(){attempts++;throw error;}}},{result,messageDetails:{},markFailureForCurrentBurst:(...args)=>marks.push(args)});
- assert.equal(attempts,2);
+ assert.equal(attempts,code==='TRUNCATED_OUTPUT'?1:2);
  assert.equal(marks.length,code==='TRUNCATED_OUTPUT'?1:0);
  assert.equal(result.retryable,code!=='TRUNCATED_OUTPUT');
 }

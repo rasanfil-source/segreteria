@@ -111,8 +111,8 @@ var EmailProcessor = class EmailProcessor {
       validationReviewAlerts: typeof CONFIG !== 'undefined' && CONFIG.VALIDATION_REVIEW_ALERTS
         ? CONFIG.VALIDATION_REVIEW_ALERTS
         : { enabled: true, cooldownSeconds: 3600, recipientProperty: 'VALIDATION_REVIEW_EMAIL' },
-      maxConsecutiveExternal: typeof CONFIG !== 'undefined' && typeof CONFIG.MAX_CONSECUTIVE_EXTERNAL === 'number'
-        ? CONFIG.MAX_CONSECUTIVE_EXTERNAL
+      maxConsecutiveBotReplies: typeof CONFIG !== 'undefined' && typeof CONFIG.MAX_CONSECUTIVE_BOT_REPLIES === 'number'
+        ? CONFIG.MAX_CONSECUTIVE_BOT_REPLIES
         : 5,
       emptyInboxWarningThreshold: typeof CONFIG !== 'undefined' && typeof CONFIG.EMPTY_INBOX_WARNING_THRESHOLD === 'number'
         ? CONFIG.EMPTY_INBOX_WARNING_THRESHOLD
@@ -891,10 +891,6 @@ var EmailProcessor = class EmailProcessor {
         messageState, labeledMessageIds
       });
       if (newsletter.terminal) return result;
-      const throttle = ThreadPolicy.throttle(policyServices, {
-        ...message, lockCtx, threadLogger, result
-      });
-      if (throttle.terminal) return result;
       const automaticReply = ThreadPolicy.automaticReplies(policyServices, {
         ...unread, ...policy, ...message, result, messages, messageState
       });
@@ -918,6 +914,10 @@ var EmailProcessor = class EmailProcessor {
         threadLogger, result, languageMode, skippedMessageIds
       });
       if (analysis.terminal) return result;
+      const throttle = ThreadPolicy.throttle(policyServices, {
+        ...message, lockCtx, threadLogger, result
+      });
+      if (throttle.terminal) return result;
       const requestTypeRaw = this.requestClassifier.classify(
         message.messageDetails.subject,
         message.messageDetails.body,

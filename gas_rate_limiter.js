@@ -624,8 +624,22 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         const startTime = Date.now();
         // Esecuzione diretta senza controlli quota
         const backupModelName = options.modelNameOverride || 'gemini-3.8-flash';
-        const resolvedModelKey = this._resolveModelKey_(options.forceModel || options.modelKeyOverride || backupModelName);
+        let resolvedModelKey = this._resolveModelKey_(options.forceModel || options.modelKeyOverride || backupModelName);
+        if (options.usesBackupKey && resolvedModelKey && !this._modelUsesBackupKey_(resolvedModelKey, this.models[resolvedModelKey])) {
+          const primaryModelKey = resolvedModelKey;
+          resolvedModelKey = Object.keys(this.models).find(key =>
+            this.models[key].name === backupModelName && this._modelUsesBackupKey_(key, this.models[key]));
+          // Il failover può usare anche un modello privo di una strategia backup esplicita.
+          if (!resolvedModelKey) {
+            resolvedModelKey = primaryModelKey + '-backup';
+            this.models[resolvedModelKey] = Object.assign({}, this.models[primaryModelKey]);
+          }
+        }
         const resolvedModel = resolvedModelKey && this.models ? this.models[resolvedModelKey] : null;
+        // Ogni tentativo consuma RPD prima della chiamata, anche se fallisce.
+        let counters = resolvedModelKey
+          ? this._incrementCountersAtomic(resolvedModelKey, 0)
+          : { rpd: 0, tokens: 0 };
         const requestResult = this._safeExecuteRequestFn_(requestFn, backupModelName, {
           taskType: taskType,
           modelKey: resolvedModelKey,
@@ -635,9 +649,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
         const normalizedResult = this._normalizeRequestResultEnvelope_(requestResult);
         const accountedTokens = this._resolveAccountedTokens_(normalizedResult, options.estimatedTokens || 0);
         const duration = Date.now() - startTime;
-        let counters = { rpd: 0, tokens: 0 };
         if (resolvedModelKey) {
-          counters = this._incrementCountersAtomic(resolvedModelKey, accountedTokens);
+          counters = this._incrementCountersAtomic(resolvedModelKey, accountedTokens, false, false);
         }
 
         return {
@@ -651,7 +664,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
           duration: duration
         };
       } catch (e) {
-        throw new Error(`RATE_LIMITER_EXECUTE_BYPASS_FAILED: ${e.message}`);
+        throw e;
       }
     }
     // ═══════════════════════════════════════════════════════════════════

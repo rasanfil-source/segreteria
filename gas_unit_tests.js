@@ -2578,7 +2578,6 @@ function runAllTests() {
                         timeZone: 'Europe/Rome'
                     },
                     'it',
-                    'full',
                     '',
                     null
                 );

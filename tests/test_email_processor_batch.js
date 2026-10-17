@@ -6399,6 +6399,9 @@ console.log('--- Test processThread: cross_thread_burst usa stato dilata senza m
   cacheStore.set('sender_throttle_utente@example.com', '1');
 
   const processor = new EmailProcessor({
+    classifier: {classifyEmail: () => ({shouldReply: true, category: 'information'})},
+    memoryService: {getMemory: () => ({})},
+    geminiService: {shouldRespondToEmail: () => ({shouldRespond: true, language: 'it'})},
     gmailService: {
       _extractEmailAddress: (raw) => String(raw || '').match(/<([^>]+)>/)?.[1] || raw,
       extractMessageDetails: () => ({

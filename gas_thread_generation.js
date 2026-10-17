@@ -180,6 +180,9 @@ var ThreadGeneration = {
           const errorClass = deps._classifyError(err);
           console.warn(`⚠️ Strategia '${plan.name}' fallita: ${err.message} [${errorClass.type}]`);
 
+          // Il servizio ha già esaurito il tentativo con budget raddoppiato.
+          if (err.code === 'TRUNCATED_OUTPUT') break;
+
           if (errorClass.type === 'FATAL' || errorClass.type === 'INVALID_API_KEY') {
             // Se la chiave corrente è invalida/non autorizzata (401/403),
             // prova la strategia successiva: una chiave/modello di backup può essere ancora valido.

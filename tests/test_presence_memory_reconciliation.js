@@ -60,7 +60,8 @@ assert.strictEqual(run('restored.contextualFlags.remote_user === true'), false);
 run(`var focus={responseFocusHint:'answer_only_residual_question',responseFocusHintConfidence:0.9,appliesToTopic:'orari',updatedAt:old};`);
 assert.strictEqual(run("isResponseFocusApplicable_(focus,'orari',now)"), true);
 assert.strictEqual(run("isResponseFocusApplicable_(focus,'battesimo',now)"), false);
-assert.strictEqual(run("isResponseFocusApplicable_({...focus,updatedAt:new Date(now-30*86400000).toISOString()},'orari',now)"), false);
+assert.strictEqual(run("isResponseFocusApplicable_({...focus,updatedAt:new Date(now-30*86400000).toISOString()},'orari',now)"), true);
+assert.strictEqual(run("isResponseFocusApplicable_({...focus,updatedAt:new Date(now-46*86400000).toISOString()},'orari',now)"), false);
 assert.strictEqual(run("memory._mergeConversationState(focus,{physicalPresenceState:resolved.memoryState}).updatedAt"), run('old'));
 // Il primo topic aggiornato sopravvive al limite; reazioni e contesto restano.
 run(`var previous=Array.from({length:50},(_,i)=>({topic:'topic_'+i,timestamp:old,userReaction:i===0?'accepted':'unknown',context:{note:'preserve'}}));
