@@ -954,7 +954,7 @@ assert(
   'il prompt deve mantenere le linee guida di formattazione'
 );
 assert(
-  formattingPrompt.includes('utilizza elenchi puntati con emoji contestuali') &&
+  formattingPrompt.includes('utilizza elenchi puntati solo se devi elencare 3 o più elementi') &&
   formattingPrompt.includes('usa titoli Markdown (###)'),
   'il prompt deve preservare titoli e liste per risposte articolate'
 );

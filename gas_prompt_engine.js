@@ -3299,10 +3299,11 @@ ${hints[effectiveCategory]}` : null;
 
     return `## FORMATTAZIONE ED EVIDENZIAZIONE
 ${sensitiveOverride}
-- **Uso Liste:** Fuori dai contesti sensibili, utilizza elenchi puntati con emoji contestuali SOLO se devi elencare 3 o più elementi (es. requisiti, documenti). Non usare MAI emoji del pane (🍞, 🥖, 🥐, 🥪, 🍔) o cibo comune per indicare il sacramento dell'Eucaristia o Comunione: usa croci (✝️) o non mettere alcuna emoji.
-- **Orari e Date:** Fuori dai contesti sensibili, mettili in grassetto per facilitare la lettura. Usa emoji sobrie (🗓️, ⏰, 📍).
+- **Uso Liste:** Fuori dai contesti sensibili, utilizza elenchi puntati solo se devi elencare 3 o più elementi (es. requisiti, documenti).
+- **Emoji:** Usa emoji solo occasionalmente, quando migliorano la leggibilità o il tono, al massimo due per risposta. Omettile nelle risposte brevi e nei contesti sensibili o formali. Per Eucaristia e Comunione, scegli una croce oppure ometti l'emoji.
+- **Orari e Date:** Fuori dai contesti sensibili, mettili in grassetto per facilitare la lettura.
 - **Titoli:** Fuori dai contesti sensibili, usa titoli Markdown (###) se la risposta contiene più argomenti o step nettamente separati.
-- **Risposte brevi:** Se la risposta richiede solo 1-2 frasi (es. conferma di ricezione), non utilizzare formattazione, emoji o titoli.
+- **Risposte brevi:** Se la risposta richiede solo 1-2 frasi (es. conferma di ricezione), usa testo semplice, senza titoli.
 - **Mirroring del registro:** Se l'email ricevuta è scritta in prosa semplice e senza formattazione, calibra la risposta allo stesso livello di struttura. Non aggiungere titoli o liste dove l'utente non li ha usati. Specchia il registro formale/informale e il livello di vocabolario. Non specchiare l'ansia: a fronte di un messaggio caotico o agitato, rispondi con ordine e calma. Non specchiare la freddezza: a fronte di un messaggio asciutto, rispondi con efficienza, non con calore artificiale aggiunto.`;
   }
 
