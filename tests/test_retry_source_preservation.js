@@ -29,6 +29,21 @@ assert(retry.includes('Vorrei il certificato'));
 const grounding = processor._buildRetryGroundingContext_(prompt, 6000);
 assert(grounding.length <= 6000);
 assert(!grounding.includes('STORIA_SECONDARIA'), 'la storia cede spazio alle fonti');
+const runtimeRetrySources = [
+  { origin: 'runtime_request', kind: 'request', text: 'RUNTIME_REQUEST: Richiesta attuale.' },
+  { origin: 'runtime_knowledge', kind: 'knowledge', text: 'RUNTIME_KNOWLEDGE: Fonte attuale.' },
+  { origin: 'runtime_history', kind: 'history', text: 'RUNTIME_HISTORY: Contesto attuale.' }
+];
+const legacyPromptWithRuntimeSources = [
+  '<user_email>LEGACY_REQUEST: Richiesta precedente.</user_email>',
+  '<knowledge_base>LEGACY_KNOWLEDGE: Fonte precedente.</knowledge_base>',
+  '<conversation_history>LEGACY_HISTORY: Contesto precedente.</conversation_history>'
+].join('\n');
+const runtimeGrounding = processor._buildRetryGroundingContext_(legacyPromptWithRuntimeSources, 6000, runtimeRetrySources);
+for (const marker of ['RUNTIME_REQUEST', 'RUNTIME_KNOWLEDGE', 'RUNTIME_HISTORY']) assert(runtimeGrounding.includes(marker), marker);
+for (const marker of ['LEGACY_REQUEST', 'LEGACY_KNOWLEDGE', 'LEGACY_HISTORY']) {
+  assert(!runtimeGrounding.includes(marker), marker + ' non deve duplicare fonti runtime già presenti');
+}
 const additional = processor._buildCorrectionPrompt(prompt, 'Bozza.', lengthFailure, 'it', 'full', {
   retrySources: [...prompt.retrySources,
     { origin: 'validator_extra', kind: 'selected', text: 'VALIDATOR_SOURCE: Certificato rilasciato dopo controllo archivio.' },

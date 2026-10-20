@@ -550,6 +550,14 @@ console.log('--- Test pre-AI rules: context, decision e action restano dichiarat
     'formato e modalità di consegna non devono trasformare una domanda informativa in una richiesta archivistica completa');
   assert(certificateInformationOnly.requested_action === null,
     'una richiesta informativa non deve attivare l’azione di preparazione archivistica');
+  const certificateInformationWithPersonalBaptism = ruleProcessor._detectDocumentRequestWithSupportingData_(
+    'Certificato di battesimo',
+    'Buongiorno, vorrei sapere come posso richiedere il certificato di battesimo: sono stato battezzato nella vostra parrocchia.'
+  );
+  assert(certificateInformationWithPersonalBaptism.detected === false,
+    'il solo riferimento al proprio battesimo non fornisce dati archivistici sufficienti');
+  assert(certificateInformationWithPersonalBaptism.requested_action === null,
+    'una domanda informativa senza date non deve attivare la preparazione archivistica');
   const directCertificateWithDeliveryPreference = ruleProcessor._detectDocumentRequestWithSupportingData_(
     'Certificato di battesimo',
     'Vorrei il certificato di battesimo per matrimonio; se lo mandate via mail, per me va bene.'

@@ -119,9 +119,9 @@ for (const [body, signal] of [[oldQuote, { kind: 'critical', text: 'Voglio morir
   ['Quali orari?', { kind: 'bereavement', text: 'Mio padre è morto.' }]]) {
   assert.equal(interpret(body, 'Re: Informazioni', [signal]).classification.currentSignals.length, 0);
 }
-const accentedContrast = 'Non è morto mio padre. Però è morto mio zio.';
+const accentedContrast = 'Non è morto mio padre, però è morto mio zio.';
 const reconciledAccentedContrast = interpret(accentedContrast, 'Informazioni', [
-  { kind: 'bereavement', text: 'Però è morto mio zio.' }
+  { kind: 'bereavement', text: 'però è morto mio zio.' }
 ]).classification;
 assert.equal(reconciledAccentedContrast.currentSignals.length, 1,
   'il contrasto con però deve separare la negazione precedente dalla perdita affermata');

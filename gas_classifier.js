@@ -745,7 +745,8 @@ var Classifier = class Classifier {
         (normalize(messageEvidence.ambiguousText).includes(quote) ? 'resolved_inline' : null);
       if (!source) continue;
       const origin = source === 'current' ? current : messageEvidence.ambiguousText;
-      const clause = origin.split(/[.!?;\n]+|\b(?:ma|però|but)\b/i).find(value => normalize(value).includes(quote.replace(/[.!?;]+$/, '')));
+      const clause = origin.split(/[.!?;\n]+|(?<![\p{L}\p{N}_])(?:ma|per[oò]|but)(?![\p{L}\p{N}_])/iu)
+        .find(value => normalize(value).includes(quote.replace(/[.!?;]+$/, '')));
       if (this._isNonAssertedSensitiveEvidence_(clause || quote, signal.kind)) continue;
       acceptedSignals.push({ kind: signal.kind, text: quote, source });
       if (signal.kind === 'bereavement') subIntents.bereavement = true;

@@ -4786,6 +4786,7 @@ La prima riga deve essere esattamente <email>; l'ultima esattamente </email>.`;
       if (!(prompt && Array.isArray(prompt.retrySources))) {
         const legacy = this._normalizePromptForRetry_(prompt);
         for (const [tag, kind] of [['user_email', 'request'], ['knowledge_base', 'knowledge'], ['conversation_history', 'history']]) {
+          if (compatibleSources.some(source => source && source.kind === kind)) continue;
           const match = legacy.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`));
           if (match) compatibleSources.push({ origin: 'legacy_' + tag, kind, text: match[1] });
         }
@@ -5461,7 +5462,7 @@ Usa currentDate per stabilire se gli eventi sono trascorsi e messageDate per int
     const textualArchiveDate = String.raw`\d{1,2}[°º]?\s+(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?`;
     const baptismArchiveDate = String.raw`\b(?:battesimo|battezzat[oaie])\b(?:\s+(?:(?:nella|nel|nello|nell[’']|in|presso|alla|allo|al|a|at)\s+[\p{L}'’.-]+(?:\s+[\p{L}'’.-]+){0,3}|il|del|in\s+data|giorno|celebrat[oaie])){0,5}\s+(?:${numericArchiveDate}|${textualArchiveDate})`;
     const archiveDatePattern = new RegExp(
-      String.raw`(?:\bnat[oaie]\s+(?:il\s*)?(?:${numericArchiveDate}|${textualArchiveDate})|${baptismArchiveDate}|\bbattezzat[oaie]\b)`,
+      String.raw`(?:\bnat[oaie]\s+(?:il\s*)?(?:${numericArchiveDate}|${textualArchiveDate})|${baptismArchiveDate})`,
       'iu'
     );
     const hasArchiveData = archiveDatePattern.test(normalized);

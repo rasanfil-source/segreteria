@@ -1527,7 +1527,7 @@ console.log('--- Audit patch: XML incompleto, retry integro e crisi prima della 
       const result = p.processThread(createExternalThread(`audit-retry-${retryText.length}`), 'kb valida', '', new Set(), true);
       assert(result.status === 'validation_failed' && sends === 0 && calls === 2, 'retry incompleto o con leak deve essere bloccato');
       assert(payloads[1].systemInstruction === 'SYSTEM_SENTINEL', 'retry deve conservare la system instruction separata');
-      assert(payloads[1].prompt.includes('EMAIL_SENTINEL'), 'retry per leak deve conservare grounding email');
+      assert(payloads[1].prompt.includes('Vorrei sapere gli orari.'), 'retry deve conservare la richiesta runtime corrente');
       if (retryText.startsWith('<email>')) assert(result.reason === 'truncated_output', 'retry XML incompleto deve arrivare in Verifica');
       else assert(seen.length === 2 && seen[1].includes('Nota interna:'), 'validator deve vedere il leak integrale nel retry');
     }
