@@ -16,6 +16,21 @@ var ThreadValidation = {
     let retryInfrastructureFailure = null;
     let retryPermanentApiFailure = null;
     let shouldLabelForReview = false;
+    const handlePendingSemanticReview = (checked) => {
+      if (!checked || !checked.pendingSemanticReview) return false;
+      const reason = checked.pendingSemanticReview;
+      result.reason = reason;
+      if (reason === 'semantic_unavailable') {
+        result.status = 'dilata';
+        result.retryDelayMs = 60000;
+        result.retryable = true;
+      } else {
+        markFailureForCurrentBurst('validation', { reason, validation: checked, subject: messageDetails.subject });
+        result.status = 'validation_review';
+        result.reviewRequired = true;
+      }
+      return true;
+    };
 
     if (deps.config.validationEnabled && !shouldUseReceiptOnly) {
       const fullValidationKB = [
@@ -39,12 +54,13 @@ var ThreadValidation = {
         console.log('   🩹 Usa risposta corretta automaticamente (Self-Healing)');
         finalResponse = validation.fixedResponse;
       }
+      if (handlePendingSemanticReview(validation)) return { terminal: true };
 
       const retryConfig = (typeof CONFIG !== 'undefined' && CONFIG.INTELLIGENT_RETRY) ? CONFIG.INTELLIGENT_RETRY : null;
       const retryEnabled = retryConfig && retryConfig.enabled !== false;
       const parsedMaxRetries = retryConfig ? parseInt(retryConfig.maxRetries, 10) : NaN;
       const maxRetries = retryEnabled
-        ? (Number.isFinite(parsedMaxRetries) && parsedMaxRetries >= 0 ? parsedMaxRetries : 1)
+        ? (Number.isFinite(parsedMaxRetries) && parsedMaxRetries >= 0 ? Math.min(1, parsedMaxRetries) : 1)
         : 0;
 
       let retryCount = 0;
@@ -150,6 +166,7 @@ var ThreadValidation = {
           true,
           validationRuntimeContext
         );
+        if (handlePendingSemanticReview(retryValidation)) return { terminal: true };
 
         if (retryValidation.isValid) {
           console.log(`✅ Retry superato (score: ${retryValidation.score.toFixed(2)})`);

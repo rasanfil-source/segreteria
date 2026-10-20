@@ -63,7 +63,7 @@ check('the real validation pipeline retains historical evidence with a long curr
   assert(captured.includes('Richiesta iniziale.'));
   assert(captured.includes('Domanda finale: avete ricevuto la correzione?'));
   assert(captured.includes('parte centrale omessa'));
-  assert(captured.includes('Una precedente risposta della segreteria non è invece una fonte autonoma'));
+  assert(captured.includes('lo storico non autorizza procedure'));
 });
 check('separate sections have bounded budgets and no invented history', () => {
   const semantic = ctx.createSemanticValidator();

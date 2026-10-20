@@ -302,6 +302,8 @@ var ThreadAttachments = {
         hasQuestions: hasBodyQuestions || hasDocumentRequest || hasActionPurpose,
         requestPurpose: hasActionPurpose ? attachmentAnalysis.requestPurpose : null,
         requestSummary: requests.map(doc => doc.request).join(' ').slice(0, 400),
+        requestCoverage: reliable && !usedLookbackAttachments && hasDocumentRequest
+          ? attachmentAnalysis.requestCoverage : null,
         responseDirective: '',
         categoryHintSource: (hasDocumentRequest || hasActionPurpose) && attachmentAnalysis.category !== 'unknown'
           ? attachmentAnalysis.category : null,

@@ -110,6 +110,26 @@ var ThreadDocuments = {
     quickCheck.request_purpose = requestPurpose.type;
     quickCheck.request_purpose_confidence = requestPurpose.confidence;
     quickCheck.request_purpose_source = requestPurpose.source;
+    if (typeof normalizeRequestCoverage_ === 'function') {
+      const current = normalizeRequestCoverage_(quickCheck.requestCoverage);
+      const document = normalizeRequestCoverage_(attachmentIntentContext && attachmentIntentContext.requestCoverage);
+      requestPurpose.requestCoverage = normalizeRequestCoverage_({
+        goal: [current.goal, document.goal].filter(Boolean).join('; '),
+        openRequests: current.openRequests.concat(document.openRequests.map(item =>
+          Object.assign({}, item, { id: `doc_${item.id}`, source: 'attachment' }))),
+        extractionTruncated: current.extractionTruncated || document.extractionTruncated
+      });
+    }
+    // Il riepilogo dell'analisi non sostituisce l'evidenza documentale originale.
+    const coverageSources = {
+      currentBody: String(messageDetails.body || ''),
+      attachmentText: physicalAttachmentsDetected ? String(textFromAttachments || '').slice(0, 20000) : '',
+      attachmentsTruncated: physicalAttachmentsDetected && (String(textFromAttachments || '').length > 20000 ||
+        (Array.isArray(attachmentSkipped) && attachmentSkipped.some(item =>
+          !['micro_image_ignored', 'no_attachments'].includes(item.reason))) ||
+        Boolean(attachmentAnalysis && attachmentAnalysis.partial)),
+      attachmentsUnavailable: physicalAttachmentsDetected && !String(textFromAttachments || '').trim()
+    };
     console.log(`   Scopo richiesta: ${requestPurpose.type}, confidence=${requestPurpose.confidence}, source=${requestPurpose.source}`);
 
     const indirectSbattezzo = deps._detectIndirectSbattezzoRequest_(messageDetails.subject, messageDetails.body);
@@ -137,7 +157,7 @@ var ThreadDocuments = {
 
     return {
       isCertRequest, documentDeliveryModel, bodyContainsUsableDocumentContent, expectsDocument,
-      hasDocumentContentAvailable, hasExpectedDocumentMissing, receiptOnlyDeliveryChannel, requestPurpose,
+      hasDocumentContentAvailable, hasExpectedDocumentMissing, receiptOnlyDeliveryChannel, requestPurpose, coverageSources,
       attachmentIntentContext, categoryHintSource, forceReceiptOnlyForSubmission,
       ...(messageBodyForSemanticAnalysis !== undefined ? { messageBodyForSemanticAnalysis } : {})
     };

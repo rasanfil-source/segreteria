@@ -18,6 +18,31 @@ Il fatto storico del sacramento resta registrato e si annota la volontà di non 
 Una domanda informativa richiede spiegazione, non avvio della pratica. Nei seguiti e nelle richieste miste rispondi alle domande residue e al passo attuale; le azioni già compiute richiedono evidenza esplicita.`;
 }
 
+/** Descrive le esigenze del turno; le citazioni restano dati da riscontrare nelle fonti. */
+function normalizeRequestCoverage_(value) {
+  const input = value && typeof value === 'object' ? value : {};
+  const text = (item, limit) => typeof item === 'string' ? item.trim().slice(0, limit) : '';
+  const requests = Array.isArray(input.openRequests) ? input.openRequests : [];
+  const seen = new Set();
+  const openRequests = [];
+  for (const item of requests.slice(0, 24)) {
+    if (!item || !text(item.need, 300) || !text(item.evidence, 400)) continue;
+    const id = text(item.id, 60) || `r${openRequests.length + 1}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    openRequests.push({
+      id, need: text(item.need, 300), evidence: text(item.evidence, 400),
+      role: item.role === 'conditional' ? 'conditional' : 'primary',
+      appliesWhen: item.role === 'conditional' ? text(item.appliesWhen, 300) : '',
+      source: item.source === 'attachment' ? 'attachment' : 'email'
+    });
+  }
+  return {
+    goal: text(input.goal, 400), openRequests,
+    extractionTruncated: input.extractionTruncated === true || requests.length > 24
+  };
+}
+
 function normalizeRelationalPosture_(posture, fallback = 'direct') {
   const raw = String(posture || '').trim().toLowerCase();
   const aliases = {

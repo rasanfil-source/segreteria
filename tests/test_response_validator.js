@@ -2048,12 +2048,11 @@ console.log('--- Test knowledge contextualization: negazione istituzionale forza
   const semantic = Object.create(SemanticValidator.prototype);
   const semanticPrompt = semantic._buildHallucinationPrompt(unsupportedNegative, kb, email, 'information_request');
   assert(
-    semanticPrompt.includes('affermazioni di disponibilità, indisponibilità, divieto o limite') &&
-      semanticPrompt.includes('Capacità e limiti istituzionali richiedono riscontro nella BASE CONOSCENZA') &&
-      semanticPrompt.includes('i dettagli mancanti restano da definire, preservando le possibilità generali previste') &&
-      semanticPrompt.includes('Conserva il grado di certezza delle fonti') &&
-      semanticPrompt.includes('richiesta del mittente, servizio previsto e impegno assunto per il caso concreto') &&
-      semanticPrompt.includes('una possibilità da concordare resta tale'),
+    semanticPrompt.includes('la KB nega esplicitamente proprio quel servizio o canale') &&
+      semanticPrompt.includes('orari parziali e silenzio non bastano') &&
+      semanticPrompt.includes('Richieste, possibilità e impegni restano distinti') &&
+      semanticPrompt.includes('un fatto documentato ma superfluo va solo in irrelevantDetails') &&
+      semanticPrompt.includes('procedura autorizzante o accordo applicabile'),
     'il validatore semantico deve applicare il radicamento alle affermazioni negative e preservare la modalità della fonte'
   );
 }
@@ -2245,9 +2244,9 @@ console.log('--- Test SemanticValidator: prompt hallucination non tronca KB a 20
     prompt.includes('COMPITO B — PERTINENZA CONTESTUALE') &&
       prompt.includes('unità informative separate') &&
       prompt.includes('irrelevantDetails') &&
-      prompt.includes('informazioni che aiutano concretamente a gestire un vincolo dichiarato') &&
-      prompt.includes('Prima distingui lo scopo') &&
-      prompt.includes('Se lo scopo è operativo'),
+      prompt.includes('aiuti concreti ai vincoli') &&
+      prompt.includes('Individua obiettivo, domande e vincoli') &&
+      prompt.includes('procedure già eseguite'),
     'il validatore semantico deve controllare anche selezione e contestualizzazione dei fatti veri della KB'
   );
 }
@@ -2275,8 +2274,8 @@ console.log('--- Test SemanticValidator: grounding include oggetto, corpo e thre
     groundingContext,
     'information_request'
   );
-  assert(prompt.includes('Un nome o cognome presente in una di queste parti può essere ripetuto'), 'il prompt deve autorizzare la ripetizione di entità presenti nell input');
-  assert(prompt.includes('non dimostra da sola che Alberto sia il figlio'), 'il prompt deve separare esistenza del nome e ruolo personale');
+  assert(prompt.includes('Oggetto, corpo, allegati e storico autorizzano dati personali'), 'il prompt deve autorizzare la ripetizione di entità presenti nell input');
+  assert(prompt.toLowerCase().includes('un nome non prova il ruolo'), 'il prompt deve separare esistenza del nome e ruolo personale');
   assert(prompt.includes('"entityRoleMismatches": []'), 'lo schema semantico deve distinguere i mismatch nome-ruolo');
 }
 

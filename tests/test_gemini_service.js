@@ -293,7 +293,7 @@ console.log('--- Test EmailQuickCheckPolicy: prompt include guardrail documental
   assert(plainPrompt.prompt.includes('competenza territoriale'), 'prompt quick-check deve spiegare la competenza territoriale');
   assert(plainPrompt.prompt.includes('"relational_posture"'), 'prompt ordinario deve chiedere la postura relazionale');
   assert(plainPrompt.prompt.includes('"request_purpose"'), 'prompt ordinario deve distinguere lo scopo della richiesta dal topic');
-  assert(plainPrompt.prompt.includes('Non classificare come informativa una richiesta solo perche'), 'prompt quick-check deve evitare il routing informativo basato sul solo argomento');
+  assert(plainPrompt.prompt.includes("scopo attuale, distinto dall'argomento"), 'prompt quick-check deve evitare il routing informativo basato sul solo argomento');
   assert(plainPrompt.prompt.includes('"relational_posture_confidence"'), 'prompt ordinario deve chiedere la confidenza della postura relazionale');
   assert(plainPrompt.prompt.includes('"response_focus_hint"'), 'prompt ordinario deve mantenere response_focus_hint nel JSON');
   assert(plainPrompt.prompt.includes('"attachment_intent"'), 'prompt ordinario deve chiedere attachment_intent nel JSON');

@@ -777,15 +777,9 @@ COMPITI:
    - missing_document_if_no_attachment: TRUE solo quando dal testo risulta che il documento dovrebbe esserci come file/allegato e non sono presenti dati compilati nel corpo.
    - reason: breve motivo osservabile.
 10. Fornisci un breve ragionamento (reason)
-10b. Determina request_purpose, cioe lo SCOPO concreto del messaggio, separandolo esplicitamente dall'argomento/topic e prima di qualsiasi scelta di contenuti da KB:
-   - "information_request": chiede come funziona, dove rivolgersi, quali requisiti/documenti servono o quali opzioni esistono.
-   - "operational_request": chiede alla parrocchia di eseguire o predisporre un'azione (rilasciare/preparare un documento, iscrivere, prenotare, registrare, confermare) oppure fornisce gia dati e modalita per completarla.
-   - "status_update": comunica dati, conferma una scelta, segnala una modifica o fornisce informazioni senza chiedere spiegazioni generali ne una nuova azione.
-   - "acknowledgment": contiene soltanto ringraziamento o conferma di ricezione.
-   - "mixed": contiene davvero sia una richiesta operativa sia una domanda informativa ancora aperta.
-   - Non classificare come informativa una richiesta solo perche il suo argomento e un documento o una procedura; il criterio decisivo e cio che l'utente vuole ottenere adesso.
-   - Ricava lo scopo da oggetto e corpo: la richiesta di eseguire un'azione ha scopo operativo anche se sintetica e presente nel solo oggetto, con corpo vuoto; distinguila dalla semplice comunicazione di dati.
-   - Fornisci anche request_purpose_confidence (0.0-1.0).
+10b. Descrivi lo scopo attuale, distinto dall'argomento: information_request per spiegazioni; operational_request per eseguire un'azione richiesta, anche nel solo oggetto; status_update per dati o modifiche comunicati; acknowledgment per sola conferma/ringraziamento; mixed per azione e domande informative ancora aperte. Fornisci request_purpose_confidence (0.0-1.0).
+   Estrai goal (obiettivo concreto breve) e openRequests: esigenze del turno corrente interpretate con lo storico, comprese richieste implicite espresse come desideri. Quelle già risolte restano chiuse salvo nuova domanda.
+   Ogni voce ha id, need, evidence (citazione letterale breve di oggetto/corpo corrente), role primary o conditional e appliesWhen (condizione del ripiego, vuota per primary). Descrivi ciò che serve alla persona senza prescrivere una risposta né dedurre disponibilità. Per una comunicazione senza domande descrivi il solo riscontro utile; per una chiusura senza risposta usa [].
 11. Determina physical_presence_constraint:
    - TRUE per impedimenti personali attuali: distanza da Roma, salute, mobilita, assistenza familiare, restrizioni legali, indisponibilita temporanea o richiesta di gestione remota.
    - Senza nuovi elementi usa FALSE e visit_policy="unknown": il silenzio non dimostra che un vecchio impedimento sia risolto. Se dichiara disponibilita attuale, riportane l'evidenza senza dedurre guarigioni o altri cambiamenti.
@@ -837,6 +831,8 @@ Output JSON:
   "current_signals": [{"kind": "bereavement|distress|crisis|critical|prior_contact", "text": "estratto letterale"}],
   "request_purpose": "information_request" | "operational_request" | "status_update" | "acknowledgment" | "mixed",
   "request_purpose_confidence": number (0.0-1.0),
+  "goal": "obiettivo breve",
+  "openRequests": [{"id":"r1","need":"esigenza attuale","evidence":"citazione letterale","role":"primary|conditional","appliesWhen":""}],
   "is_territory_request": boolean,
   "territory_address_candidates": ["string"],
   "confidence": number (0.0-1.0),
@@ -918,6 +914,7 @@ Output JSON:
       request_purpose: 'unknown',
       request_purpose_confidence: 0,
       request_purpose_source: 'default',
+      requestCoverage: { goal: '', openRequests: [], extractionTruncated: false },
       response_focus_hint: null,
       response_focus_hint_confidence: 0,
       conversation_shift: 'none',
@@ -1120,6 +1117,10 @@ Output JSON:
       request_purpose: requestPurposeResolution.type,
       request_purpose_confidence: requestPurposeResolution.confidence,
       request_purpose_source: requestPurposeResolution.source,
+      requestCoverage: typeof normalizeRequestCoverage_ === 'function'
+        ? normalizeRequestCoverage_({ goal: data.goal, openRequests: data.openRequests,
+          extractionTruncated: String(options.emailContent || '').length > 6000 })
+        : { goal: '', openRequests: [], extractionTruncated: false },
       response_focus_hint: responseFocusHint,
       response_focus_hint_confidence: responseFocusHintConfidence,
       conversation_shift: conversationShift,

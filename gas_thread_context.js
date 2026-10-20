@@ -149,7 +149,7 @@ ${addressLines.join('\n\n')}
     routedDoctrine, detectedLanguage, physicalPresenceConstraint, territoryContext, territoryResult, activeConcerns,
     concernSynthesis, continuityCase, responseMode, operationalConstraints, continuityPolicy,
     responseRegister, promptProfile, categoryHintSource, classification, requestTypeName, requestPurpose,
-    conversationHistory
+    conversationHistory, coverageSources
   }) {
     const baseRuntimeContext = deps._buildRuntimeContext_(
       messageDetails,
@@ -169,7 +169,7 @@ ${addressLines.join('\n\n')}
       territoryContext: territoryContext || null,
       ...(territoryContext && territoryResult && territoryResult.addressFound
         ? { territoryResult } : {}),
-      validationContext: deps._buildResponseValidationContext_({
+      validationContext: Object.assign(deps._buildResponseValidationContext_({
         activeConcerns: activeConcerns,
         concernSynthesis: concernSynthesis,
         continuityCase: continuityCase,
@@ -182,6 +182,10 @@ ${addressLines.join('\n\n')}
         requestType: requestTypeName || null,
         requestPurpose: requestPurpose,
         conversationHistory: conversationHistory
+      }), {
+        coverageSources: Object.assign({}, coverageSources || {}, {
+          historyTruncated: String(conversationHistory || '').length > 4000
+        })
       })
     }));
     return { runtimeContext, scheduleContext };
@@ -310,6 +314,7 @@ ${addressLines.join('\n\n')}
       },
       responseStrategy: responseStrategy,
       requestPurpose: requestPurpose,
+      requestCoverage: requestPurpose && requestPurpose.requestCoverage || null,
       responseStrategyInferenceBlocked: hasStrongerResponseRoutingSignal,
       newInformationProvided: Array.isArray(quickCheck.new_information_provided)
         ? quickCheck.new_information_provided

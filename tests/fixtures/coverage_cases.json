@@ -1,0 +1,832 @@
+{
+  "schemaVersion": "coverage-tests-v3",
+  "phase": "enforce",
+  "defaults": {
+    "bodyLimitChars": 2000,
+    "blocksSend": true
+  },
+  "cases": [
+    {
+      "id": "C01a",
+      "group": "completa_vs_incompleta",
+      "label": "Solo orario, documenti ignorati",
+      "message": {
+        "subject": "Messa e certificato",
+        "body": "A che ora è la Messa e quali documenti servono per il certificato?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "orario della Messa",
+          "evidence": "A che ora è la Messa",
+          "role": "primary"
+        },
+        {
+          "id": "r2",
+          "need": "documenti per il certificato",
+          "evidence": "quali documenti servono per il certificato",
+          "role": "primary"
+        }
+      ],
+      "kb": "Messa domenicale: ore 10:30. Certificato di battesimo: servono documento d'identità del richiedente e dati di battesimo (data e parrocchia).",
+      "response": "Gentile utente, la Messa è alle 10:30. Segreteria Parrocchia",
+      "expected": {
+        "state": "rejected",
+        "reasonCode": "semantic_omission",
+        "statuses": {
+          "r1": "addressed",
+          "r2": "missing"
+        }
+      }
+    },
+    {
+      "id": "C01b",
+      "group": "completa_vs_incompleta",
+      "label": "Orario e documenti presenti",
+      "message": {
+        "subject": "Messa e certificato",
+        "body": "A che ora è la Messa e quali documenti servono per il certificato?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "orario della Messa",
+          "evidence": "A che ora è la Messa",
+          "role": "primary"
+        },
+        {
+          "id": "r2",
+          "need": "documenti per il certificato",
+          "evidence": "quali documenti servono per il certificato",
+          "role": "primary"
+        }
+      ],
+      "kb": "Messa domenicale: ore 10:30. Certificato di battesimo: servono documento d'identità del richiedente e dati di battesimo (data e parrocchia).",
+      "response": "Gentile utente, la Messa è alle 10:30. Per il certificato servono un documento d'identità e i dati del battesimo (data e parrocchia). Segreteria Parrocchia",
+      "expected": {
+        "state": "approved",
+        "reasonCode": null,
+        "statuses": {
+          "r1": "addressed",
+          "r2": "addressed"
+        }
+      }
+    },
+    {
+      "id": "C02a",
+      "group": "ringraziamento_vuoto",
+      "label": "Ringraziamento a una domanda diretta",
+      "message": {
+        "subject": "Orari segreteria",
+        "body": "Buongiorno, quando è aperta la segreteria?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "orari di apertura della segreteria",
+          "evidence": "quando è aperta la segreteria",
+          "role": "primary"
+        }
+      ],
+      "kb": "Segreteria aperta martedì e giovedì dalle 9:00 alle 11:00.",
+      "response": "Buongiorno, grazie per averci scritto. Restiamo a disposizione. Segreteria Parrocchia",
+      "expected": {
+        "state": "rejected",
+        "reasonCode": "semantic_omission",
+        "statuses": {
+          "r1": "missing"
+        }
+      }
+    },
+    {
+      "id": "C02b",
+      "group": "ringraziamento_vuoto",
+      "label": "Risposta breve ma sufficiente",
+      "message": {
+        "subject": "Orari segreteria",
+        "body": "Buongiorno, quando è aperta la segreteria?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "orari di apertura della segreteria",
+          "evidence": "quando è aperta la segreteria",
+          "role": "primary"
+        }
+      ],
+      "kb": "Segreteria aperta martedì e giovedì dalle 9:00 alle 11:00.",
+      "response": "Buongiorno, la segreteria è aperta martedì e giovedì dalle 9:00 alle 11:00. Segreteria Parrocchia",
+      "expected": {
+        "state": "approved",
+        "reasonCode": null,
+        "statuses": {
+          "r1": "addressed"
+        }
+      }
+    },
+    {
+      "id": "C03a",
+      "group": "limite_informativo_vs_inventato",
+      "label": "Limite informativo reale dichiarato",
+      "message": {
+        "subject": "Certificato",
+        "body": "Vorrei il certificato di cresima. Quali documenti servono?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "documenti per il certificato di cresima",
+          "evidence": "Quali documenti servono",
+          "role": "primary"
+        }
+      ],
+      "kb": "Il certificato di battesimo richiede documento d'identità. Per la cresima non sono indicate procedure.",
+      "response": "Buongiorno, per il certificato di cresima non abbiamo qui indicazioni sui documenti richiesti. Segreteria Parrocchia",
+      "expected": {
+        "state": "approved",
+        "reasonCode": null,
+        "statuses": {
+          "r1": "explicit_limit_info"
+        }
+      }
+    },
+    {
+      "id": "C03b",
+      "group": "limite_informativo_vs_inventato",
+      "label": "Divieto di servizio inventato",
+      "message": {
+        "subject": "Certificato",
+        "body": "Posso ritirare il certificato venerdì?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "ritiro del certificato di venerdì",
+          "evidence": "ritirare il certificato venerdì",
+          "role": "primary"
+        }
+      ],
+      "kb": "Segreteria aperta martedì e giovedì dalle 9:00 alle 11:00.",
+      "response": "Buongiorno, non rilasciamo certificati il venerdì. Segreteria Parrocchia",
+      "expected": {
+        "state": "rejected",
+        "reasonCode": "semantic_unsupported_claim",
+        "statuses": {
+          "r1": "missing"
+        },
+        "note": "explicit_limit_service senza sourceRef vale come missing"
+      }
+    },
+    {
+      "id": "C03c",
+      "group": "limite_informativo_vs_inventato",
+      "label": "Impossibilità di confermare un dato mancante",
+      "message": {
+        "subject": "Certificato",
+        "body": "Posso ritirare il certificato venerdì?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "ritiro del certificato di venerdì",
+          "evidence": "ritirare il certificato venerdì",
+          "role": "primary"
+        }
+      ],
+      "kb": "Segreteria aperta martedì e giovedì dalle 9:00 alle 11:00.",
+      "response": "Buongiorno, la segreteria è aperta martedì e giovedì dalle 9:00 alle 11:00; per venerdì non possiamo confermare la disponibilità. Segreteria Parrocchia",
+      "expected": {
+        "state": "approved",
+        "reasonCode": null,
+        "statuses": {
+          "r1": "explicit_limit_info"
+        }
+      }
+    },
+    {
+      "id": "C04a",
+      "group": "ripiego_necessario_vs_non_applicabile",
+      "label": "Invio email autorizzato: il ritiro della sorella non serve",
+      "message": {
+        "subject": "Certificato urgente",
+        "body": "Preferirei ricevere il certificato via email. Se non fosse possibile, può ritirarlo mia sorella?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "ricevere il certificato via email",
+          "evidence": "Preferirei ricevere il certificato via email",
+          "role": "primary"
+        },
+        {
+          "id": "r3",
+          "need": "ritiro del certificato da parte della sorella",
+          "evidence": "può ritirarlo mia sorella",
+          "role": "conditional",
+          "appliesWhen": "solo se l’invio via email non è possibile"
+        }
+      ],
+      "kb": "Il certificato può essere inviato via email in PDF al richiedente. Il ritiro da parte di un delegato richiede delega scritta e documento.",
+      "response": "Buongiorno, possiamo inviarle il certificato via email in PDF. Segreteria Parrocchia",
+      "expected": {
+        "state": "approved",
+        "reasonCode": null,
+        "statuses": {
+          "r1": "addressed",
+          "r3": "not_applicable"
+        }
+      }
+    },
+    {
+      "id": "C04b",
+      "group": "ripiego_necessario_vs_non_applicabile",
+      "label": "Invio email non consentito: ripiego necessario ma omesso",
+      "message": {
+        "subject": "Certificato urgente",
+        "body": "Mi serve il certificato entro venerdì, ma sono all'estero. Potete mandarmelo via email? Altrimenti può ritirarlo mia sorella?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "ricevere il certificato via email",
+          "evidence": "Potete mandarmelo via email",
+          "role": "primary"
+        },
+        {
+          "id": "r2",
+          "need": "sapere se il certificato può arrivare entro venerdì",
+          "evidence": "Mi serve il certificato entro venerdì",
+          "role": "primary"
+        },
+        {
+          "id": "r3",
+          "need": "ritiro del certificato da parte della sorella",
+          "evidence": "può ritirarlo mia sorella",
+          "role": "conditional",
+          "appliesWhen": "solo se l’invio via email non è consentito o il richiedente dichiara che non risolve la scadenza"
+        }
+      ],
+      "kb": "Il certificato non può essere inviato via email: si ritira in segreteria. Il ritiro da parte di un delegato richiede delega scritta e documento.",
+      "response": "Buongiorno, purtroppo il certificato non può essere inviato via email. Per venerdì non possiamo confermare i tempi. Segreteria Parrocchia",
+      "expected": {
+        "state": "rejected",
+        "reasonCode": "semantic_omission",
+        "statuses": {
+          "r1": "explicit_limit_service",
+          "r2": "explicit_limit_info",
+          "r3": "missing"
+        }
+      }
+    },
+    {
+      "id": "C04c",
+      "group": "ripiego_necessario_vs_non_applicabile",
+      "label": "Email non consentita e ripiego spiegato",
+      "message": {
+        "subject": "Certificato urgente",
+        "body": "Mi serve il certificato entro venerdì, ma sono all'estero. Potete mandarmelo via email? Altrimenti può ritirarlo mia sorella?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "ricevere il certificato via email",
+          "evidence": "Potete mandarmelo via email",
+          "role": "primary"
+        },
+        {
+          "id": "r2",
+          "need": "sapere se il certificato può arrivare entro venerdì",
+          "evidence": "Mi serve il certificato entro venerdì",
+          "role": "primary"
+        },
+        {
+          "id": "r3",
+          "need": "ritiro del certificato da parte della sorella",
+          "evidence": "può ritirarlo mia sorella",
+          "role": "conditional",
+          "appliesWhen": "solo se l’invio via email non è consentito o il richiedente dichiara che non risolve la scadenza"
+        }
+      ],
+      "kb": "Il certificato non può essere inviato via email: si ritira in segreteria. Il ritiro da parte di un delegato richiede delega scritta e documento.",
+      "response": "Buongiorno, il certificato non può essere inviato via email e si ritira in segreteria. Può ritirarlo sua sorella con una delega scritta da parte sua e un documento d'identità. Per venerdì non possiamo confermare i tempi. Segreteria Parrocchia",
+      "expected": {
+        "state": "approved",
+        "reasonCode": null,
+        "statuses": {
+          "r1": "explicit_limit_service",
+          "r2": "explicit_limit_info",
+          "r3": "addressed"
+        }
+      }
+    },
+    {
+      "id": "C05a",
+      "group": "continuita_domanda_nuova_vs_risolta",
+      "label": "Dato comunicato: conferma breve senza riaprire la procedura",
+      "message": {
+        "subject": "Re: Certificato",
+        "body": "Ho battezzato mio figlio il 12 maggio 2015 a San Marco.",
+        "history": "SEGRETERIA: Per il certificato ci servono data e parrocchia del battesimo."
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "conferma di ricezione dei dati richiesti",
+          "evidence": "Ho battezzato mio figlio il 12 maggio 2015 a San Marco",
+          "role": "primary"
+        }
+      ],
+      "kb": "Certificato di battesimo: servono data e parrocchia del battesimo. Tempi di preparazione: 3 giorni lavorativi.",
+      "response": "Grazie, abbiamo ricevuto i dati. Prepareremo il certificato in circa 3 giorni lavorativi. Segreteria Parrocchia",
+      "expected": {
+        "state": "approved",
+        "reasonCode": null,
+        "statuses": {
+          "r1": "addressed"
+        }
+      }
+    },
+    {
+      "id": "C05b",
+      "group": "continuita_domanda_nuova_vs_risolta",
+      "label": "Dato comunicato più domanda nuova dimenticata",
+      "message": {
+        "subject": "Re: Certificato",
+        "body": "Ho battezzato mio figlio il 12 maggio 2015 a San Marco. Quanto tempo ci vuole?",
+        "history": "SEGRETERIA: Per il certificato ci servono data e parrocchia del battesimo."
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "conferma di ricezione dei dati",
+          "evidence": "Ho battezzato mio figlio il 12 maggio 2015 a San Marco",
+          "role": "primary"
+        },
+        {
+          "id": "r2",
+          "need": "tempi di preparazione",
+          "evidence": "Quanto tempo ci vuole",
+          "role": "primary"
+        }
+      ],
+      "kb": "Certificato di battesimo: servono data e parrocchia del battesimo. Tempi di preparazione: 3 giorni lavorativi.",
+      "response": "Grazie, abbiamo ricevuto i dati. Segreteria Parrocchia",
+      "expected": {
+        "state": "rejected",
+        "reasonCode": "semantic_omission",
+        "statuses": {
+          "r1": "addressed",
+          "r2": "missing"
+        }
+      }
+    },
+    {
+      "id": "C05c",
+      "group": "continuita_domanda_nuova_vs_risolta",
+      "label": "Domanda già risolta nello storico: non va ripetuta",
+      "message": {
+        "subject": "Re: Certificato",
+        "body": "Perfetto, grazie. Passo giovedì.",
+        "history": "SEGRETERIA: Il certificato è pronto in 3 giorni lavorativi e si ritira martedì o giovedì dalle 9:00 alle 11:00."
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "conferma della visita di giovedì",
+          "evidence": "Passo giovedì",
+          "role": "primary"
+        }
+      ],
+      "kb": "Segreteria aperta martedì e giovedì dalle 9:00 alle 11:00. Tempi di preparazione: 3 giorni lavorativi.",
+      "response": "Grazie a lei, la aspettiamo giovedì tra le 9:00 e le 11:00. Segreteria Parrocchia",
+      "expected": {
+        "state": "approved",
+        "reasonCode": null,
+        "statuses": {
+          "r1": "addressed"
+        }
+      }
+    },
+    {
+      "id": "C05d",
+      "group": "continuita_domanda_nuova_vs_risolta",
+      "label": "Risposta che riapre inutilmente tutta la procedura",
+      "message": {
+        "subject": "Re: Certificato",
+        "body": "Perfetto, grazie. Passo giovedì.",
+        "history": "SEGRETERIA: Il certificato è pronto in 3 giorni lavorativi e si ritira martedì o giovedì dalle 9:00 alle 11:00."
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "conferma della visita di giovedì",
+          "evidence": "Passo giovedì",
+          "role": "primary"
+        }
+      ],
+      "kb": "Segreteria aperta martedì e giovedì dalle 9:00 alle 11:00. Tempi di preparazione: 3 giorni lavorativi. Certificato di battesimo: servono data e parrocchia del battesimo. Il ritiro da parte di un delegato richiede delega scritta e documento.",
+      "response": "Grazie a lei. Le ricordiamo che per il certificato servono data e parrocchia del battesimo, che i tempi sono di 3 giorni lavorativi e che un delegato può ritirarlo con delega scritta e documento. La aspettiamo giovedì tra le 9:00 e le 11:00. Segreteria Parrocchia",
+      "expected": {
+        "state": "rejected",
+        "reasonCode": "semantic_irrelevant_detail",
+        "statuses": {
+          "r1": "addressed"
+        },
+        "note": "copertura ok, ma dettagli superflui in irrelevantDetails"
+      }
+    },
+    {
+      "id": "C06a",
+      "group": "richiesta_centrale_preservata_vs_tagliata",
+      "label": "Richiesta a metà di un corpo lungo, limite alzato, vista per intero",
+      "bodyLimitChars": 6000,
+      "message": {
+        "subject": "Informazioni",
+        "body": "Buongiorno, scrivo per alcune informazioni.",
+        "bodyPadMiddleChars": 2500,
+        "bodyMiddleText": "Quali documenti servono per il certificato di battesimo?",
+        "bodyTail": "Grazie e cordiali saluti.",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "documenti per il certificato di battesimo",
+          "evidence": "Quali documenti servono per il certificato di battesimo",
+          "role": "primary"
+        }
+      ],
+      "kb": "Certificato di battesimo: servono documento d'identità del richiedente e dati di battesimo.",
+      "response": "Buongiorno, per il certificato di battesimo servono un documento d'identità e i dati del battesimo. Segreteria Parrocchia",
+      "expected": {
+        "state": "approved",
+        "reasonCode": null,
+        "statuses": {
+          "r1": "addressed"
+        },
+        "mustLog": {
+          "bodyComplete": true,
+          "classifierSawFullBody": true
+        }
+      }
+    },
+    {
+      "id": "C06b",
+      "group": "richiesta_centrale_preservata_vs_tagliata",
+      "label": "Richiesta persa nel troncamento e non confermabile",
+      "message": {
+        "subject": "Informazioni",
+        "body": "Buongiorno, scrivo per alcune informazioni.",
+        "bodyPadMiddleChars": 2500,
+        "bodyMiddleText": "Quali documenti servono per il certificato di battesimo?",
+        "bodyTail": "Grazie e cordiali saluti.",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": false,
+        "historyComplete": true,
+        "classifierSawFullBody": false
+      },
+      "openRequests": [],
+      "kb": "Certificato di battesimo: servono documento d'identità del richiedente e dati di battesimo.",
+      "response": "Buongiorno, grazie per il messaggio. Restiamo a disposizione. Segreteria Parrocchia",
+      "expected": {
+        "state": "undeterminable",
+        "reasonCode": "semantic_context_insufficient",
+        "mustNotApprove": true,
+        "mustLog": {
+          "bodyComplete": false,
+          "classifierSawFullBody": false
+        },
+        "requiresReview": true
+      }
+    },
+    {
+      "id": "C06c",
+      "group": "richiesta_centrale_preservata_vs_tagliata",
+      "label": "Corpo troncato ma richiesta visibile e coperta",
+      "message": {
+        "subject": "Informazioni",
+        "body": "Quali documenti servono per il certificato di battesimo? Scrivo anche per altro.",
+        "bodyPadMiddleChars": 2500,
+        "bodyMiddleText": "Testo di contorno non essenziale.",
+        "bodyTail": "Grazie e cordiali saluti.",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": false,
+        "historyComplete": true,
+        "classifierSawFullBody": false
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "documenti per il certificato di battesimo",
+          "evidence": "Quali documenti servono per il certificato di battesimo",
+          "role": "primary"
+        }
+      ],
+      "kb": "Certificato di battesimo: servono documento d'identità del richiedente e dati di battesimo.",
+      "response": "Buongiorno, per il certificato di battesimo servono un documento d'identità e i dati del battesimo. Segreteria Parrocchia",
+      "expected": {
+        "state": "undeterminable",
+        "reasonCode": "semantic_context_insufficient",
+        "statuses": {
+          "r1": "addressed"
+        },
+        "mustLog": {
+          "bodyComplete": false,
+          "classifierSawFullBody": false
+        },
+        "mustNotApprove": true,
+        "requiresReview": true
+      }
+    },
+    {
+      "id": "C07a",
+      "group": "sensibilita_lutto",
+      "label": "Lutto: risposta breve, con tatto e sufficiente",
+      "message": {
+        "subject": "Messa per mia madre",
+        "body": "È mancata mia madre. Vorrei una Messa in suo suffragio. Come posso fare?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "come richiedere una Messa in suffragio",
+          "evidence": "Vorrei una Messa in suo suffragio. Come posso fare",
+          "role": "primary"
+        }
+      ],
+      "kb": "Le intenzioni di Messa si richiedono in segreteria (martedì e giovedì 9:00-11:00) indicando nome del defunto e data desiderata.",
+      "response": "Le siamo vicini per la perdita di sua madre. Per richiedere una Messa in suffragio può rivolgersi alla segreteria martedì o giovedì dalle 9:00 alle 11:00, indicando il nome della defunta e la data desiderata. Segreteria Parrocchia",
+      "expected": {
+        "state": "approved",
+        "reasonCode": null,
+        "statuses": {
+          "r1": "addressed"
+        }
+      }
+    },
+    {
+      "id": "C07b",
+      "group": "sensibilita_lutto",
+      "label": "Lutto: condoglianze senza rispondere alla richiesta",
+      "message": {
+        "subject": "Messa per mia madre",
+        "body": "È mancata mia madre. Vorrei una Messa in suo suffragio. Come posso fare?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "come richiedere una Messa in suffragio",
+          "evidence": "Vorrei una Messa in suo suffragio. Come posso fare",
+          "role": "primary"
+        }
+      ],
+      "kb": "Le intenzioni di Messa si richiedono in segreteria (martedì e giovedì 9:00-11:00) indicando nome del defunto e data desiderata.",
+      "response": "Le siamo vicini nel dolore per la perdita di sua madre e preghiamo per lei. Segreteria Parrocchia",
+      "expected": {
+        "state": "rejected",
+        "reasonCode": "semantic_omission",
+        "statuses": {
+          "r1": "missing"
+        },
+        "note": "la sola presenza di un lutto non giustifica il rinvio della richiesta principale"
+      }
+    },
+    {
+      "group": "limiti_solo_da_kb",
+      "message": {
+        "subject": "Attestato Zeta",
+        "body": "Posso ricevere l’attestato Zeta via email?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "invio email dell’attestato Zeta",
+          "evidence": "Posso ricevere l’attestato Zeta via email",
+          "role": "primary"
+        }
+      ],
+      "response": "Buongiorno, l’attestato Zeta non può essere inviato via email. Segreteria Parrocchia",
+      "id": "C08a",
+      "label": "Limite con KB a",
+      "kb": "L’attestato Zeta non può essere inviato via email.",
+      "expected": {
+        "state": "approved",
+        "reasonCode": null,
+        "statuses": {
+          "r1": "explicit_limit_service"
+        }
+      }
+    },
+    {
+      "group": "limiti_solo_da_kb",
+      "message": {
+        "subject": "Attestato Zeta",
+        "body": "Posso ricevere l’attestato Zeta via email?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "invio email dell’attestato Zeta",
+          "evidence": "Posso ricevere l’attestato Zeta via email",
+          "role": "primary"
+        }
+      ],
+      "response": "Buongiorno, l’attestato Zeta non può essere inviato via email. Segreteria Parrocchia",
+      "id": "C08b",
+      "label": "Limite con KB b",
+      "kb": "L’attestato Zeta può essere inviato via email.",
+      "expected": {
+        "state": "rejected",
+        "reasonCode": "semantic_unsupported_claim",
+        "statuses": {
+          "r1": "missing"
+        }
+      }
+    },
+    {
+      "group": "limiti_solo_da_kb",
+      "message": {
+        "subject": "Attestato Zeta",
+        "body": "Posso ricevere l’attestato Zeta via email?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "invio email dell’attestato Zeta",
+          "evidence": "Posso ricevere l’attestato Zeta via email",
+          "role": "primary"
+        }
+      ],
+      "response": "Buongiorno, l’attestato Zeta non può essere inviato via email. Segreteria Parrocchia",
+      "id": "C08c",
+      "label": "Limite con KB c",
+      "kb": "L’attestato Zeta è disponibile. Non sono indicate modalità di consegna.",
+      "expected": {
+        "state": "rejected",
+        "reasonCode": "semantic_unsupported_claim",
+        "statuses": {
+          "r1": "missing"
+        }
+      }
+    },
+    {
+      "group": "limiti_solo_da_kb",
+      "message": {
+        "subject": "Attestato Zeta",
+        "body": "Posso ricevere l’attestato Zeta via email?",
+        "history": ""
+      },
+      "sourceCompleteness": {
+        "bodyComplete": true,
+        "historyComplete": true,
+        "classifierSawFullBody": true
+      },
+      "openRequests": [
+        {
+          "id": "r1",
+          "need": "invio email dell’attestato Zeta",
+          "evidence": "Posso ricevere l’attestato Zeta via email",
+          "role": "primary"
+        }
+      ],
+      "response": "Buongiorno, è possibile ricevere l’attestato Zeta via email. Segreteria Parrocchia",
+      "id": "C08d",
+      "label": "Canale consentito dalla sola KB",
+      "kb": "L’attestato Zeta può essere inviato via email.",
+      "expected": {
+        "state": "approved",
+        "reasonCode": null,
+        "statuses": {
+          "r1": "addressed"
+        }
+      }
+    }
+  ],
+  "reviewNotes": [
+    "I codici di errore usano i nomi effettivi del codice di produzione.",
+    "C06c resta undeterminable: il corpo tagliato potrebbe contenere altre richieste, esplicitamente annunciate.",
+    "C04a omette il requisito aggiunto sui dati del battesimo: la sua KB non lo prescrive.",
+    "C04a/b/c dichiarano non confermati i tempi di venerdì: la KB non autorizza una garanzia sulla scadenza.",
+    "I casi di troncamento usano riempimento prima e dopo la domanda per collocarla davvero nella zona centrale.",
+    "C08a-d invertono la KB mantenendo la domanda e, nei primi tre casi, la medesima risposta negativa."
+  ]
+}

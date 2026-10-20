@@ -73,7 +73,7 @@ const report = {};
       assert.equal(calls, before + 1);
     }
   }
-  assert.ok(s._cacheKey('thinking', inputs[0]).startsWith('semantic_v5_'));
+  assert.ok(s._cacheKey('thinking', inputs[0]).startsWith('semantic_v21_'));
   s.validateThinkingLeak(inputs[0], { score: 0.7, errors: [] });
   const before = calls;
   s.validateThinkingLeak(inputs[0].slice(0, 400) + 'X' + inputs[0].slice(401), { score: 0.7, errors: [] });

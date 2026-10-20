@@ -162,6 +162,9 @@ var CONFIG = {
   SEMANTIC_VALIDATION: {
     enabled: true,
     activationThreshold: 0.82,
+    completenessAlways: true,
+    completenessMode: 'enforce', // Le omissioni attivano un retry; i giudizi incompleti richiedono attesa o revisione.
+    coverageBodyMaxChars: 16000,
     cacheEnabled: true,
     cacheTTL: 300,
     taskType: 'semantic',
@@ -177,6 +180,7 @@ var CONFIG = {
       'thinking_leak',
       'hallucination',
       'kb_relevance',
+      'omission',
       'language',
       'placeholder',
       'length',
@@ -616,6 +620,15 @@ function validateConfig() {
   }
 
   // Riprova Logica
+  if (CONFIG.SEMANTIC_VALIDATION && CONFIG.SEMANTIC_VALIDATION.completenessAlways !== undefined) {
+    checkType('SEMANTIC_VALIDATION.completenessAlways', CONFIG.SEMANTIC_VALIDATION.completenessAlways, 'boolean');
+    if (!['observe', 'enforce'].includes(CONFIG.SEMANTIC_VALIDATION.completenessMode)) {
+      errors.push('Errore Config: SEMANTIC_VALIDATION.completenessMode deve essere observe o enforce');
+    }
+    checkType('SEMANTIC_VALIDATION.coverageBodyMaxChars', CONFIG.SEMANTIC_VALIDATION.coverageBodyMaxChars, 'number');
+    checkRange('SEMANTIC_VALIDATION.coverageBodyMaxChars', CONFIG.SEMANTIC_VALIDATION.coverageBodyMaxChars, 2000, 60000);
+  }
+
   if (!CONFIG.INTELLIGENT_RETRY || typeof CONFIG.INTELLIGENT_RETRY !== 'object') {
     errors.push("Errore Config: 'INTELLIGENT_RETRY' deve essere un oggetto");
   } else {

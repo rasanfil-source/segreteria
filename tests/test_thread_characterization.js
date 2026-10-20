@@ -61,6 +61,14 @@ if (process.argv.includes('--record-baseline')) {
   fs.writeFileSync(fixturePath, JSON.stringify(actual, null, 2) + '\n');
 }
 const originalExpected = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+// Il contratto di copertura viene verificato dalla suite dedicata; qui restano
+// confrontati integralmente gli effetti preesistenti di invio, memoria e revisione.
+function withoutCoverage(value) {
+  if (Array.isArray(value)) return value.map(withoutCoverage);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value).filter(([key]) =>
+    !['requestCoverage', 'coverageSources'].includes(key)).map(([key, item]) => [key, withoutCoverage(item)]));
+}
 const expected = JSON.parse(JSON.stringify(originalExpected));
 // Il prompt atteso del retry è separato dalla baseline storica immutabile.
 // Il confronto integrale conserva opzioni del modello, ordine ed effetti sui servizi.
@@ -284,7 +292,7 @@ for (const [name, output] of Object.entries(actual)) {
     assert.equal(output.effects.filter(([event]) => event === 'attachment.analysis').length, name === 'attachment_crash' ? 0 : 1);
     assert.equal(output.effects.filter(([event]) => event === 'semantic.check').length, 0);
   } else {
-    assert.deepStrictEqual(output, expected[name], `${name}: return value and ordered effects must match the workspace baseline`);
+    assert.deepStrictEqual(withoutCoverage(output), expected[name], `${name}: return value and ordered effects must match the workspace baseline`);
   }
   assert(output.restored, `${name}: restore service loggers`);
 }
@@ -322,7 +330,7 @@ console.log(`Thread characterization: ${Object.keys(actual).length} scenarios ma
 if (!process.argv.includes('--record-baseline')) {
   assert(componentCalls.size > 0, 'Extracted components must actually load');
   assert.deepStrictEqual([...componentCalls].filter(([, count]) => count === 0), [], 'Every component entry point must be exercised');
-  assert.deepStrictEqual(runScenario(root, scenarios.ordinary, { reverseLoad: true }), expected.ordinary,
+  assert.deepStrictEqual(withoutCoverage(runScenario(root, scenarios.ordinary, { reverseLoad: true })), expected.ordinary,
     'GAS global declarations must support reverse file order');
   console.log(`Thread components: ${componentCalls.size} entry points exercised; reverse GAS loading also passes`);
 }
