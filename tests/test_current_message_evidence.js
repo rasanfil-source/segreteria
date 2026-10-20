@@ -31,7 +31,8 @@ for (const body of ['Non sono in lutto. Vorrei sapere che cosa significa la paro
   assert.notEqual(context.meta.responseMode, 'bereavement', body);
   assert(!flags.bereaved, body);
 }
-for (const body of ['Mio padre è morto.', 'È venuta a mancare mia madre.', 'Sono in lutto.',
+for (const body of ['Mio padre è morto.', 'È venuta a mancare mia madre.', 'È venuto a mancare il nonno.',
+  'È morto mio suocero.', 'È mancata mia cognata.', 'È scomparso il coniuge.', 'È morto mio nipote.', 'Sono in lutto.',
   'Ho perso mia moglie.', 'My father passed away.', 'Non sono in crisi, ma mio marito è morto.',
   'Non sono in crisi: mio marito è morto.', 'È mancata la mamma.', 'È morto papà.',
   'C’è un lutto in famiglia.']) {
@@ -80,6 +81,30 @@ assert(gmail._extractCurrentMessageBody_(inline, '').includes('Vorrei fissare'))
 const quotedRequest = 'Grazie.\n\nIl giorno 1 ottobre 2026 Mario ha scritto:\nVorrei fissare un appuntamento.';
 assert.equal(classifier.classifyEmail('Re: Informazioni', quotedRequest).shouldReply, false);
 assert.equal(classifier.classifyEmail('Re: Informazioni', inline.replace('Ecco le indicazioni.', '> Ecco le indicazioni.')).shouldReply, true);
+const topPostedAcknowledgment = [
+  'Grazie mille!',
+  '',
+  'Il giorno 19 ottobre 2026 alle 10:00 Maria <maria@example.org> ha scritto:',
+  '',
+  'La segreteria risponde dal lunedì al venerdì.',
+  '',
+  'Vorrei sapere quali documenti servono?'
+].join('\n');
+assert.equal(classifier.classifyEmail('Re: Informazioni', topPostedAcknowledgment).reason,
+  'ultra_simple_acknowledgment', 'un ringraziamento in testa deve prevalere sulle domande dello storico ambiguo');
+assert.equal(classifier.classifyEmail('Automatic reply: Fuori ufficio', topPostedAcknowledgment).reason,
+  'out_of_office_auto_reply', 'la rilevazione OOO deve precedere la gestione dello storico ambiguo');
+const emptyCurrentAmbiguous = [
+  'Il giorno 19 ottobre 2026 alle 10:00 Maria <maria@example.org> ha scritto:',
+  '',
+  'La segreteria risponde dal lunedì al venerdì.',
+  '',
+  'Vorrei fissare un appuntamento.'
+].join('\n');
+const ambiguousWithoutCurrentText = classifier.classifyEmail('Re: Informazioni', emptyCurrentAmbiguous);
+assert.equal(ambiguousWithoutCurrentText.reason, 'ambiguous_inline_reply');
+assert(ambiguousWithoutCurrentText.category,
+  'quando il testo corrente è vuoto, la categoria deve usare l’evidenza della risposta intercalata');
 
 const semanticLoss = 'Depuis le décès de mon époux, je cherche du soutien.';
 assert(interpret(semanticLoss, 'Informazioni', [{ kind: 'bereavement', text: semanticLoss }]).flags.bereaved);
@@ -94,6 +119,12 @@ for (const [body, signal] of [[oldQuote, { kind: 'critical', text: 'Voglio morir
   ['Quali orari?', { kind: 'bereavement', text: 'Mio padre è morto.' }]]) {
   assert.equal(interpret(body, 'Re: Informazioni', [signal]).classification.currentSignals.length, 0);
 }
+const accentedContrast = 'Non è morto mio padre. Però è morto mio zio.';
+const reconciledAccentedContrast = interpret(accentedContrast, 'Informazioni', [
+  { kind: 'bereavement', text: 'Però è morto mio zio.' }
+]).classification;
+assert.equal(reconciledAccentedContrast.currentSignals.length, 1,
+  'il contrasto con però deve separare la negazione precedente dalla perdita affermata');
 const noRefresh = processor._deriveContextualFlagsUpdate_({ existingFlags: { bereaved: true, _evidence: { bereaved: '2026-01-01' } },
   classification: historical.classification });
 assert.equal(noRefresh._evidence.bereaved, '2026-01-01');

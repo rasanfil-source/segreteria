@@ -4229,19 +4229,31 @@ ${safeAiCoreLiteText}
       'this', 'that', 'there', 'their', 'your', 'does', 'should', 'will', 'want'
     ]);
     const queryParts = [
-      context.emailSubject, context.knowledgeSelectionText || context.emailContent,
-      context.topic, context.category,
-      context.requestType && (typeof context.requestType === 'string'
-        ? context.requestType
-        : [context.requestType.type, context.requestType.name, context.requestType.purpose].filter(Boolean).join(' ')),
-      ...Object.keys(context.subIntents || {}).filter(key => context.subIntents[key]),
-      ...Object.keys(context.activeConcerns || {}).filter(key => context.activeConcerns[key])
+      context.emailSubject,
+      context.knowledgeSelectionText || context.emailContent
     ].filter(Boolean).join('\n');
     const queryClauses = queryParts.split(/[\n!?;]+|(?<!\d)\.(?!\d)/)
       .map(clause => new Set(normalizeWords(clause).filter(word => !stopWords.has(word))))
       .filter(tokens => tokens.size);
     const minStem = word => word.length >= 5 ? word.slice(0, 5) : word;
     const tokenGroups = queryClauses.map(tokens => new Set(Array.from(tokens, minStem)));
+    const contextText = value => {
+      if (typeof value === 'string') return value;
+      if (Array.isArray(value)) return value.map(contextText).filter(Boolean).join(' ');
+      if (!value || typeof value !== 'object') return '';
+      return ['summary', 'text', 'description', 'topic', 'name', 'purpose', 'label', 'details']
+        .map(key => contextText(value[key])).filter(Boolean).join(' ');
+    };
+    const requestType = context.requestType;
+    const contextParts = [
+      context.topic,
+      context.category,
+      typeof requestType === 'string' ? requestType : contextText(requestType),
+      ...Object.values(context.subIntents || {}).map(contextText),
+      ...Object.values(context.activeConcerns || {}).map(contextText)
+    ].filter(Boolean).join(' ');
+    const contextTokens = new Set(normalizeWords(contextParts)
+      .filter(word => !stopWords.has(word)).map(minStem));
 
     if (!tokenGroups.length) {
       return this._truncateKbSemantically(source, limit);
@@ -4267,8 +4279,15 @@ ${safeAiCoreLiteText}
         for (const token of query) if (headingTokens.has(token)) count++;
         return sum + count;
       }, 0);
+      let contextHits = 0;
+      let contextHeadingHits = 0;
+      for (const token of contextTokens) {
+        if (tokens.has(token)) contextHits++;
+        if (headingTokens.has(token)) contextHeadingHits++;
+      }
       records.push({
         text: line, index, fields, hits, bestHits, totalHits, headingHits,
+        contextHits, contextHeadingHits,
         selectedForQuestion: false
       });
     }
@@ -4290,6 +4309,8 @@ ${safeAiCoreLiteText}
       b.bestHits - a.bestHits ||
       b.totalHits - a.totalHits ||
       b.headingHits - a.headingHits ||
+      b.contextHits - a.contextHits ||
+      b.contextHeadingHits - a.contextHeadingHits ||
       a.index - b.index);
 
     const marker = '\n[KB selezionata per le domande correnti; possono esserci omissioni, non dedurre dati mancanti.]';

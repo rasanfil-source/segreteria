@@ -542,6 +542,32 @@ console.log('--- Test pre-AI rules: context, decision e action restano dichiarat
   assert(certificateRequest.detected === true, 'richiesta certificato con dati anagrafici non deve essere trattata come mera submission');
   assert(certificateRequest.requested_action === 'prepare_certificate', 'la richiesta deve preservare l’azione concreta di preparare il certificato');
   assert(certificateRequest.requires_archive_verification === true, 'i dati sacramentali devono attivare verifica archivistica condizionata');
+  const certificateInformationOnly = ruleProcessor._detectDocumentRequestWithSupportingData_(
+    'Certificato di battesimo',
+    'Vorrei sapere come richiedere un certificato di battesimo per matrimonio e se lo mandate via mail.'
+  );
+  assert(certificateInformationOnly.detected === false,
+    'formato e modalità di consegna non devono trasformare una domanda informativa in una richiesta archivistica completa');
+  assert(certificateInformationOnly.requested_action === null,
+    'una richiesta informativa non deve attivare l’azione di preparazione archivistica');
+  const directCertificateWithDeliveryPreference = ruleProcessor._detectDocumentRequestWithSupportingData_(
+    'Certificato di battesimo',
+    'Vorrei il certificato di battesimo per matrimonio; se lo mandate via mail, per me va bene.'
+  );
+  assert(directCertificateWithDeliveryPreference.detected === true,
+    'una domanda sulla consegna non deve cancellare una richiesta esplicita di preparazione');
+  const certificateInformationWithUnrelatedDate = ruleProcessor._detectDocumentRequestWithSupportingData_(
+    'Certificato di battesimo',
+    'Vorrei sapere come richiedere un certificato di battesimo per matrimonio entro il 2 novembre e se lo mandate via mail.'
+  );
+  assert(certificateInformationWithUnrelatedDate.detected === false,
+    'una data senza collegamento ai registri non deve essere scambiata per dato archivistico');
+  const certificateWithTextualArchiveDate = ruleProcessor._detectDocumentRequestWithSupportingData_(
+    'Certificato di battesimo',
+    'Agnese Tonchei, nata il 28 febbraio 1998; battesimo 24 maggio 1998. Vorrei richiedere il certificato per matrimonio.'
+  );
+  assert(certificateWithTextualArchiveDate.detected && certificateWithTextualArchiveDate.requires_archive_verification,
+    'le date archivistiche con il mese in lettere devono sostenere la richiesta di certificato');
 
   const routingState = {
     routedAiCoreLite: 'AI_CORE_LITE',
@@ -2247,6 +2273,23 @@ console.log('--- Test date relative in frase naturale e anni a due cifre ---');
   assert(processor._formatDateOnlyIso_(today.date) === '2026-06-01', 'oggi deve essere riconosciuto dentro una frase naturale');
   assert(processor._formatDateOnlyIso_(tomorrow.date) === '2026-06-02', 'domani deve essere riconosciuto dentro una frase naturale');
   assert(processor._formatDateOnlyIso_(afterTomorrow.date) === '2026-06-03', 'dopodomani deve essere riconosciuto dentro una frase naturale');
+
+  const recentSaturday = processor._resolveRequestedScheduleDate_('Siamo passati sabato.', new Date(2026, 9, 20), 'it');
+  assert(processor._formatDateOnlyIso_(recentSaturday.date) === '2026-10-17',
+    'il participio plurale passati deve indicare il sabato appena trascorso');
+
+  const biographyDates = processor._resolveRequestedScheduleDate_(
+    'Mio figlio è stato battezzato nella vostra parrocchia il 10 maggio 2026. Quali sono gli orari per il 15 novembre 2026?',
+    new Date(2026, 9, 20), 'it'
+  );
+  assert(processor._formatDateOnlyIso_(biographyDates.date) === '2026-11-15',
+    'la data del battesimo biografico non deve diventare la data richiesta per gli orari');
+  const bereavementDates = processor._resolveRequestedScheduleDate_(
+    'Mio zio è venuto a mancare il 14 agosto 2025. Vorrei conoscere gli orari per il 2 novembre 2026.',
+    new Date(2026, 9, 20), 'it'
+  );
+  assert(processor._formatDateOnlyIso_(bereavementDates.date) === '2026-11-02',
+    'la data del decesso non deve diventare la data richiesta per gli orari');
 
   const modernYear = processor._extractExplicitDateFromText_('appuntamento il 15/06/25', 2026);
   const historicalYear = processor._extractExplicitDateFromText_('atto del 15/06/85', 2026);

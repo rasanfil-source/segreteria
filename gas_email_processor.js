@@ -3329,8 +3329,8 @@ var EmailProcessor = class EmailProcessor {
     if (weekdayMatch && !/\b(?:ogni|tutti i|tutte le|every|chaque|cada|jeden|alle)\s*$/.test(weekdayText.slice(0, weekdayMatch.index))) {
       const day = names.indexOf(weekdayMatch[1]);
       const vicinity = weekdayText.slice(Math.max(0, weekdayMatch.index - 25), weekdayMatch.index + weekdayMatch[0].length + 25);
-      const past = /\b(?:scors[oa]|passat[oa]|last|dernier|passe|pasado|passado|letzten)\b/.test(vicinity);
-      const next = /\b(?:prossim[oa]|next|prochain|prochaine|proxim[oa]|nachsten)\b/.test(vicinity);
+      const past = /\b(?:scors[oaie]|passat[oaie]|last|dernier|passe|pasado|passado|letzten)\b/.test(vicinity);
+      const next = /\b(?:prossim[oaie]|next|prochain|prochaine|proxim[oaie]|nachsten)\b/.test(vicinity);
       const policy = typeof CONFIG !== 'undefined' && CONFIG.TEMPORAL_PARSING
         ? CONFIG.TEMPORAL_PARSING.nextWeekdayPolicy : 'upcoming';
       let delta = (day - current.getDay() + 7) % 7;
@@ -3366,9 +3366,18 @@ var EmailProcessor = class EmailProcessor {
     const birthDatePrefixPattern = /\b(?:nat[oaie](?:\s+a\s+[\p{L}'’ ().-]{1,60})?\s+(?:(?:il\s+)?giorno\s+|il\s+)?|data\s+di\s+nascita(?:\s+(?:di|del|della)\s+[\p{L}'’ -]{1,40})?\s*[:\-]?\s*|born(?:\s+on)?\s*[:\-]?\s*)$/iu;
     const historicalEventPrefixPattern = /\b(?:battezzat[oaie]|sposat[oaie]|celebrat[oaie]|battesimo|matrimonio|cresima|comunione)\s*(?:[:\-]\s*)?(?:(?:il|del|in\s+data)\s+)?(?:giorno\s+)?$/iu;
     // Il contesto biografico esclude date personali; l'anno da solo non esclude una richiesta storica.
-    const completedEventPrefix = /\b(?:battezzat[oaie]|sposat[oaie]|decedut[oaie]|mort[oaie]|decesso|data\s+di\s+morte|died)\s*(?:(?:il|del|on|in\s+data)\s+)?$/iu;
+    const eventComplement = String.raw`(?:\s+(?:nella|nel|nello|nell[’']|in|presso|alla|allo|al|a|at|dans|au|aux)\s+[\p{L}'’.-]+(?:\s+[\p{L}'’.-]+){0,3})?`;
+    const dateConnector = String.raw`\s*(?:(?:il|del|on|in\s+data)\s+)?$`;
+    const completedEventPrefix = new RegExp(
+      String.raw`\b(?:battezzat[oaie]|sposat[oaie]|decedut[oaie]|mort[oaie]|mancat[oaie]|scompars[oaie]|decesso|data\s+di\s+morte|died|(?:venut[oaie]\s+a\s+)?mancare)\b` + eventComplement + dateConnector,
+      'iu'
+    );
+    const futureEventPrefix = new RegExp(
+      String.raw`\b(?:sar[aà]|verr[aà]|saranno|verranno|essere)\s+(?:[\p{L}]+\s+){0,2}(?:battezzat[oaie]|sposat[oaie])\b` + eventComplement + dateConnector,
+      'iu'
+    );
     const isPersonalDate = (prefix, year) => birthDatePrefixPattern.test(prefix) ||
-      (completedEventPrefix.test(prefix) && !/\b(?:sar[aà]|verr[aà]|saranno|verranno|essere)\s+(?:\p{L}+\s+){0,2}(?:battezzat[oaie]|sposat[oaie])\s*(?:il\s+)?$/iu.test(prefix)) ||
+      (completedEventPrefix.test(prefix) && !futureEventPrefix.test(prefix)) ||
       (historicalEventPrefixPattern.test(prefix) && (year < defaultYear ||
         (year <= defaultYear && /\b(?:certificato|attestato|celebrato|avvenuto)\b/i.test(prefix))));
     const textualPattern = new RegExp(`(?<!\\d)(\\d{1,2})[°º]?\\s+(${monthNames})(?![\\p{L}\\p{N}_])(?:\\s+(\\d{4}))?(?!\\d)`, 'giu');
@@ -5445,11 +5454,21 @@ Usa currentDate per stabilire se gli eventi sono trascorsi e messageDate per int
     const hasCertificate = /\bcertificat[ioa]\b/.test(normalized);
     const hasSacramentalType = /\b(battesim[oa]|cresim[ao]|matrimoni[oa]|morte)\b/.test(normalized);
     const hasPreparationAction = /\b(richied(?:o|ere|iamo|erei|erebbe|ete)|richiesta|chiedo|vorrei|desidero|ho bisogno|mi serve|ottenere|rilasci(?:o|are|ate)|prepar(?:are|ate|arlo|i|o)|stamp(?:are|arlo|ate|i|o))\b/.test(normalized);
+    const hasInformationSeekingIntent = /\b(?:vorrei\s+sapere|desidero\s+sapere|informazioni\s+(?:su|per|riguardo)|sapere\s+come|come\s+(?:posso|si|richiedere|ottenere)|potete\s+(?:dirmi|spiegarmi))\b/.test(normalized);
     const hasFormatOrPurpose = /\b(originale|copia\s+originale|cartace[oa]|pdf|uso\s+matrimoni[oa]|uso\s+matrimoniale|per\s+matrimoni[oa])\b/.test(normalized);
     const hasDeliveryOrPickup = /(?<![\p{L}\p{N}_])(ritir(?:are|arlo|o|er[oò])|ritiro|di\s+persona|personalmente|ven(?:ire|go|ir[oò])|verr[oò]|pass(?:are|o|er[oò])|email|e-mail|mail)(?![\p{L}\p{N}_])/u.test(normalized);
-    const hasArchiveData = /\b(nat[oa]\s+(?:il\s*)?\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}|battezzat[oa]|battesimo\s+\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})\b/.test(normalized);
+    const numericArchiveDate = String.raw`\d{1,2}[\/.-]\d{1,2}(?:[\/.-]\d{2,4})?`;
+    const textualArchiveDate = String.raw`\d{1,2}[°º]?\s+(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+\d{4})?`;
+    const baptismArchiveDate = String.raw`\b(?:battesimo|battezzat[oaie])\b(?:\s+(?:(?:nella|nel|nello|nell[’']|in|presso|alla|allo|al|a|at)\s+[\p{L}'’.-]+(?:\s+[\p{L}'’.-]+){0,3}|il|del|in\s+data|giorno|celebrat[oaie])){0,5}\s+(?:${numericArchiveDate}|${textualArchiveDate})`;
+    const archiveDatePattern = new RegExp(
+      String.raw`(?:\bnat[oaie]\s+(?:il\s*)?(?:${numericArchiveDate}|${textualArchiveDate})|${baptismArchiveDate}|\bbattezzat[oaie]\b)`,
+      'iu'
+    );
+    const hasArchiveData = archiveDatePattern.test(normalized);
 
-    const detected = hasCertificate && hasSacramentalType && hasPreparationAction && (hasFormatOrPurpose || hasDeliveryOrPickup || hasArchiveData);
+    // Modalità e consegna completano una richiesta già operativa, mentre una domanda su come richiedere resta informativa.
+    const detected = hasCertificate && hasSacramentalType && hasPreparationAction &&
+      (hasArchiveData || (!hasInformationSeekingIntent && (hasFormatOrPurpose || hasDeliveryOrPickup)));
     return {
       detected,
       reason: detected ? 'document_request_with_supporting_data' : 'not_detected',

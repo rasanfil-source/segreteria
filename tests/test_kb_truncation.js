@@ -119,6 +119,27 @@ assert(currentOnlySelection.includes('Orari | Basilica estiva'),
   'La domanda corrente deve indirizzare la selezione anche se il corpo contiene citazioni');
 assert(!currentOnlySelection.includes('Certificati | Battesimo'),
   'Un argomento presente solo nella citazione non deve guidare la selezione');
+const metadataKb = [
+  'Certificati | Battesimo | Per richiedere il certificato di battesimo, scrivere alla segreteria.',
+  'Memoria | Bereavement | La continuità del bereavement va trattata con tatto.',
+  'Crisi | Distress | La gestione del distress richiede una risposta dedicata.',
+  'Contatti | Prior communication | Verificare la prior oral communication già avvenuta.',
+  ...Array.from({ length: 40 }, (_, index) =>
+    `Archivio ${index} | Tema estraneo ${index} | ${'contenuto non pertinente '.repeat(5)}`)
+].join('\n');
+const directQuestion = {
+  emailSubject: 'Certificato di battesimo',
+  knowledgeSelectionText: 'Come posso richiedere il certificato di battesimo?'
+};
+const directQuestionSelection = engine._selectKnowledgeBaseForBudget_(metadataKb, 420, directQuestion);
+const metadataOnlySelection = engine._selectKnowledgeBaseForBudget_(metadataKb, 420, Object.assign({}, directQuestion, {
+  subIntents: { bereavement: true, emotional_distress: true, prior_oral_communication: { detected: true } },
+  activeConcerns: { bereavement: true, emotional_sensitivity: true }
+}));
+assert(metadataOnlySelection === directQuestionSelection,
+  'i flag tecnici senza contenuto descrittivo non devono diventare domande indipendenti per il routing KB');
+assert(metadataOnlySelection.includes('Certificati | Battesimo'),
+  'l’intento esplicito dell’utente deve restare prioritario rispetto ai flag di contesto');
 
 console.log('--- Test prompt integration selects relevant rows from oversized KB ---');
 const previousMaxTokens = CONFIG.MAX_SAFE_TOKENS;

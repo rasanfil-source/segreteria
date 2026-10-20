@@ -160,11 +160,6 @@ var Classifier = class Classifier {
     console.log(`      Contenuto principale: ${mainContent.length} caratteri`);
 
     // Lo storico non prefissato può contenere una risposta intercalata: decide il quick check.
-    if (messageEvidence.hasAmbiguousReply) {
-      return { shouldReply: true, reason: 'ambiguous_inline_reply', category: this._categorizeContent(mainContent),
-        subIntents: contextualSubIntents, messageEvidence, confidence: 0.5 };
-    }
-
     const subjectForChecks = safeSubject.replace(/^(?:(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]\s*)+/i, '').trim();
     if (this._isOutOfOfficeAutoReply(safeSubject, safeBody)) {
       return { shouldReply: false, reason: 'out_of_office_auto_reply', category: null, subIntents: {}, confidence: 0.98 };
@@ -179,17 +174,24 @@ var Classifier = class Classifier {
     const hasCurrentRequest = this._isSbattezzoFormalRequest_(mainContent) || this._isDocumentSubmission(mainContent);
     // Un oggetto ereditato dalla conversazione non riapre un messaggio esplicito di chiusura.
     // Una risposta con corpo vuoto viene analizzata in base all’oggetto.
-    if (isReply && !hasFreshSubjectQuestion && !hasCurrentRequest && (
+    if (isReply && !messageEvidence.hasExplicitInlineReply && !hasFreshSubjectQuestion && !hasCurrentRequest && (
       this._isUltraSimpleAcknowledgment(greetingBody) ||
       (Boolean(mainContent.trim()) && this._isUltraSimpleAcknowledgment(mainContent))
     )) {
       return { shouldReply: false, reason: 'ultra_simple_acknowledgment', category: null, subIntents: {}, confidence: 1.0 };
     }
-    if (isReply && !hasFreshSubjectQuestion && !hasCurrentRequest && greetingLines.length &&
+    if (isReply && !messageEvidence.hasExplicitInlineReply && !hasFreshSubjectQuestion && !hasCurrentRequest && greetingLines.length &&
         greetingLines.every(line => this._isGreetingOnly(line) || this._isUltraSimpleAcknowledgment(line))) {
       const closingReason = greetingLines.every(line => this._isGreetingOnly(line))
         ? 'greeting_only' : 'ultra_simple_acknowledgment';
       return { shouldReply: false, reason: closingReason, category: null, subIntents: {}, confidence: 0.95 };
+    }
+
+    if (messageEvidence.hasAmbiguousReply) {
+      const category = this._categorizeContent(mainContent) ||
+        this._categorizeContent(messageEvidence.ambiguousText);
+      return { shouldReply: true, reason: 'ambiguous_inline_reply', category,
+        subIntents: contextualSubIntents, messageEvidence, confidence: 0.5 };
     }
 
     const fullText = `${safeSubject} ${mainContent}`;
@@ -307,7 +309,8 @@ var Classifier = class Classifier {
       currentText,
       quotedText: evidence.quotedLines.join('\n').trim(),
       ambiguousText: evidence.ambiguousLines.join('\n').trim(),
-      hasAmbiguousReply: evidence.ambiguousLines.length > 0
+      hasAmbiguousReply: evidence.ambiguousLines.length > 0,
+      hasExplicitInlineReply: evidence.ambiguousLines.some(line => /^(?:\s*[-*•]|\s*\[)/.test(line))
     };
   }
 
@@ -697,14 +700,14 @@ var Classifier = class Classifier {
   /** Un lutto personale richiede un'esperienza affermata, non il solo nome del tema. */
   _detectBereavementEvidence_(text) {
     const normalizedText = String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    const clauses = normalizedText.split(/[.!?;\n]+|\b(?:ma|pero|but)\b/i);
+    const clauses = normalizedText.split(/[.!?;\n]+|(?<![\p{L}\p{N}_])(?:ma|pero|but)(?![\p{L}\p{N}_])/iu);
     return clauses.find(clause => {
       if (this._isNonAssertedSensitiveEvidence_(clause, 'bereavement')) return false;
-      const personal = /\b(?:mi[oaie]|nostr[oaie])\s+(?:car[oa]\s+)?(?:marito|moglie|padr[ei]|madr[ei]|mamma|papa|nonn[oa]|figli[oa]|fratello|sorella|zi[oa]|cugin[oa]|amic[oa]|compagn[oa]|fidanzat[oa]|familiare|parente)\b|\b(?:my|our)\s+(?:husband|wife|father|mother|mum|dad|son|daughter|brother|sister|grandmother|grandfather|friend|partner|relative)\b/.test(clause);
-      const implicitCloseRelative = /\b(?:la\s+mamma|la\s+madre|il\s+papa|il\s+padre|mamma|papa)\b/.test(clause);
+      const personal = /\b(?:mi[oaie]|nostr[oaie])\s+(?:car[oa]\s+)?(?:marito|moglie|padr[ei]|madr[ei]|mamma|papa|nonn[oa]|figli[oa]|fratello|sorella|zi[oa]|cugin[oa]|amic[oa]|compagn[oa]|fidanzat[oa]|suocer[oa]|cognat[oa]|nipot[ei]|coniuge|familiare|parente)\b|\b(?:my|our)\s+(?:husband|wife|father|mother|mum|dad|son|daughter|brother|sister|grandmother|grandfather|friend|partner|relative)\b/.test(clause);
+      const implicitCloseRelative = /\b(?:la\s+(?:mamma|madre|nonna|suocera|cognata|nipote)|il\s+(?:papa|padre|nonno|suocero|cognato|nipote|coniuge)|mamma|papa)\b/.test(clause);
       const namedPope = /\bpapa\s+(?:francesco|leone|benedetto|giovanni|paolo|pietro)\b/.test(clause);
       const familyBereavement = /\b(?:lutto\s+in\s+famiglia|un\s+lutto\s+familiare|stiamo\s+vivendo\s+un\s+lutto\s+in\s+famiglia)\b/.test(clause);
-      const event = /\b(?:mort[oa]|decedut[oa]|defunt[oa]|decesso|venut[oa]\s+a\s+mancare|e\s+mancat[oa]|scompars[oa]|funerale|esequie|died|deceased|passed\s+away|funeral)\b/.test(clause);
+      const event = /\b(?:mort[oaie]|decedut[oaie]|defunt[oaie]|decesso|venut[oaie]\s+a\s+mancare|e\s+mancat[oaie]|mancat[oaie]|scompars[oaie]|funerale|esequie|died|deceased|passed\s+away|funeral)\b/.test(clause);
       return (personal && (event || /\b(?:(?:ho|abbiamo)\s+perso|i\s+lost)\b/.test(clause))) ||
         (!namedPope && implicitCloseRelative && event) || familyBereavement ||
         /\b(?:(?:sono|siamo|sto|stiamo)\s+(?:vivendo\s+un\s+|affrontando\s+un\s+|in\s+)lutto|i\s+am\s+(?:bereaved|in\s+mourning))\b/.test(clause);
