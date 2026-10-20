@@ -1483,7 +1483,7 @@ console.log('--- Test riferimenti papali: ministryStart disponibile nel validato
   assert(context.ministryStart === '2026-01-08', 'il contesto papale del validator deve includere ministryStart');
 }
 
-console.log('--- Test perfezionamento automatico: rimuove thinking leak critico ---');
+console.log('--- Test perfezionamento automatico: rimuove solo prefissi sicuri del thinking leak ---');
 {
   const refined = validator._perfezionamentoAutomatico(
     'Consultando la knowledge base, le confermiamo che la segreteria è aperta domani. Cordiali saluti.',
@@ -1495,6 +1495,15 @@ console.log('--- Test perfezionamento automatico: rimuove thinking leak critico 
     !/consultando la knowledge base/i.test(refined.text),
     'il perfezionamento deve rimuovere il prefisso di ragionamento esposto'
   );
+
+  const unsafeLeak = 'Secondo l’analisi interna, la memoria indica di confermare la data. Le confermiamo l’orario.';
+  const retryRequired = validator._perfezionamentoAutomatico(
+    unsafeLeak,
+    ['RAGIONAMENTO ESPOSTO CRITICO: analisi interna'],
+    'it'
+  );
+  assert(retryRequired.fixed === false, 'un leak non riducibile a prefisso sicuro deve richiedere la rigenerazione');
+  assert(retryRequired.text === unsafeLeak, 'il fallback non deve cancellare frasi che possono contenere contenuto sostanziale');
 }
 
 console.log('--- Test thinking leak: non esporre i limiti della guida interna ---');

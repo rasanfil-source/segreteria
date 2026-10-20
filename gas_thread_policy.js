@@ -445,7 +445,7 @@ var ThreadPolicy = {
   /** quickCheck: ingressi locali espliciti; restituisce i dati della fase. */
   quickCheck(deps, {
     messageDetails, detectedLanguage, threadId, messages, messageState, ownAddresses, languageDetection,
-    threadLogger, result, languageMode, unlabeledUnread, skippedMessageIds
+    threadLogger, result, languageMode, unlabeledUnread, skippedMessageIds, classification
   }) {
     let quickCheck;
 
@@ -545,6 +545,17 @@ var ThreadPolicy = {
       result.status = 'error';
       result.error = 'quick_check_failed';
       return { terminal: true };
+    }
+
+    if (classification && typeof deps.classifier?._reconcileCurrentSignals_ === 'function') {
+      Object.assign(classification, deps.classifier._reconcileCurrentSignals_(
+        classification, messageDetails.subject, messageDetails.body, quickCheck.current_signals
+      ));
+      // Il filtro di cortesia non chiude un turno con rischio corrente già rilevato.
+      if (quickCheck.reason !== 'quick_check_failed' && (classification.reason === 'pastoral_crisis_detected' ||
+          classification.currentSignals.some(signal => signal.kind === 'critical'))) {
+        quickCheck.shouldRespond = true;
+      }
     }
 
     // Se Gemini Quick Check ha rilevato una lingua diversa con maggiore precisione, aggiorniamo

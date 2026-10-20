@@ -235,7 +235,7 @@ console.log('--- Test correction prompt: fallback papale esplicito ---');
   assert(
     prompt.includes('Papa attuale/regnante: Leone XIV') &&
       prompt.includes('Papa precedente/non regnante: Papa Francesco') &&
-      prompt.includes('non presentare Papa Francesco come Papa attuale'),
+      prompt.includes('Cita il Papa precedente solo nel suo contesto storico'),
     'il prompt correttivo deve nominare esplicitamente Papa attuale e precedente anche con runtime papal parziale'
   );
 }

@@ -328,9 +328,9 @@ console.log('--- Test request purpose: EmailProcessor usa il segnale operativo e
   const operationalDirective = processor._buildCertificateSystemDirective_(true, purpose);
   const informationalDirective = processor._buildCertificateSystemDirective_(true, { type: 'information_request' });
   assert(operationalDirective.includes('RICHIESTA OPERATIVA DI DOCUMENTO'), 'la richiesta operativa deve usare la direttiva di presa in carico');
-  assert(operationalDirective.includes('Non riaprire spiegazioni già acquisite'), 'la direttiva operativa deve vietare la riapertura della procedura già compresa');
-  assert(operationalDirective.includes('anche quando trasmette i dati necessari'), 'la direttiva operativa deve distinguere richiesta certificato e dati di supporto');
-  assert(operationalDirective.includes('preferenze di formato, consegna o data come richieste, senza trasformarle in accordi confermati'), 'la direttiva operativa deve recepire proposta di ritiro senza confermarla automaticamente');
+  assert(operationalDirective.includes('rispondi alle domande ancora aperte'), 'la direttiva operativa deve concentrarsi sui bisogni residui');
+  assert(operationalDirective.includes('nomina il documento richiesto e la finalità'), 'la direttiva operativa deve identificare la richiesta');
+  assert(operationalDirective.includes('Tratta formato, consegna e data proposti come richieste da verificare'), 'la direttiva operativa deve recepire proposta di ritiro senza confermarla automaticamente');
   assert(!operationalDirective.includes('Specifica che il certificato va richiesto'), 'la regola generale non deve essere imposta alla richiesta operativa');
   assert(informationalDirective.includes('RICHIESTA INFORMATIVA SUI CERTIFICATI'), 'la domanda informativa deve conservare la procedura pertinente');
   assert(informationalDirective.includes('parrocchia in cui e stato celebrato'), 'la regola della parrocchia di celebrazione resta disponibile quando risponde davvero alla domanda');
@@ -3908,8 +3908,9 @@ console.log('--- Test processThread: retry intelligente conserva nota oraria con
     'il prompt di retry deve includere il runtimeContext immutato'
   );
   assert(
-    generatedPrompts[1] && generatedPrompts[1].includes("Regola 5: ometti dal testo l'ora di sistema"),
-    'il prompt di retry deve vietare la citazione dell ora corrente di sistema'
+    generatedPrompts[1] && !generatedPrompts[1].includes('currentTime risposta') &&
+      !generatedPrompts[1].includes('messageTime email originale'),
+    'il promemoria del retry deve omettere le ore tecniche'
   );
   assert(
     validatedTexts[1].includes('orario diverso rispetto a quanto da Lei indicato'),
@@ -4742,7 +4743,7 @@ console.log('--- Test context routing: categoria tecnica usa set condiviso e dis
 }
 
 
-console.log('--- Test context routing: document_request certificato resta tecnico anche con concern sacramentale ---');
+console.log('--- Test context routing: document_request conserva i bisogni specialistici espliciti ---');
 {
   const originalValidationEnabled = global.CONFIG.VALIDATION_ENABLED;
   const originalGlobalCache = global.GLOBAL_CACHE;
@@ -4815,8 +4816,8 @@ console.log('--- Test context routing: document_request certificato resta tecnic
   const result = processor.processThread(createExternalThread('document-request-routing'), 'kb valida', 'dottrina completa', new Set(), true);
   assert(result.status === 'replied', 'la richiesta certificato deve completarsi');
   assert(promptOptions.category === 'document_request', `categoria attesa document_request, ottenuta ${promptOptions && promptOptions.category}`);
-  assert(promptOptions.aiCore === '', 'document_request deve spegnere AI core pesante anche con concern sacramentale');
-  assert(promptOptions.doctrineBase === '', 'document_request deve spegnere dottrina pesante anche con concern sacramentale');
+  assert(promptOptions.aiCore === 'core pesante', 'document_request deve conservare i principi richiesti da needsDiscernment');
+  assert(promptOptions.doctrineBase === 'dottrina completa', 'document_request deve conservare la fonte richiesta da needsDoctrine');
   assert(
     !String(promptOptions.aiCoreLite || '').includes('REGOLA TASSATIVA SUI CERTIFICATI'),
     'document_request non deve mescolare la regola tassativa certificati dentro aiCoreLite'

@@ -63,13 +63,29 @@ var ThreadValidation = {
         retryCount++;
         console.log(`🔄 Retry intelligente ${retryCount}/${maxRetries} (score: ${validation.score.toFixed(2)}, errori: ${validation.errors.length})`);
 
+        // Le fonti aggiuntive del controllo restano disponibili anche a chi corregge.
+        const correctionContext = Object.assign({}, validationRuntimeContext, {
+          retrySources: [
+            ...((fullPrompt && fullPrompt.retrySources) || []),
+            { origin: 'knowledge_base', kind: 'knowledge', text: enrichedKnowledgeBase },
+            { origin: 'AICoreLite', kind: 'selected', text: routedAiCoreLite },
+            { origin: 'AICore', kind: 'selected', text: routedAiCore },
+            { origin: 'validation_doctrine', kind: 'knowledge', text: routedDoctrine },
+            { origin: 'user_email', kind: 'request', text: [messageDetails.subject, messageBodyForSemanticAnalysis].filter(Boolean).join('\n') },
+            { origin: 'territory', kind: 'constraint', text: validationRuntimeContext && validationRuntimeContext.territoryContext },
+            { origin: 'baptism_procedure', kind: 'selected',
+              text: validationRuntimeContext && validationRuntimeContext.validationContext &&
+                validationRuntimeContext.validationContext.responseMode === 'sensitive_canonical' &&
+                typeof getBaptismAnnotationProcedure_ === 'function' ? getBaptismAnnotationProcedure_() : '' }
+          ].filter(source => source.text)
+        });
         const correctionPrompt = deps._buildCorrectionPrompt(
           fullPrompt,
           finalResponse,
           validation,
           detectedLanguage,
           effectiveSalutationMode,
-          validationRuntimeContext
+          correctionContext
         );
 
         const correctionPlansData = ThreadValidation.correctionPlans(deps, { strategyUsedPlan, attemptStrategy, fallbackModelName });

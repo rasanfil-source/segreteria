@@ -2535,7 +2535,7 @@ function runAllTests() {
                 topic: 'procedura',
                 aiCoreLite: 'AI_CORE_LITE_FORMAL_SHOULD_NOT_APPEAR'
             })).toString();
-            return prompt.includes('TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI') &&
+            return prompt.includes('CONTENUTI PROCEDURALI: ANNOTAZIONE NEI REGISTRI BATTESIMALI') &&
                 prompt.includes('- Tono istituzionale. Rispondi ai fatti esclusivamente con i fatti.') &&
                 !prompt.includes('Il mittente ha condiviso qualcosa di personale o delicato') &&
                 !prompt.includes('AI_CORE_LITE_FORMAL_SHOULD_NOT_APPEAR');
@@ -2546,7 +2546,7 @@ function runAllTests() {
                 topic: 'richiesta certificato',
                 requestType: { type: 'formal', needsDiscernment: false, needsDoctrine: false }
             })).toString();
-            return !prompt.includes('TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI') &&
+            return !prompt.includes('CONTENUTI PROCEDURALI: ANNOTAZIONE NEI REGISTRI BATTESIMALI') &&
                 !prompt.includes('verificherà i propri registri per accertare se il Suo Battesimo') &&
                 prompt.includes('SITUAZIONI CANONICAMENTE COMPLESSE');
         });
@@ -2556,7 +2556,7 @@ function runAllTests() {
                 topic: 'sbattezzo',
                 requestType: { type: 'formal', needsDiscernment: false, needsDoctrine: false }
             })).toString();
-            return prompt.includes('TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI') &&
+            return prompt.includes('CONTENUTI PROCEDURALI: ANNOTAZIONE NEI REGISTRI BATTESIMALI') &&
                 !prompt.includes('SITUAZIONI CANONICAMENTE COMPLESSE');
         });
         test('Contesto temporale papale renderizza inizio ministero senza undefined', results, () => {

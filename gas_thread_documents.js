@@ -52,10 +52,7 @@ var ThreadDocuments = {
       classification.category = 'document_submission';
       classification.topic = 'dati documentali ricevuti nel testo';
       if (requestType && typeof requestType === 'object') {
-        requestType.type = 'technical';
-        requestType.needsDoctrine = false;
-        requestType.needsDiscernment = false;
-        requestType.topic = classification.topic;
+        requestType.topic = requestType.topic || classification.topic;
       }
     }
     if (hasExpectedDocumentMissing) {
@@ -92,6 +89,7 @@ var ThreadDocuments = {
     if (isCertRequest && categoryHintSource !== 'document_submission') {
       categoryHintSource = 'document_request';
     }
+    if (isCertRequest) forceReceiptOnlyForSubmission = false;
     let requestPurpose = deps._resolveRequestPurpose_(
       quickCheck,
       messageDetails.subject,
@@ -177,7 +175,18 @@ var ThreadDocuments = {
       requestPurpose.confidence >= 0.65 &&
       ['status_update', 'acknowledgment'].includes(requestPurpose.type)
     );
+    // La memoria pregressa può modulare il tono senza impedire una ricevuta ordinaria.
+    // Esigenze attuali personali, formali o operative richiedono generazione e validazione.
+    const needsFullResponse = Boolean(
+      ['pastoral_crisis', 'pastoral_supportive', 'formal_institutional'].includes(promptOptions.responseRegister) ||
+      ['bereavement', 'formal_sensitive', 'sensitive_canonical', 'pastoral_operational'].includes(promptOptions.responseMode) ||
+      (promptOptions.activeConcerns && promptOptions.activeConcerns.emotional_sensitivity) ||
+      (attachmentIntentContext && attachmentIntentContext.hasQuestions) ||
+      (typeof deps._hasCurrentOperationalRequest_ === 'function' &&
+        deps._hasCurrentOperationalRequest_(promptOptions.emailContent || messageDetails.body, promptOptions.emailSubject || ''))
+    );
     const shouldUseReceiptOnly = !hasDocumentDeliveryBlockingIssue &&
+      !needsFullResponse &&
       (!attachmentAnalysis || (attachmentIntentContext && attachmentIntentContext.pureDelivery === true)) &&
       ['it', 'en', 'es', 'fr', 'pt', 'de'].includes(String(promptOptions.detectedLanguage || 'it').toLowerCase().split(/[-_]/)[0]) &&
       forceReceiptOnlyForSubmission && aiConfirmsPureDelivery;
@@ -284,10 +293,7 @@ var ThreadDocuments = {
         : 'documentazione ricevuta';
 
       if (requestType && typeof requestType === 'object') {
-        requestType.type = 'technical';
-        requestType.needsDoctrine = false;
-        requestType.needsDiscernment = false;
-        requestType.topic = classification.topic;
+        requestType.topic = requestType.topic || classification.topic;
       }
     }
 

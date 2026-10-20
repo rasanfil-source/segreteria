@@ -10,6 +10,35 @@ let cases = 0;
 function row(label, fn) {
   try { fn(); cases++; } catch (error) { throw new Error(label, { cause: error }); }
 }
+row('schedule dates ground explicit response dates', () => {
+  const scheduleContext = {
+    isExplicitTarget: true,
+    targetDate: '2026-06-28',
+    targets: [
+      { targetDate: '2026-06-28', season: 'estivo' },
+      { targetDate: '2026-10-15', season: 'invernale' }
+    ],
+    summerStartDate: '2026-06-01',
+    summerEndDate: '2026-09-15'
+  };
+  for (const response of [
+    'Gli orari richiesti sono quelli di domenica 28 giugno 2026.',
+    'Per il 15 ottobre 2026 valgono gli orari invernali.',
+    'Il periodo estivo va dal 1 giugno 2026 al 15 settembre 2026.'
+  ]) {
+    const result = v._checkHallucinations(response, '', 'What are the hours tomorrow?', {
+      currentDate: '2026-06-26', scheduleContext
+    });
+    assert.deepEqual(Array.from(result.hallucinations.dates || []), [], response);
+  }
+  const invented = v._checkHallucinations('Gli orari richiesti sono quelli del 29 giugno 2026.', '',
+    'What are the hours tomorrow?', { currentDate: '2026-06-26', scheduleContext });
+  assert.deepEqual(Array.from(invented.hallucinations.dates || []), ['2026-06-29']);
+  const nonExplicit = v._checkHallucinations('La data è il 28 giugno 2026.', '', '', {
+    currentDate: '2026-06-26', scheduleContext: { isExplicitTarget: false, targetDate: '2026-06-28' }
+  });
+  assert.deepEqual(Array.from(nonExplicit.hallucinations.dates || []), ['2026-06-28']);
+});
 // Calendario gregoriano: anni bisestili, mesi, giorni invalidi ed estremi dei mesi.
 for (const year of [1900, 2000, 2024, 2025, 2026, 2100]) for (let month = 0; month <= 13; month++) for (const day of [0, 1, 28, 29, 30, 31, 32]) row(`calendar ${year}-${month}-${day}`, () => {
   const leap = year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0);

@@ -114,6 +114,14 @@ const normal = api.validator._checkSensitiveContinuityQuality('Grazie, può invi
 const reopened = api.validator._checkSensitiveContinuityQuality('Ci dispiace per il lutto. Invii i documenti.', 'Quali documenti invio?', validationContext);
 check(normal.errors.length === 0, 'ordinary operational response passes sensitive check');
 check(reopened.violations.includes('reopened_bereavement_context'), 'validator still detects improper reopening');
+const massRequest = api.validator._checkSensitiveContinuityQuality(
+  'La Messa di suffragio per Mario Rossi è prevista il 2 novembre.',
+  'Vorrei fissare una Messa per Mario Rossi il 2 novembre.', validationContext);
+check(!massRequest.violations.includes('reopened_bereavement_context'), 'una formula liturgica standard non riapre da sola il lutto');
+const allSouls = api.validator._checkSensitiveContinuityQuality(
+  'La commemorazione dei fedeli defunti si tiene il 2 novembre.',
+  'Quali celebrazioni sono previste il 2 novembre?', validationContext);
+check(!allSouls.violations.includes('reopened_bereavement_context'), 'la commemorazione liturgica non è una menzione biografica del lutto');
 const quickMemory = api.quickMemory({ quickMemoryContext: {
   summary: 'Precedente lutto familiare.', contextualFlags: { bereaved: true }
 } });

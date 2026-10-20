@@ -3134,6 +3134,9 @@ var GmailService = class GmailService {
             source = currentPlain;
         }
 
+        // Il testo ambiguo resta al quick check; i rilevatori locali usano solo la parte corrente.
+        if (typeof Classifier === 'function' && typeof Classifier.prototype._extractMessageEvidence_ === 'function' &&
+            Classifier.prototype._extractMessageEvidence_(source).hasAmbiguousReply) return source.trim();
         return this.extractMainReply(source);
     }
 

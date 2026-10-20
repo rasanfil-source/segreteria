@@ -19,15 +19,15 @@ const base = { emailSubject: 'Informazioni', emailContent: 'Quali documenti serv
 const formal = { ...base, topic: 'sbattezzo', category: 'formal', requestType: { type: 'formal', isSbattezzo: true } };
 for (const type of ['information_request', 'status_update', 'acknowledgment']) {
   const result = engine.buildPrompt({ ...formal, requestPurpose: { type, confidence: .99 } });
-  assert(!result.includes('trasmetteremo prontamente la Sua richiesta'), type);
+  assert(result.includes('Una domanda informativa richiede spiegazione, non avvio della pratica'), type);
   assert(!result.includes('USA ESATTAMENTE QUESTA STRUTTURA'), type);
 }
-assert(engine.buildPrompt({ ...formal, requestPurpose: { type: 'operational_request' } }).includes('trasmetteremo prontamente'));
-assert(!engine.buildPrompt({ ...formal, salutationMode: 'session', requestPurpose: { type: 'operational_request' } }).includes('trasmetteremo prontamente'));
+assert(engine.buildPrompt({ ...formal, requestPurpose: { type: 'operational_request' } }).includes('trasmetterà prontamente'));
+assert(engine.buildPrompt({ ...formal, salutationMode: 'session', requestPurpose: { type: 'operational_request' } }).includes('Nei seguiti e nelle richieste miste'));
 const canonical = { ...formal, emailContent: 'Sono risposato civilmente e chiedo lo sbattezzo.' };
 assert(!engine._hasCanonicalComplexitySignals_(canonical));
-assert(!engine.buildPrompt({ ...formal, requestPurpose: { type: 'operational_request' },
-  memoryContext: { exists: true, memorySummary: 'Richiesta di sbattezzo già presa in carico.' } }).includes('trasmetteremo prontamente'));
+assert(engine.buildPrompt({ ...formal, requestPurpose: { type: 'operational_request' },
+  memoryContext: { exists: true, memorySummary: 'Richiesta di sbattezzo già presa in carico.' } }).includes('le azioni già compiute richiedono evidenza esplicita'));
 assert(!engine._hasCanonicalComplexitySignals_({ emailContent: 'Sono risposato civilmente. Quali sono gli orari?', memoryContext: { flags: { canonical_complexity: true } } }));
 assert(engine._hasCanonicalComplexitySignals_({ emailContent: 'Sono risposato civilmente e vorrei sposarmi in chiesa.' }));
 

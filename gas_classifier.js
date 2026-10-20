@@ -90,11 +90,6 @@ var Classifier = class Classifier {
         'gentilissimo', 'gentilissima', 'prezioso aiuto',
         'grateful', 'thankful', 'appreciate'
       ],
-      'bereavement': [
-        'lutto', 'defunto', 'defunta', 'morto', 'morta', 'decesso',
-        'scomparso', 'scomparsa', 'funerale', 'esequie',
-        'deceased', 'passed away', 'funeral', 'bereavement'
-      ],
       'confusion': [
         'non capisco', 'confuso', 'confusa', 'non mi è chiaro',
         'potrebbe spiegare', 'non ho capito',
@@ -145,11 +140,30 @@ var Classifier = class Classifier {
     console.log(`   🔍 Classificando: '${safeSubject.substring(0, 50)}...'`);
 
     // Estrai contenuto principale
-    const mainContent = this._extractMainContent(safeBody);
-    if (this._hasPastoralCrisisSignal_(mainContent, safeSubject)) {
-      return { shouldReply: true, reason: 'pastoral_crisis_detected', category: 'pastoral', subIntents: { emotional_distress: true }, confidence: 1.0 };
+    const messageEvidence = this._extractMessageEvidence_(safeBody);
+    const mainContent = messageEvidence.currentText;
+    // L'oggetto ereditato descrive il thread, non un'esperienza riaffermata nel turno.
+    const currentSubject = this._currentSubject_(safeSubject);
+    messageEvidence.currentSubject = currentSubject;
+    const contextualSubIntents = this._detectSubIntents(`${currentSubject}\n${mainContent}`);
+    if (this._hasPastoralCrisisSignal_(mainContent, currentSubject)) {
+      // Il segnale di crisi governa la presa in carico; la categoria conserva il contenuto della richiesta.
+      const currentRequestText = `${currentSubject}\n${mainContent}`;
+      const crisisCategory = this._isSbattezzoFormalRequest_(currentRequestText)
+        ? 'formal'
+        : (this._isDocumentSubmission(mainContent)
+          ? 'document_submission'
+          : (this._categorizeContent(currentRequestText) || 'pastoral'));
+      return { shouldReply: true, reason: 'pastoral_crisis_detected', category: crisisCategory,
+        subIntents: Object.assign(contextualSubIntents, { emotional_distress: true }), messageEvidence, confidence: 1.0 };
     }
     console.log(`      Contenuto principale: ${mainContent.length} caratteri`);
+
+    // Lo storico non prefissato può contenere una risposta intercalata: decide il quick check.
+    if (messageEvidence.hasAmbiguousReply) {
+      return { shouldReply: true, reason: 'ambiguous_inline_reply', category: this._categorizeContent(mainContent),
+        subIntents: contextualSubIntents, messageEvidence, confidence: 0.5 };
+    }
 
     const subjectForChecks = safeSubject.replace(/^(?:(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]\s*)+/i, '').trim();
     if (this._isOutOfOfficeAutoReply(safeSubject, safeBody)) {
@@ -179,7 +193,6 @@ var Classifier = class Classifier {
     }
 
     const fullText = `${safeSubject} ${mainContent}`;
-    const contextualSubIntents = this._detectSubIntents(fullText);
 
     // PRIORITÀ LEGALE/PRIVACY: richieste formali (es. sbattezzo/apostasia)
     if (this._isSbattezzoFormalRequest_((isReply && !mainContent.trim()) ? mainContent : fullText)) {
@@ -188,7 +201,7 @@ var Classifier = class Classifier {
         shouldReply: true,
         reason: 'formal_request_detected',
         category: 'formal',
-        subIntents: contextualSubIntents,
+        subIntents: contextualSubIntents, messageEvidence,
         confidence: 1.0
       };
     }
@@ -198,7 +211,7 @@ var Classifier = class Classifier {
         shouldReply: true,
         reason: 'document_submission_detected',
         category: 'document_submission',
-        subIntents: contextualSubIntents,
+        subIntents: contextualSubIntents, messageEvidence,
         confidence: 0.95
       };
     }
@@ -219,7 +232,7 @@ var Classifier = class Classifier {
           shouldReply: true,
           reason: 'needs_ai_analysis',
           category: this._categorizeContent(subjectForChecks),
-          subIntents: contextualSubIntents,
+          subIntents: contextualSubIntents, messageEvidence,
           confidence: 0.8
         };
       }
@@ -272,6 +285,7 @@ var Classifier = class Classifier {
       reason: 'needs_ai_analysis',
       category: category,
       subIntents: subIntents,
+      messageEvidence,
       confidence: category ? 0.85 : 0.75
     };
   }
@@ -279,6 +293,23 @@ var Classifier = class Classifier {
   // ========================================================================
   // METODI HELPER
   // ========================================================================
+
+  _currentSubject_(subject) {
+    const value = String(subject || '');
+    return /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+-\s+)/i.test(value.trim()) ? '' : value;
+  }
+
+  /** Conserva la provenienza del testo senza promuovere lo storico a messaggio corrente. */
+  _extractMessageEvidence_(body) {
+    const evidence = { quotedLines: [], ambiguousLines: [] };
+    const currentText = this._extractMainContent(body, { evidence });
+    return {
+      currentText,
+      quotedText: evidence.quotedLines.join('\n').trim(),
+      ambiguousText: evidence.ambiguousLines.join('\n').trim(),
+      hasAmbiguousReply: evidence.ambiguousLines.length > 0
+    };
+  }
 
 
   /**
@@ -319,8 +350,12 @@ var Classifier = class Classifier {
 
     const lines = processedBody.split('\n');
     const cleanLines = [];
+    const evidence = options.evidence;
+    const record = (kind, line) => { if (evidence) evidence[kind].push(line); };
     let inQuoteBlock = false;
     let quoteMode = null; // intestazione, citazione con prefisso o storico senza prefisso
+    let historyLines = 0;
+    let ambiguousTail = false;
 
     for (const [lineIndex, line] of lines.entries()) {
       const safeLine = line == null ? '' : String(line);
@@ -351,11 +386,15 @@ var Classifier = class Classifier {
       if (isQuote && !isPrefixedQuote) {
         inQuoteBlock = true;
         quoteMode = 'header';
+        historyLines = 0;
+        ambiguousTail = false;
+        record('quotedLines', safeLine);
         continue;
       }
       if (isPrefixedQuote) {
         inQuoteBlock = true;
         if (quoteMode !== 'history') quoteMode = 'prefixed';
+        record('quotedLines', safeLine);
         continue;
       }
       // I campi aggiuntivi e i valori delle intestazioni su più righe sono esclusi dal corpo storico.
@@ -364,7 +403,15 @@ var Classifier = class Classifier {
            /^[ \t]+\S/.test(safeLine))) continue;
       // Le citazioni con prefisso consentono risposte intercalate; una nuova intestazione reimposta la modalità.
       if (inQuoteBlock && (quoteMode === 'header' || quoteMode === 'after_header')) quoteMode = 'history';
-      if (inQuoteBlock && quoteMode === 'history') continue;
+      if (inQuoteBlock && quoteMode === 'history') {
+        // La separazione grafica suggerisce un intervento, ma non ne prova l'autore.
+        const separated = lineIndex > 0 && !lines[lineIndex - 1].trim();
+        const requestCue = /[?？]|\b(?:vorrei|posso|chiedo|allego|confermo|please|could|would|quisiera|je\s+voudrais|ich\s+mochte)\b/i.test(stripped);
+        if (historyLines > 0 && requestCue && (separated || /^(?:[-*•]|\[)/.test(stripped))) ambiguousTail = true;
+        record(ambiguousTail ? 'ambiguousLines' : 'quotedLines', safeLine);
+        historyLines++;
+        continue;
+      }
       if (inQuoteBlock &&
           /^(?:[¿¡]\s*)?[\p{L}\p{N}]/u.test(stripped) &&
           !stripped.startsWith('>') &&
@@ -636,12 +683,76 @@ var Classifier = class Classifier {
       }
     }
 
+    const bereavement = this._detectBereavementEvidence_(text);
+    if (bereavement) detected.bereavement = true;
+
     const priorOralCommunication = this._detectPriorOralCommunication(text);
     if (priorOralCommunication.detected) {
       detected.prior_oral_communication = priorOralCommunication;
     }
 
     return detected;
+  }
+
+  /** Un lutto personale richiede un'esperienza affermata, non il solo nome del tema. */
+  _detectBereavementEvidence_(text) {
+    const normalizedText = String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const clauses = normalizedText.split(/[.!?;\n]+|\b(?:ma|pero|but)\b/i);
+    return clauses.find(clause => {
+      if (this._isNonAssertedSensitiveEvidence_(clause, 'bereavement')) return false;
+      const personal = /\b(?:mi[oaie]|nostr[oaie])\s+(?:car[oa]\s+)?(?:marito|moglie|padr[ei]|madr[ei]|mamma|papa|nonn[oa]|figli[oa]|fratello|sorella|zi[oa]|cugin[oa]|amic[oa]|compagn[oa]|fidanzat[oa]|familiare|parente)\b|\b(?:my|our)\s+(?:husband|wife|father|mother|mum|dad|son|daughter|brother|sister|grandmother|grandfather|friend|partner|relative)\b/.test(clause);
+      const implicitCloseRelative = /\b(?:la\s+mamma|la\s+madre|il\s+papa|il\s+padre|mamma|papa)\b/.test(clause);
+      const namedPope = /\bpapa\s+(?:francesco|leone|benedetto|giovanni|paolo|pietro)\b/.test(clause);
+      const familyBereavement = /\b(?:lutto\s+in\s+famiglia|un\s+lutto\s+familiare|stiamo\s+vivendo\s+un\s+lutto\s+in\s+famiglia)\b/.test(clause);
+      const event = /\b(?:mort[oa]|decedut[oa]|defunt[oa]|decesso|venut[oa]\s+a\s+mancare|e\s+mancat[oa]|scompars[oa]|funerale|esequie|died|deceased|passed\s+away|funeral)\b/.test(clause);
+      return (personal && (event || /\b(?:(?:ho|abbiamo)\s+perso|i\s+lost)\b/.test(clause))) ||
+        (!namedPope && implicitCloseRelative && event) || familyBereavement ||
+        /\b(?:(?:sono|siamo|sto|stiamo)\s+(?:vivendo\s+un\s+|affrontando\s+un\s+|in\s+)lutto|i\s+am\s+(?:bereaved|in\s+mourning))\b/.test(clause);
+    })?.trim() || '';
+  }
+
+  _isNonAssertedSensitiveEvidence_(text, kind) {
+    const source = String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const negations = {
+      bereavement: /\b(?:non\s+(?:sono|siamo|e|era|si\s+e)\s+(?:mai\s+|piu\s+)?(?:in\s+lutto|mort[oa]|defunt[oa]|decedut[oa]|scompars[oa])|non\s+(?:ho|abbiamo)\s+(?:mai\s+)?perso|not\s+(?:bereaved|dead|deceased|in\s+mourning))\b/,
+      prior_contact: /\b(?:non\s+(?:ho|abbiamo|avevo|avevamo)\s+(?:mai\s+|ancora\s+)?(?:parlato|avuto)|vorrei\s+(?:un\s+)?(?:riscontro|contatto|colloquio))\b/,
+      distress: /\bnon\s+(?:sono|siamo|mi\s+sento)\s+(?:piu\s+)?(?:in\s+crisi|disperat[oa]|delus[oa]|a\s+pezzi)\b/,
+      crisis: /\bnon\s+(?:sono|siamo|mi\s+sento)\s+(?:piu\s+)?(?:in\s+crisi|disperat[oa]|a\s+pezzi)\b/,
+      critical: /\b(?:(?:do\s+not|don't)\s+want\s+to\s+(?:die|kill\s+myself)|non\s+(?:voglio|intendo)\s+(?:morire|suicidarmi|farmi\s+del\s+male))\b/
+    };
+    return Boolean(negations[kind]?.test(source)) ||
+      /\b(?:significato\s+(?:della\s+parola|del\s+termine)|cosa\s+significa|che\s+cosa\s+significa|traduci|tradurre|translate|meaning\s+of|ipotizziamo|supponiamo)\b/.test(source) ||
+      /\b(?:se|if)\b.{0,70}\b(?:foss[ei]|fossero|dovesse|were|would)\b/.test(source);
+  }
+
+  /** Le evidenze del quick check integrano lo stesso turno, con estratti verificabili. */
+  _reconcileCurrentSignals_(classification, subject, body, signals) {
+    const messageEvidence = this._extractMessageEvidence_(body);
+    const currentSubject = this._currentSubject_(subject);
+    messageEvidence.currentSubject = currentSubject;
+    const current = `${currentSubject}\n${messageEvidence.currentText}`;
+    const subIntents = Object.assign({}, classification.subIntents || {});
+    const acceptedSignals = [];
+    const normalize = value => String(value || '').normalize('NFC').replace(/\s+/g, ' ').trim();
+    for (const signal of (Array.isArray(signals) ? signals.slice(0, 6) : [])) {
+      if (!signal || !['bereavement', 'distress', 'crisis', 'critical', 'prior_contact'].includes(signal.kind)) continue;
+      const quote = normalize(signal.text);
+      if (quote.length < 8 || quote.length > 300) continue;
+      const source = normalize(current).includes(quote) ? 'current' :
+        (normalize(messageEvidence.ambiguousText).includes(quote) ? 'resolved_inline' : null);
+      if (!source) continue;
+      const origin = source === 'current' ? current : messageEvidence.ambiguousText;
+      const clause = origin.split(/[.!?;\n]+|\b(?:ma|però|but)\b/i).find(value => normalize(value).includes(quote.replace(/[.!?;]+$/, '')));
+      if (this._isNonAssertedSensitiveEvidence_(clause || quote, signal.kind)) continue;
+      acceptedSignals.push({ kind: signal.kind, text: quote, source });
+      if (signal.kind === 'bereavement') subIntents.bereavement = true;
+      if (['distress', 'crisis', 'critical'].includes(signal.kind)) subIntents.emotional_distress = true;
+      if (signal.kind === 'prior_contact') {
+        const contact = this._detectPriorOralCommunication(quote);
+        subIntents.prior_oral_communication = Object.assign(contact, { detected: true, strength: 'strong', signals: [quote] });
+      }
+    }
+    return Object.assign({}, classification, { subIntents, messageEvidence, currentSignals: acceptedSignals });
   }
 
   _isSbattezzoFormalRequest_(text) {

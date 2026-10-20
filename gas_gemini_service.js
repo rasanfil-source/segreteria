@@ -752,6 +752,7 @@ COMPITI:
 4. Fornisci punteggi continui (0.0-1.0) per ogni dimensione:
    - technical, pastoral, doctrinal, formal
 5. Estrai l'argomento principale (topic) in ITALIANO (usando termini coerenti con la richiesta). Il topic descrive il tema trattato, NON lo scopo operativo/comunicativo dell'email.
+5b. In current_signals riporta fino a 6 esperienze affermate nel turno: bereavement (perdita personale), distress, crisis, critical (rischio attuale anche per terzi), prior_contact (colloquio avvenuto). Per ciascuna usa kind e text, un estratto letterale completo di massimo 300 caratteri; altrimenti []. Distingui affermazioni, negazioni, temi e citazioni. Nelle risposte intercalate valuta chi parla: solo un intervento nuovo prova un fatto attuale; oggetto ereditato e memoria non bastano.
 6. Determina is_territory_request (boolean):
    - TRUE se il mittente chiede se una via, un indirizzo, un civico o una zona rientra nel territorio/nei confini della parrocchia, nella competenza territoriale, nella parrocchia di residenza o nella parrocchia di appartenenza.
    - TRUE anche se usa formulazioni indirette come "fa parte della vostra parrocchia", "confini parrocchiali", "competenza parrocchiale/territoriale", "a quale parrocchia appartengo", "rientro da voi".
@@ -811,19 +812,7 @@ COMPITI:
    - Imposta un valore >= ${relationalPostureConfidenceThreshold} quando almeno un marcatore linguistico e esplicito e inequivocabile nel testo. Se i marcatori sono vaghi o assenti, imposta un valore sotto soglia e scegli "direct".
 ${conversationalTasks}
 16. Determina response_strategy:
-   - Deve indicare come conviene orientare la risposta corrente.
-   - Non descrive la persona.
-   - Non è memoria.
-   - Non è profilo.
-   - Usa solo i valori ammessi.
-   - provide_information: quando la risposta deve semplicemente dare informazioni richieste.
-   - reduce_user_effort: l'utente sta cercando di completare una procedura con il minor numero possibile di passaggi, spostamenti, telefonate o interazioni aggiuntive. Esempi: chiede se può fare tutto via email, vuole sapere cosa serve prima di venire, chiede se è necessario presentarsi di persona.
-   - confirm_receipt: quando la mail serve soprattutto a consegnare documenti/informazioni e va confermata ricezione.
-   - guide_next_step: quando conviene indicare chiaramente il prossimo passo operativo.
-   - offer_reassurance: quando la mail contiene preoccupazione, delicatezza pastorale o bisogno di essere rassicurati, senza inventare emozioni.
-   - clarify_requirements: quando il punto centrale è chiarire requisiti, condizioni, documenti necessari o idoneità.
-   - none: quando non emerge una strategia specifica.
-   - Fornisci anche response_strategy_confidence (0.0-1.0).
+   Orienta la risposta corrente, senza descrivere la persona o creare memoria: provide_information per informazioni; reduce_user_effort per ridurre passaggi e spostamenti; confirm_receipt per consegne; guide_next_step per il passo successivo; offer_reassurance per preoccupazioni espresse; clarify_requirements per requisiti e documenti; none se non emerge una strategia. Fornisci response_strategy_confidence (0.0-1.0).
 ${sponsorGuidanceTask}
 
 ⚠️ REGOLA CRITICA "SBATTEZZO":
@@ -845,6 +834,7 @@ Output JSON:
     "formal": number (0.0-1.0)
   },
   "topic": "string",
+  "current_signals": [{"kind": "bereavement|distress|crisis|critical|prior_contact", "text": "estratto letterale"}],
   "request_purpose": "information_request" | "operational_request" | "status_update" | "acknowledgment" | "mixed",
   "request_purpose_confidence": number (0.0-1.0),
   "is_territory_request": boolean,
@@ -1109,6 +1099,10 @@ Output JSON:
       shouldRespond: finalShouldRespond,
       language: resolveLanguage(data.language, safeDetection.lang, safeDetection.safetyGrade),
       reason: data.reason || 'quick_check',
+      current_signals: Array.isArray(data.current_signals) ? data.current_signals.slice(0, 6)
+        .filter(signal => signal && ['bereavement', 'distress', 'crisis', 'critical', 'prior_contact'].includes(signal.kind) &&
+          typeof signal.text === 'string' && signal.text.trim().length >= 8 && signal.text.length <= 300)
+        .map(signal => ({ kind: signal.kind, text: signal.text.trim() })) : [],
       classification: {
         category: data.category || 'TECHNICAL',
         topic: data.topic || '',

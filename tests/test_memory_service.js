@@ -102,8 +102,9 @@ console.log('--- Test MemoryService cache: getMemory restituisce copia difensiva
       timestamp: Date.now(),
       data: {
         threadId: 'thread_cache',
+        lastUpdated: new Date().toISOString(),
         providedInfo: [{ topic: 'originale', userReaction: 'unknown' }],
-        contextualFlags: { remote_user: true }
+        contextualFlags: { remote_user: true, _evidence: { remote_user: new Date().toISOString() } }
       }
     }
   };

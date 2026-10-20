@@ -13,7 +13,7 @@ for (const attachment of [false, true]) {
           document_delivery: { expected_document: attachment, body_contains_filled_document: !attachment,
             delivery_channel: attachment ? 'attachment' : 'body', requires_file_attachment: attachment } } });
       assert.equal(output.result.status, 'replied');
-      const receipt = ['status_update', 'acknowledgment'].includes(purpose) && confidence >= 0.65;
+      const receipt = attachment && ['status_update', 'acknowledgment'].includes(purpose) && confidence >= 0.65;
       assert.equal(output.effects.some(([event, args]) => event === 'generate' && typeof args[0] !== 'string'), !receipt, `${attachment}/${purpose}/${confidence}: generation`);
       assert.equal(output.effects.some(([event]) => event === 'validate'), !receipt, `${attachment}/${purpose}/${confidence}: validation`);
       assert.equal(output.effects.filter(([event]) => event === 'send').length, 1);

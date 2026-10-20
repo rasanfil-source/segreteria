@@ -155,8 +155,9 @@ var CONFIG = {
     recipientProperty: 'VALIDATION_REVIEW_EMAIL',
     get email() { return _getScriptProperty('VALIDATION_REVIEW_EMAIL') || ''; }
   },
-  SENSITIVE_FLAGS_TTL_DAYS: 180, // Evidenza per flag; non rinnova con richieste estranee.
-  MEMORY_RETENTION_DAYS: 30, // Intera conversazione: un limite minore elimina anche i flag prima del loro TTL.
+  SENSITIVE_FLAGS_TTL_DAYS: 180, // Evidenze minime dei flag, conservate separatamente dalla memoria conversazionale.
+  SENSITIVE_MEMORY_SHEET_NAME: 'SensitiveContextMemory',
+  MEMORY_RETENTION_DAYS: 30, // Righe conversazionali ordinarie; i flag hanno una scadenza autonoma.
   TRUSTED_FORM_SENDERS: [], // Indirizzi From esatti dei form autorizzati a usare Reply-To su un altro dominio.
   SEMANTIC_VALIDATION: {
     enabled: true,
@@ -503,12 +504,8 @@ function validateConfig() {
       errors.push(`Errore Config: '${key}' deve essere un numero intero positivo di giorni`);
     }
   }
-  if (Number.isSafeInteger(CONFIG.MEMORY_RETENTION_DAYS) && CONFIG.MEMORY_RETENTION_DAYS > 0 &&
-      Number.isSafeInteger(CONFIG.SENSITIVE_FLAGS_TTL_DAYS) &&
-      CONFIG.MEMORY_RETENTION_DAYS < CONFIG.SENSITIVE_FLAGS_TTL_DAYS) {
-    warnings.push('La memoria delle conversazioni inattive viene eliminata dopo ' +
-      CONFIG.MEMORY_RETENTION_DAYS + ' giorni, inclusi i flag sensibili. Il loro TTL di ' +
-      CONFIG.SENSITIVE_FLAGS_TTL_DAYS + ' giorni si applica alle conversazioni ancora conservate.');
+  if (typeof CONFIG.SENSITIVE_MEMORY_SHEET_NAME !== 'string' || !CONFIG.SENSITIVE_MEMORY_SHEET_NAME.trim()) {
+    errors.push("Errore Config: 'SENSITIVE_MEMORY_SHEET_NAME' deve indicare il foglio dedicato ai flag sensibili");
   }
 
   // Helper per validazione tipo

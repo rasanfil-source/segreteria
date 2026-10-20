@@ -156,7 +156,13 @@ ${addressLines.join('\n\n')}
       processingTimestamp,
       [routedAiCoreLite, routedAiCore, enrichedKnowledgeBase, routedDoctrine].filter(Boolean).join('\n')
     );
+    const scheduleContext = deps._resolveScheduleContext(
+      `${messageDetails.subject || ''}\n${messageDetails.body || ''}`,
+      enrichedKnowledgeBase, baseRuntimeContext.temporal, detectedLanguage,
+      baseRuntimeContext.temporal.currentDate
+    );
     const runtimeContext = Object.freeze(Object.assign({}, baseRuntimeContext, {
+      ...(scheduleContext && scheduleContext.isExplicitTarget ? { scheduleContext } : {}),
       sacramentalDeadlineContext: deps._extractSacramentalDeadlineContext_(
         messageDetails.subject, messageDetails.body, detectedLanguage, baseRuntimeContext.temporal),
       physicalPresenceConstraint: physicalPresenceConstraint || null,
@@ -178,14 +184,6 @@ ${addressLines.join('\n\n')}
         conversationHistory: conversationHistory
       })
     }));
-    const scheduleContext = deps._resolveScheduleContext(
-      `${messageDetails.subject || ''}\n${messageDetails.body || ''}`,
-      enrichedKnowledgeBase,
-      runtimeContext.temporal,
-      detectedLanguage,
-      runtimeContext.temporal.currentDate
-    );
-
     return { runtimeContext, scheduleContext };
   },
   /** responseRouting: ingressi locali espliciti; restituisce i dati della fase. */
@@ -262,6 +260,15 @@ ${addressLines.join('\n\n')}
     hasExpectedDocumentMissing, bodyContainsUsableDocumentContent, systemDirectives, routedAiCoreLite,
     routedAiCore, routedDoctrine, routedDoctrineStructured, documentDeliveryModel
   }) {
+    const knowledgeSelectionText = [
+      classification && classification.messageEvidence
+        ? classification.messageEvidence.currentSubject
+        : messageDetails.subject,
+      classification && classification.messageEvidence
+        ? classification.messageEvidence.currentText
+        : messageDetails.body,
+      physicalAttachmentsDetected ? textFromAttachments : ''
+    ].filter(Boolean).join('\n');
     const promptOptions = {
       runtimeContext: runtimeContext,
       emailContent: messageDetails.body,
@@ -335,6 +342,10 @@ ${addressLines.join('\n\n')}
       doctrineStructured: routedDoctrineStructured
     };
 
+    Object.defineProperty(promptOptions, 'knowledgeSelectionText', {
+      value: knowledgeSelectionText,
+      enumerable: false
+    });
     return { promptOptions };
   },
   /** profileDefaults: ingressi locali espliciti; restituisce i dati della fase. */
@@ -392,6 +403,7 @@ ${addressLines.join('\n\n')}
         classification: {
           category: promptContextCategory,
           subIntents: classification.subIntents || {},
+          currentSignals: classification.currentSignals || [],
           confidence: classification.confidence || 0.8
         },
         requestType: requestType,
@@ -480,7 +492,7 @@ ${addressLines.join('\n\n')}
   routeKnowledge(deps, {
     effectiveSalutationMode, greeting, closing, activeConcerns, memoryContext, categoryHintSource,
     routedAiCoreLite, routedAiCore, routedDoctrine, routedDoctrineStructured, buildRuleContext, result,
-    territoryRequested, quickCheckTerritoryCandidates, isCertRequest, requestPurpose
+    territoryRequested, quickCheckTerritoryCandidates, isCertRequest, requestPurpose, requestType
   }) {
     const effectiveSalutationModeKey = String(effectiveSalutationMode || '').trim().toLowerCase();
     const shouldSuppressRitualGreeting = (
@@ -518,11 +530,12 @@ ${addressLines.join('\n\n')}
     // ====================================================================
     // CONTEXT ROUTING post-OCR (definitivo)
     // ====================================================================
-    const isTechnicalOnly = TECHNICAL_CONTEXT_ROUTING_CATEGORIES.has(categoryHintSource) && (
-      !hasPastoralConcern ||
-      categoryHintSource === 'document_request' ||
-      categoryHintSource === 'document_submission'
-    );
+    const needsSpecialistSources = Boolean(requestType && (
+      requestType.needsDoctrine || requestType.needsDiscernment ||
+      ['doctrinal', 'pastoral', 'mixed'].includes(requestType.type)
+    ));
+    const isTechnicalOnly = TECHNICAL_CONTEXT_ROUTING_CATEGORIES.has(categoryHintSource) &&
+      !hasPastoralConcern && !needsSpecialistSources;
     const routingState = {
       routedAiCoreLite: routedAiCoreLite,
       routedAiCore: routedAiCore,

@@ -2,6 +2,22 @@
  * Funzioni condivise per la strategia di risposta.
  */
 
+/** Fonte procedurale interna condivisa; descrive il flusso, non attesta azioni eseguite. */
+function getBaptismAnnotationProcedure_() {
+  return `FONTE INTERNA — ANNOTAZIONE NEI REGISTRI BATTESIMALI
+Per una nuova richiesta operativa, conferma la ricezione rispettosa e indica la verifica nei registri della parrocchia. Se il Battesimo risulta qui, la parrocchia trasmetterà prontamente la richiesta all'Ordinario Diocesano con il certificato di Battesimo. La Curia contatterà la persona per un colloquio sulle conseguenze canoniche; se la volontà resta confermata, l'Ordinario emetterà un decreto e la parrocchia annoterà il registro. Se il Battesimo non risulta qui, comunica l'impossibilità di procedere presso questa sede e indica la parrocchia competente solo se conosciuta. L'esito sarà comunicato dopo la verifica.
+Il fatto storico del sacramento resta registrato e si annota la volontà di non appartenere più alla Chiesa cattolica. Mantieni il solo colloquio della Curia previsto dalla procedura.
+Una domanda informativa richiede spiegazione, non avvio della pratica. Nei seguiti e nelle richieste miste rispondi alle domande residue e al passo attuale; le azioni già compiute richiedono evidenza esplicita.`;
+}
+
+/** Fonte procedurale interna condivisa; descrive il flusso, non attesta azioni eseguite. */
+function getBaptismAnnotationProcedure_() {
+  return `FONTE INTERNA — ANNOTAZIONE NEI REGISTRI BATTESIMALI
+Per una nuova richiesta operativa, conferma la ricezione rispettosa e indica la verifica nei registri della parrocchia. Se il Battesimo risulta qui, la parrocchia trasmetterà prontamente la richiesta all'Ordinario Diocesano con il certificato di Battesimo. La Curia contatterà la persona per un colloquio sulle conseguenze canoniche; se la volontà resta confermata, l'Ordinario emetterà un decreto e la parrocchia annoterà il registro. Se il Battesimo non risulta qui, comunica l'impossibilità di procedere presso questa sede e indica la parrocchia competente solo se conosciuta. L'esito sarà comunicato dopo la verifica.
+Il fatto storico del sacramento resta registrato e si annota la volontà di non appartenere più alla Chiesa cattolica. Mantieni il solo colloquio della Curia previsto dalla procedura.
+Una domanda informativa richiede spiegazione, non avvio della pratica. Nei seguiti e nelle richieste miste rispondi alle domande residue e al passo attuale; le azioni già compiute richiedono evidenza esplicita.`;
+}
+
 function normalizeRelationalPosture_(posture, fallback = 'direct') {
   const raw = String(posture || '').trim().toLowerCase();
   const aliases = {

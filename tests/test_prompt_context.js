@@ -203,6 +203,15 @@ assert(
   operationalConfusion.meta.responseMode === 'pastoral_operational',
   'pastoral_technical_blend deve produrre responseMode pastoral_operational'
 );
+const sacramentalConfusion = createPromptContext({
+  email: { detectedLanguage: 'it', subject: 'Certificato', body: 'Non mi è chiaro come richiedere il certificato per la Cresima.' },
+  requestType: { type: 'mixed' },
+  classification: { confidence: 1, category: 'sacrament', subIntents: { confusion: true } }
+});
+assert(sacramentalConfusion.concerns.pastoral_technical_blend === true,
+  'una richiesta mista sacramentale con confusione deve conservare la dimensione pastorale-tecnica');
+assert(sacramentalConfusion.meta.responseMode === 'pastoral_operational',
+  'il blend sacramentale deve selezionare la modalità pastorale-operativa');
 
 console.log('--- Test PromptContext: categoria formale post-OCR alza profilo e registro ---');
 const postOcrFormal = createPromptContext({

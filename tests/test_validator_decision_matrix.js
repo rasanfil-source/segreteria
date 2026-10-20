@@ -117,10 +117,10 @@ for (const active of bools) for (const formal of bools) for (const human of bool
   const result = v._checkSensitiveContinuityQuality(`La informiamo che deve presentare il documento. ${human ? 'Grazie.' : ''} ${pastoral ? 'Preghiamo per lei.' : ''}`, '', {
     validationContext: { activeConcerns: { relational_warmth: active }, responseRegister: formal ? 'formal_institutional' : '' }
   });
-  assert.equal(result.active, active);
-  assert.equal(result.errors.length, Number(active && formal && pastoral));
+  assert.equal(result.active, active || formal);
+  assert.equal(result.errors.length, Number(formal && pastoral));
   assert.equal(result.warnings.length, Number(active && !formal && !human));
-  assert.equal(result.score, !active ? 1 : formal && pastoral ? 0.5 : !formal && !human ? 0.85 : 1);
+  assert.equal(result.score, formal && pastoral ? 0.5 : active && !formal && !human ? 0.85 : 1);
 });
 
 // Un giudizio semantico positivo rispetta la precedenza delle evidenze di errore.

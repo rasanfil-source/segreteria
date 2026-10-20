@@ -237,6 +237,11 @@ var ResponseValidator = class ResponseValidator {
    * @returns {Object} Risultato validazione
    */
   validateResponse(response, detectedLanguage, knowledgeBase, emailContent, emailSubject, salutationMode = 'full', attemptPerfezionamento = true, temporalContext = null) {
+    const procedureContext = this._extractResponseValidationContext_(temporalContext);
+    if (procedureContext.responseMode === 'sensitive_canonical' &&
+        typeof getBaptismAnnotationProcedure_ === 'function') {
+      knowledgeBase = [knowledgeBase, getBaptismAnnotationProcedure_()].filter(Boolean).join('\n\n');
+    }
     const errors = [];
     const warnings = [];
     const details = {};
@@ -349,8 +354,7 @@ var ResponseValidator = class ResponseValidator {
 
       const semThinking = this.semanticValidator.validateThinkingLeak(
         currentResponse,
-        validationResult.details.exposedReasoning,
-        { force: true }
+        validationResult.details.exposedReasoning
       );
 
       const semanticValid = semHalluc.isValid && semThinking.isValid;
@@ -717,9 +721,14 @@ var ResponseValidator = class ResponseValidator {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
-    // Il futuro istituzionale richiede riscontro semantico anche con KB vuota.
-    // Il segnale attiva una verifica, lasciando al contesto il giudizio sull'impegno.
-    const operationalCommitment = /\b(?:[a-z]+(?:eremo|iremo)|faremo|daremo|saremo|avremo|ci\s+impegniamo|garantiamo|assicuriamo|we\s+(?:will|shall)|we['’]ll|nous\s+\w+(?:erons|irons)|wir\s+werden)\b/i.test(normalizedClaimText);
+    // Le formule di cortesia non sono impegni operativi; le azioni promesse restano verificabili.
+    const operationalCommitmentText = normalizedClaimText
+      .replace(/\b(?:saremo|siamo)\s+(?:lieti|felici|onorati)\b/g, ' ')
+      .replace(/\b(?:resteremo|restiamo)\s+a\s+disposizione\b/g, ' ')
+      .replace(/\b(?:we\s+will\s+be\s+(?:happy|pleased)|we\s+remain\s+(?:available|at\s+your\s+disposal))\b/g, ' ')
+      .replace(/\b(?:nous\s+serons\s+(?:ravis|heureux)|nous\s+restons\s+disponibles)\b/g, ' ')
+      .replace(/\b(?:wir\s+freuen\s+uns|wir\s+stehen\s+gern\s+zur\s+verfuegung)\b/g, ' ');
+    const operationalCommitment = /\b(?:[a-z]+(?:eremo|iremo)|faremo|daremo|saremo|avremo|ci\s+impegniamo|garantiamo|assicuriamo|we\s+(?:will|shall)|we['’]ll|nous\s+\w+(?:erons|irons)|wir\s+werden)\b/i.test(operationalCommitmentText);
     if (operationalCommitment) result.signals.push('operational_commitment');
     if (!knowledgeBase) {
       result.requiresSemanticReview = result.signals.length > 0;
@@ -1300,6 +1309,23 @@ var ResponseValidator = class ResponseValidator {
     collectExplicitDateClaims(originalMessage || '').forEach(item => {
       addAllowedDate(item.date, { recurring: item.hasExplicitYear === false });
     });
+    const scheduleContext = temporalContext && typeof temporalContext === 'object'
+      ? temporalContext.scheduleContext
+      : null;
+    if (scheduleContext && typeof scheduleContext === 'object') {
+      const addResolvedScheduleDate = (value) => {
+        const parsed = this._parseDateOnly_(value);
+        if (parsed) addAllowedDate(parsed);
+      };
+      if (scheduleContext.isExplicitTarget === true) {
+        addResolvedScheduleDate(scheduleContext.targetDate);
+        (Array.isArray(scheduleContext.targets) ? scheduleContext.targets : []).forEach(target => {
+          if (target && typeof target === 'object') addResolvedScheduleDate(target.targetDate);
+        });
+      }
+      addResolvedScheduleDate(scheduleContext.summerStartDate);
+      addResolvedScheduleDate(scheduleContext.summerEndDate);
+    }
     if (dateReference) {
       this._extractTemporalReferences_(originalMessage || '', runtimeContext, 'user')
         .forEach(ref => {
@@ -2217,7 +2243,15 @@ var ResponseValidator = class ResponseValidator {
     const synthesisKey = context.concernSynthesis && context.concernSynthesis.key
       ? String(context.concernSynthesis.key).trim().toLowerCase()
       : '';
+    const responseRegister = context.responseRegister || '';
+    const isFormal = responseRegister === 'formal_institutional' ||
+      ['formal', 'sbattezzo'].includes(context.category) ||
+      ['formal_sensitive', 'sensitive_canonical'].includes(context.responseMode) ||
+      context.requestType === 'formal';
+    const requiresProse = responseRegister === 'pastoral_crisis' || context.responseMode === 'bereavement';
     const isSensitiveActive = Boolean(
+      requiresProse ||
+      isFormal ||
       continuityKey ||
       synthesisKey ||
       concerns.longitudinal_sensitivity ||
@@ -2231,15 +2265,24 @@ var ResponseValidator = class ResponseValidator {
 
     const source = this._stripDiacritics_(String(response || '').toLowerCase());
     const original = this._stripDiacritics_(String(originalContext || '').toLowerCase());
-    const responseRegister = context.responseRegister || '';
-    const isFormal = responseRegister === 'formal_institutional' ||
-      context.category === 'formal' ||
-      context.category === 'sbattezzo' ||
-      context.requestType === 'formal';
+    // I tag di trasporto non nascondono il formato effettivo della risposta.
+    const visibleResponse = String(response || '').replace(/<\/?email\b[^>]*>/gi, '').trim();
+    const structuredFormat = /(^|\n)\s*(?:#{1,6}\s+\S|(?:[-*+•]|\d+[.)])\s+\S)|<\s*(?:ul|ol|li|h[1-6])\b/i;
+    if (requiresProse && structuredFormat.test(visibleResponse)) {
+      violations.push('sensitive_prose_format');
+      errors.push('Formato sensibile: usa brevi paragrafi in prosa, senza elenchi o titoli, conservando le risposte operative.');
+      score = Math.min(score, 0.45);
+    }
 
     const bereavementPattern = /\b(?:lutto|perdita|decesso|morte|morto|morta|funerale|esequie|defunt[oaie]?|suffragio|vedov[oaie]?)\b/i;
     const currentMentionsBereavement = bereavementPattern.test(original);
-    const responseMentionsBereavement = bereavementPattern.test(source);
+    const standardLiturgicalCommemoration = /\b(?:messa\s+di\s+suffragio|commemorazione\s+(?:dei\s+)?fedeli\s+defunti|fedeli\s+defunti)\b/i;
+    const currentMassRequest = /\b(?:messa|messe|celebrare\s+una\s+messa|far\s+celebrare)\b/i.test(original);
+    const currentAllSoulsDate = /\b(?:2|02)\s+novembre\b|\bnovembre\s+(?:2|02)\b/i.test(original);
+    const hasStandardCommemorationOnly = standardLiturgicalCommemoration.test(source) &&
+      !/\b(?:lutto|perdita|decesso|morte|morto|morta|funerale|esequie|vedov[oaie]?)\b/i.test(source);
+    const responseMentionsBereavement = bereavementPattern.test(source) &&
+      !(hasStandardCommemorationOnly && (currentMassRequest || currentAllSoulsDate));
     if (continuityKey === 'bereavement_continuity' && !currentMentionsBereavement && responseMentionsBereavement) {
       violations.push('reopened_bereavement_context');
       errors.push('Continuita sensibile: la risposta riapre o nomina il lutto salvato in memoria anche se il messaggio attuale non lo riprende.');
@@ -3480,6 +3523,16 @@ var ResponseValidator = class ResponseValidator {
   _perfezionamentoAutomatico(response, errors, language, temporalContext = null, cosmeticOnly = false) {
     let textPerfezionato = response;
     let modified = false;
+    const hasThinkingLeak = errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('meta-commento'));
+    if (hasThinkingLeak) {
+      // Rimuove solo un'introduzione metatestuale riconoscibile, conservando il contenuto seguente.
+      const safePrefix = /^(?:in base alla knowledge base|consultando i dati|consultando la knowledge base|rivedendo le istruzioni),?\s*/i;
+      if (!safePrefix.test(String(response || ''))) return { fixed: false, text: response };
+      const cleaned = this._rimuoviThinkingLeak(response);
+      return cleaned !== String(response || '').trim()
+        ? { fixed: true, text: cleaned }
+        : { fixed: false, text: response };
+    }
 
     const applicaOttimizzazione = (label, optimizer) => {
       try {
@@ -3499,12 +3552,7 @@ var ResponseValidator = class ResponseValidator {
     // Cerca [url](url) o [url](url...) e semplifica
     applicaOttimizzazione('Link', (currentText) => this._ottimizzaLinkDuplicati(currentText));
 
-    const hasThinkingLeak = errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('meta-commento'));
     const hasPlaceholder = errors.some(e => e.includes('placeholder'));
-
-    if (hasThinkingLeak && !cosmeticOnly) {
-      applicaOttimizzazione('ThinkingLeak', (currentText) => this._rimuoviThinkingLeak(currentText));
-    }
 
     // 2. Perfezionamento Maiuscole dopo virgola
     // Applicabile solo se non è un errore di Thinking Leak (che richiede rigenerazione)
@@ -3685,18 +3733,13 @@ var ResponseValidator = class ResponseValidator {
    * Rimuove ragionamento esposto (thinking leak) in modo robusto
    */
   _rimuoviThinkingLeak(text) {
-    let cleaned = text;
+    const source = String(text || '');
+    const safePrefix = /^(?:in base alla knowledge base|consultando i dati|consultando la knowledge base|rivedendo le istruzioni),?\s*/i;
+    if (safePrefix.test(source)) {
+      return source.replace(safePrefix, '').replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    }
 
-    // Rimuove prefissi meta-ragionamento comuni in apertura frase
-    // senza attendere rigenerazione completa.
-    cleaned = cleaned.replace(
-      /^(?:in base alla knowledge base|consultando i dati|consultando la knowledge base|rivedendo le istruzioni),?\s*/i,
-      ''
-    );
-
-    // Usa thinkingPatterns come sorgente per le keyword di ragionamento
-    // Rimuove l'INTERA frase che contiene la keyword (dal confine di frase
-    // iniziale a quello finale), conservando unite le altre frasi.
+    let cleaned = source;
     const keywords = this.thinkingPatterns || [];
     keywords.forEach(kw => {
       const escaped = this._escapeRegex(kw);

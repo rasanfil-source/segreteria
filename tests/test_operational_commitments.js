@@ -15,6 +15,9 @@ for (const kb of ['', 'La parrocchia dispone di un sito web e di una pagina Face
 for (const text of ['Pubblicheremo la locandina.', 'Stamperemo il documento.', 'Le faremo sapere.', 'We will publish it.']) {
   assert(validator._checkKnowledgeContextualizationRisk(text, '').requiresSemanticReview, text);
 }
+for (const text of ['Saremo lieti di aiutarla.', 'Resteremo a disposizione.', 'We will be happy to help.']) {
+  assert.equal(validator._checkKnowledgeContextualizationRisk(text, '').requiresSemanticReview, false, text);
+}
 for (const text of ['Abbiamo ricevuto la locandina.', 'La richiesta riguarda la pubblicazione su sito e Facebook.', 'È possibile pubblicare la locandina?']) {
   assert.equal(validator._checkKnowledgeContextualizationRisk(text, '').requiresSemanticReview, false, text);
 }
@@ -30,11 +33,26 @@ for (const authorized of [false, true]) {
       assert.equal(options.groundingParts.history.includes('pubblicazione confermata'), authorized);
       return { isValid: authorized, hallucinations: authorized ? [] : ['Impegno privo di riscontro'], confidence: 1 };
     },
-    validateThinkingLeak: () => ({ isValid: true })
+    validateThinkingLeak: (response, regex, options) => {
+      assert.notEqual(options && options.force, true, 'la revisione delle promesse non deve forzare una seconda chiamata LLM');
+      return { isValid: true };
+    }
   };
   const result = validator.validateResponse(reply, 'it', 'Sito e Facebook parrocchiali.', body, subject, 'full', false,
     { validationContext: { requestPurpose: 'operational_request', explicitThreadContext: authorized ? 'Segreteria: pubblicazione confermata.' : '' } });
   assert.equal(calls, 1);
   assert.equal(result.isValid, authorized);
 }
+let courtesySemanticCalls = 0;
+validator.semanticValidator = {
+  shouldRun: () => false,
+  validateHallucinations: () => { courtesySemanticCalls++; return { isValid: true }; },
+  validateThinkingLeak: () => { courtesySemanticCalls++; return { isValid: true }; }
+};
+validator._runValidationChecks = () => ({ isValid: true, score: 1, errors: [], warnings: [], details: {
+  exposedReasoning: { score: 1, errors: [], warnings: [] },
+  knowledgeContextualization: validator._checkKnowledgeContextualizationRisk('Saremo lieti di aiutarla.', 'KB completa.')
+} });
+validator.validateResponse('Saremo lieti di aiutarla.', 'it', 'KB completa.', '', '', 'full', false);
+assert.equal(courtesySemanticCalls, 0, 'una formula di cortesia non deve attivare chiamate semantiche');
 console.log('Impegni operativi: attivazione semantica, ricezione e accordi documentati verificati');

@@ -1240,7 +1240,7 @@
       "promptMustInclude": [
         "Data di riferimento per la risposta",
         "Date senza anno esplicito",
-        "Non presentare mai come futura una data gi\u00e0 trascorsa"
+        "senza ricalcolarne l'anno rispetto a oggi"
       ],
       "responseMustInclude": [
         "15 agosto 2026 .* gi",

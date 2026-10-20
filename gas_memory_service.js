@@ -13,6 +13,10 @@
  * H: version (per controllo concorrenza ottimistico)
  * I: memorySummary
  * J: contextualFlags (JSON object)
+ *
+ * Lo sheet SensitiveContextMemory conserva solo threadId, flag ammessi e date
+ * delle evidenze ancora entro TTL; la conversazione ordinaria resta soggetta
+ * alla propria retention indipendente.
  * 
  * FUNZIONALITÀ:
  * - Cache locale per performance
@@ -47,6 +51,9 @@ var MemoryService = class MemoryService {
     this.sheetName = typeof CONFIG !== 'undefined' ?
       (CONFIG.MEMORY_SHEET_NAME || 'ConversationMemory') :
       'ConversationMemory';
+    this.sensitiveSheetName = typeof CONFIG !== 'undefined' ?
+      (CONFIG.SENSITIVE_MEMORY_SHEET_NAME || 'SensitiveContextMemory') :
+      'SensitiveContextMemory';
 
     // Cache per performance (evita lookup ripetuti)
     this._cache = {};
@@ -57,6 +64,7 @@ var MemoryService = class MemoryService {
 
     // Inizializza foglio
     this._sheet = null;
+    this._sensitiveSheet = null;
     this._initialized = false;
 
     if (this.spreadsheetId) {
@@ -88,6 +96,8 @@ var MemoryService = class MemoryService {
         this._normalizeHeaders();
       }
 
+      this._initializeSensitiveSheet_(spreadsheet);
+
       // Gli identificativi Gmail composti da cifre conservano la rappresentazione testuale esatta.
       this._sheet.getRange('A:A').setNumberFormat('@');
       this._initialized = true;
@@ -96,6 +106,37 @@ var MemoryService = class MemoryService {
     } catch (error) {
       console.error(`❌ Inizializzazione MemoryService fallita: ${error.message}`);
       this._initialized = false;
+    }
+  }
+
+  /**
+   * Prepara un archivio separato con i soli flag contestuali e le date delle evidenze.
+   */
+  _initializeSensitiveSheet_(spreadsheet) {
+    try {
+      this._sensitiveSheet = spreadsheet.getSheetByName(this.sensitiveSheetName);
+      if (!this._sensitiveSheet) {
+        this._sensitiveSheet = spreadsheet.insertSheet(this.sensitiveSheetName);
+        this._sensitiveSheet.getRange('A1:B1').setValues([['threadId', 'contextualFlags']]);
+        this._sensitiveSheet.getRange('A1:B1').setFontWeight('bold');
+        this._sensitiveSheet.setFrozenRows(1);
+      } else {
+        const maxColumns = this._sensitiveSheet.getMaxColumns();
+        if (maxColumns < 2) this._sensitiveSheet.insertColumnsAfter(maxColumns, 2 - maxColumns);
+        const headerRange = this._sensitiveSheet.getRange(1, 1, 1, 2);
+        const headers = headerRange.getValues()[0].map(value => String(value || '').trim());
+        if (headers.every((value, index) => !value || value === ['threadId', 'contextualFlags'][index])) {
+          headerRange.setValues([['threadId', 'contextualFlags']]);
+          headerRange.setFontWeight('bold');
+          this._sensitiveSheet.setFrozenRows(1);
+        } else {
+          throw new Error(`intestazioni inattese nel foglio ${this.sensitiveSheetName}`);
+        }
+      }
+      this._sensitiveSheet.getRange('A:A').setNumberFormat('@');
+    } catch (error) {
+      this._sensitiveSheet = null;
+      console.warn(`⚠️ Archivio dei flag sensibili non disponibile: ${error.message}`);
     }
   }
 
@@ -178,6 +219,10 @@ var MemoryService = class MemoryService {
         cachedCopy.exists = true;
       }
       cachedCopy.providedInfo = sortProvidedTopicsByRecency_(cachedCopy.providedInfo || []);
+      cachedCopy.contextualFlags = this._filterContextualFlagsByTtl_(
+        cachedCopy.contextualFlags,
+        cachedCopy.lastUpdated
+      );
       return cachedCopy;
     }
 
@@ -190,6 +235,10 @@ var MemoryService = class MemoryService {
         if (!Array.isArray(data.providedInfo)) {
           data.providedInfo = [];
         }
+        data.contextualFlags = this._mergeContextualFlags_(
+          this._readSensitiveContextFlags_(normalizedThreadId),
+          data.contextualFlags
+        );
         data.exists = true;
         console.log(`🧠 Memory hit per thread ${normalizedThreadId} (Lingua: ${data.language})`);
 
@@ -198,7 +247,13 @@ var MemoryService = class MemoryService {
         return data;
       } else {
         console.log(`🧠 Memory miss per thread ${threadId} (Nuova conversazione)`);
-        return { exists: false, providedInfo: [] };
+        const missingMemory = {
+          exists: false,
+          providedInfo: [],
+          contextualFlags: this._readSensitiveContextFlags_(normalizedThreadId)
+        };
+        this._setCache(cacheKey, missingMemory);
+        return missingMemory;
       }
 
     } catch (error) {
@@ -303,6 +358,10 @@ var MemoryService = class MemoryService {
 
         if (existingRow) {
           const existingData = this._rowToObject(existingRow.values);
+          existingData.contextualFlags = this._mergeContextualFlags_(
+            this._readSensitiveContextFlags_(normalizedThreadId),
+            existingData.contextualFlags
+          );
           const currentVersion = existingData.version || 0;
 
           // Verifica controllo concorrenza ottimistico
@@ -376,8 +435,12 @@ var MemoryService = class MemoryService {
 
           // Nuova riga
           const insertData = Object.assign({}, dataToUpdate);
-          if (Object.prototype.hasOwnProperty.call(insertData, 'contextualFlags')) {
-            insertData.contextualFlags = this._normalizeContextualFlags_(insertData.contextualFlags);
+          const archivedFlags = this._readSensitiveContextFlags_(normalizedThreadId);
+          if (Object.prototype.hasOwnProperty.call(insertData, 'contextualFlags') || Object.keys(archivedFlags).length > 0) {
+            insertData.contextualFlags = this._mergeContextualFlags_(
+              archivedFlags,
+              insertData.contextualFlags || {}
+            );
           }
           insertData.threadId = normalizedThreadId;
           insertData.lastUpdated = now;
@@ -400,6 +463,7 @@ var MemoryService = class MemoryService {
 
         // Invalida cache locale
         this._invalidateCache(`memory_${normalizedThreadId}`);
+        this._persistSensitiveContextFlags_(normalizedThreadId, cacheValueToStore.contextualFlags, cacheValueToStore.lastUpdated);
         this._writeThroughMemoryCache_(`memory_${normalizedThreadId}`, cacheValueToStore);
         return true; // Successo
 
@@ -577,6 +641,10 @@ var MemoryService = class MemoryService {
 
         if (existingRow) {
           const existingData = this._rowToObject(existingRow.values);
+          existingData.contextualFlags = this._mergeContextualFlags_(
+            this._readSensitiveContextFlags_(normalizedThreadId),
+            existingData.contextualFlags
+          );
           const currentVersion = existingData.version || 0;
 
           // Controllo concorrenza ottimistico opzionale
@@ -653,8 +721,12 @@ var MemoryService = class MemoryService {
             );
           }
           const insertData = Object.assign({}, dataToUpdate);
-          if (Object.prototype.hasOwnProperty.call(insertData, 'contextualFlags')) {
-            insertData.contextualFlags = this._normalizeContextualFlags_(insertData.contextualFlags);
+          const archivedFlags = this._readSensitiveContextFlags_(normalizedThreadId);
+          if (Object.prototype.hasOwnProperty.call(insertData, 'contextualFlags') || Object.keys(archivedFlags).length > 0) {
+            insertData.contextualFlags = this._mergeContextualFlags_(
+              archivedFlags,
+              insertData.contextualFlags || {}
+            );
           }
           insertData.threadId = normalizedThreadId;
           insertData.lastUpdated = now;
@@ -685,6 +757,7 @@ var MemoryService = class MemoryService {
         }
 
         this._invalidateCache(`memory_${normalizedThreadId}`);
+        this._persistSensitiveContextFlags_(normalizedThreadId, cacheValueToStore.contextualFlags, cacheValueToStore.lastUpdated);
         this._writeThroughMemoryCache_(`memory_${normalizedThreadId}`, cacheValueToStore);
         this._lastUpdateMemoryAtomicFailure = null;
         return true;
@@ -829,8 +902,10 @@ var MemoryService = class MemoryService {
         delete merged[key];
         merged._evidence = Object.assign({}, merged._evidence, { [key]: false });
       } else if (raw === true || String(raw).toLowerCase() === 'true') {
+        const existingEvidence = merged._evidence && merged._evidence[key];
         merged[key] = true;
-        const evidence = source._evidence && source._evidence[key];
+        const incomingEvidence = source._evidence && source._evidence[key];
+        const evidence = incomingEvidence || (existingEvidence && existingEvidence !== false ? existingEvidence : null);
         merged._evidence = Object.assign({}, merged._evidence, { [key]: evidence || new Date().toISOString() });
       }
     });
@@ -841,6 +916,163 @@ var MemoryService = class MemoryService {
   _serializeContextualFlagsForSheet(flags) {
     const normalized = this._normalizeContextualFlags_(flags);
     return Object.keys(normalized).length > 0 ? JSON.stringify(normalized) : '';
+  }
+
+  _contextualFlagKeys_() {
+    return ['remote_user', 'bereaved', 'canonical_complexity', 'ongoing_pastoral_process'];
+  }
+
+  _filterContextualFlagsByTtl_(flags, fallbackTimestamp = null, nowMs = Date.now()) {
+    const normalized = this._normalizeContextualFlags_(flags);
+    const ttlDays = (typeof CONFIG !== 'undefined' && Number(CONFIG.SENSITIVE_FLAGS_TTL_DAYS) > 0)
+      ? Number(CONFIG.SENSITIVE_FLAGS_TTL_DAYS) : 180;
+    const result = {};
+    const evidence = {};
+
+    this._contextualFlagKeys_().forEach(key => {
+      if (normalized[key] === true) {
+        const anchor = normalized._evidence && normalized._evidence[key]
+          ? normalized._evidence[key]
+          : fallbackTimestamp;
+        const anchorMs = anchor ? Date.parse(anchor) : NaN;
+        if (Number.isFinite(anchorMs) && anchorMs <= nowMs + 300000 && nowMs - anchorMs <= ttlDays * 86400000) {
+          result[key] = true;
+          evidence[key] = new Date(anchorMs).toISOString();
+        }
+      } else if (normalized._evidence && normalized._evidence[key] === false) {
+        evidence[key] = false;
+      }
+    });
+
+    if (Object.keys(evidence).length > 0) result._evidence = evidence;
+    return result;
+  }
+
+  _findSensitiveRowByThreadId_(threadId) {
+    const sheet = this._sensitiveSheet;
+    const normalizedThreadId = String(threadId || '').trim();
+    if (!sheet || !normalizedThreadId) return null;
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return null;
+
+    try {
+      const finder = sheet.getRange(2, 1, lastRow - 1, 1).createTextFinder(normalizedThreadId)
+        .matchEntireCell(true).matchCase(true).matchFormulaText(false);
+      const match = finder.findNext();
+      if (match && match.getColumn() === 1 && match.getRow() > 1) {
+        const values = sheet.getRange(match.getRow(), 1, 1, 2).getValues()[0];
+        if (String(values[0] || '').trim() === normalizedThreadId) {
+          return { rowIndex: match.getRow(), values: values };
+        }
+      }
+    } catch (error) {
+      console.warn(`⚠️ Ricerca archivio flag non riuscita per ${normalizedThreadId}: ${error.message}`);
+    }
+
+    const rows = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+    for (let index = 0; index < rows.length; index++) {
+      if (String(rows[index][0] || '').trim() === normalizedThreadId) {
+        return { rowIndex: index + 2, values: rows[index] };
+      }
+    }
+    return null;
+  }
+
+  _readSensitiveContextFlags_(threadId) {
+    if (!this._sensitiveSheet) return {};
+    try {
+      const row = this._findSensitiveRowByThreadId_(threadId);
+      if (!row) return {};
+      return this._filterContextualFlagsByTtl_(row.values[1]);
+    } catch (error) {
+      console.warn(`⚠️ Lettura archivio flag non riuscita per ${threadId}: ${error.message}`);
+      return {};
+    }
+  }
+
+  _writeSensitiveContextFlags_(threadId, flags, fallbackTimestamp = null) {
+    if (!this._sensitiveSheet) throw new Error('Archivio dei flag sensibili non disponibile');
+    const normalizedThreadId = String(threadId || '').trim();
+    if (!normalizedThreadId) throw new Error('threadId mancante per archivio flag');
+
+    const existingRow = this._findSensitiveRowByThreadId_(normalizedThreadId);
+    const existingFlags = existingRow
+      ? this._filterContextualFlagsByTtl_(existingRow.values[1])
+      : {};
+    const merged = this._mergeContextualFlags_(existingFlags, flags || {});
+    const filtered = this._filterContextualFlagsByTtl_(merged, fallbackTimestamp);
+    const hasActiveFlag = this._contextualFlagKeys_().some(key => filtered[key] === true);
+
+    if (!hasActiveFlag) {
+      if (existingRow) this._sensitiveSheet.getRange(existingRow.rowIndex, 1, 1, 2).clearContent();
+      return;
+    }
+
+    const serialized = this._serializeContextualFlagsForSheet(filtered);
+    if (existingRow) {
+      this._sensitiveSheet.getRange(existingRow.rowIndex, 1, 1, 2)
+        .setValues([[normalizedThreadId, serialized]]);
+    } else {
+      this._sensitiveSheet.appendRow([normalizedThreadId, serialized]);
+    }
+  }
+
+  _persistSensitiveContextFlags_(threadId, flags, fallbackTimestamp = null) {
+    if (!this._sensitiveSheet || !flags || typeof flags !== 'object') return false;
+    try {
+      this._writeSensitiveContextFlags_(threadId, flags, fallbackTimestamp);
+      SpreadsheetApp.flush();
+      return true;
+    } catch (error) {
+      console.warn(`⚠️ Salvataggio evidenze sensibili non riuscito per ${threadId}: ${error.message}`);
+      return false;
+    }
+  }
+
+  _preserveSensitiveContextFlagsBeforeCleanup_(threadId, rowValues, fallbackTimestamp = null) {
+    const storedTimestamp = this._validateAndNormalizeTimestamp(rowValues[5]);
+    const observationTimestamp = storedTimestamp || this._validateAndNormalizeTimestamp(fallbackTimestamp);
+    const valuesForRead = rowValues.slice();
+    if (!storedTimestamp && observationTimestamp) valuesForRead[5] = observationTimestamp;
+    const memory = this._rowToObject(valuesForRead);
+    const archived = this._readSensitiveContextFlags_(threadId);
+    const flags = this._mergeContextualFlags_(archived, memory.contextualFlags);
+    const hasActiveFlag = this._contextualFlagKeys_().some(key => flags[key] === true);
+    if (!hasActiveFlag) return true;
+    if (!this._sensitiveSheet) return false;
+
+    try {
+      this._writeSensitiveContextFlags_(threadId, flags, memory.lastUpdated);
+      SpreadsheetApp.flush();
+      const saved = this._readSensitiveContextFlags_(threadId);
+      return this._contextualFlagKeys_().every(key => flags[key] !== true || saved[key] === true);
+    } catch (error) {
+      console.error(`❌ Flag sensibili non archiviati per ${threadId}; la riga memoria resta: ${error.message}`);
+      return false;
+    }
+  }
+
+  _cleanExpiredSensitiveContextFlags_() {
+    if (!this._sensitiveSheet) return 0;
+    let cleaned = 0;
+    const rows = this._sensitiveSheet.getDataRange().getValues();
+    for (let index = 1; index < rows.length; index++) {
+      const threadId = String(rows[index][0] || '').trim();
+      if (!threadId) continue;
+      const filtered = this._filterContextualFlagsByTtl_(rows[index][1]);
+      const hasActiveFlag = this._contextualFlagKeys_().some(key => filtered[key] === true);
+      if (!hasActiveFlag) {
+        this._sensitiveSheet.getRange(index + 1, 1, 1, 2).clearContent();
+        cleaned++;
+        continue;
+      }
+      const serialized = this._serializeContextualFlagsForSheet(filtered);
+      if (serialized !== String(rows[index][1] || '')) {
+        this._sensitiveSheet.getRange(index + 1, 1, 1, 2).setValues([[threadId, serialized]]);
+        cleaned++;
+      }
+    }
+    return cleaned;
   }
 
   _parseMemorySummaryState(memorySummary) {
@@ -1998,12 +2230,14 @@ var MemoryService = class MemoryService {
     const legacySummary = parsedMemorySummary.recognized ? parsedMemorySummary.legacySummaryText : rawMemorySummary;
     const legacyText = [values[2], String(legacySummary || '').split('\n')
       .filter(line => !/^\s*(?:•\s*\[\d{4}-\d{2}-\d{2}\]|\.\.\.)/.test(line)).join('\n')].join('\n');
-    ['bereaved', 'canonical_complexity', 'ongoing_pastoral_process'].forEach(key => {
+    ['remote_user', 'bereaved', 'canonical_complexity', 'ongoing_pastoral_process'].forEach(key => {
       const evidence = contextualFlags._evidence[key];
       const anchor = evidence === false ? null : (evidence || lastUpdated);
-      if (contextualFlags[key] === true || evidence !== undefined || legacySignals[key].test(legacyText)) {
+      const legacySignal = legacySignals[key] && legacySignals[key].test(legacyText);
+      if (contextualFlags[key] === true || evidence !== undefined || legacySignal) {
         contextualFlags._evidence[key] = anchor || false;
-        if (!anchor || Date.now() - Date.parse(anchor) > ttlDays * 86400000) {
+        const anchorMs = anchor ? Date.parse(anchor) : NaN;
+        if (!Number.isFinite(anchorMs) || anchorMs > Date.now() + 300000 || Date.now() - anchorMs > ttlDays * 86400000) {
           contextualFlags[key] = false;
           contextualFlags._evidence[key] = false;
         }
@@ -2360,7 +2594,18 @@ var MemoryService = class MemoryService {
             // avrà un nuovo periodo di osservazione.
             this._sheet.getRange(i + 1, 6).setNote(humanNote || null);
           }
-          if (retentionStart < cutoff) expiredRows.push(i);
+          if (retentionStart < cutoff) {
+            const threadId = String(data[i][0] || '').trim();
+            if (this._preserveSensitiveContextFlagsBeforeCleanup_(
+              threadId,
+              data[i],
+              new Date(retentionStart).toISOString()
+            )) {
+              expiredRows.push(i);
+            } else {
+              console.warn(`⚠️ Riga memoria ${i + 1} mantenuta: impossibile archiviare i flag sensibili`);
+            }
+          }
         }
 
         // Svuota solo A:J delle righe scadute: nessuno spostamento di righe,
@@ -2395,6 +2640,14 @@ var MemoryService = class MemoryService {
         console.error(`❌ Errore pulizia voci vecchie: ${error.message}`);
       }
     });
+
+    if (this._sensitiveSheet) {
+      try {
+        this._withSheetWriteLock(() => this._cleanExpiredSensitiveContextFlags_());
+      } catch (error) {
+        console.warn(`⚠️ Pulizia TTL dei flag sensibili non riuscita: ${error.message}`);
+      }
+    }
 
     return deletedCount;
   }

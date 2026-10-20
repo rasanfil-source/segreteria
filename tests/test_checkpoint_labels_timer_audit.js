@@ -114,7 +114,9 @@ for(const file of ['gas_config.js','gas_config.example.js']) {
   const cfgCtx=vm.createContext({console:silent,PropertiesService:{getScriptProperties:()=>({getProperty:()=>null,getProperties:()=>({})})}});
   vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),cfgCtx);
   assert.equal(vm.runInContext('CONFIG.MEMORY_RETENTION_DAYS',cfgCtx),30);
-  assert(cfgCtx.validateConfig().warnings.some(w=>w.includes('180')));
+  assert.equal(vm.runInContext('CONFIG.SENSITIVE_FLAGS_TTL_DAYS',cfgCtx),180);
+  assert.equal(vm.runInContext('CONFIG.SENSITIVE_MEMORY_SHEET_NAME',cfgCtx),'SensitiveContextMemory');
+  assert(!cfgCtx.validateConfig().warnings.some(w=>w.includes('solo nelle conversazioni ancora conservate')));
   for(const value of [0,-1,1.5,NaN,Infinity,'30'])for(const key of ['MEMORY_RETENTION_DAYS','SENSITIVE_FLAGS_TTL_DAYS']) {
     cfgCtx.invalid=value;vm.runInContext('CONFIG.'+key+'=invalid',cfgCtx);
     assert(cfgCtx.validateConfig().errors.some(e=>e.includes(key)));

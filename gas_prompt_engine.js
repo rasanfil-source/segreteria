@@ -184,8 +184,17 @@ var PromptEngine = class PromptEngine {
   } = {}) {
     // La storia personale non attiva procedure matrimoniali per altre richieste.
     if (this._isSbattezzoRequest_({ topic, category, requestType, subIntents })) return false;
-    if (!/matrimon|sposar|sposiam|nozze|marri|wedding|casar|mariage|heirat|hochzeit/i.test(
-      [emailSubject, emailContent, topic].join(' '))) return false;
+    const currentBody = typeof Classifier === 'function' && typeof Classifier.prototype._extractMessageEvidence_ === 'function'
+      ? Classifier.prototype._extractMessageEvidence_(emailContent).currentText : emailContent;
+    const currentSubject = typeof Classifier === 'function' && typeof Classifier.prototype._currentSubject_ === 'function'
+      ? Classifier.prototype._currentSubject_(emailSubject)
+      : (/^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+-\s+)/i.test(String(emailSubject || '').trim()) ? '' : String(emailSubject || ''));
+    const currentText = [currentSubject, currentBody].join(' ');
+    const marriageRequest = /\b(?:(?:ri)?sposar(?:mi|ci|si)|ci\s+sposiamo|(?:celebrare|per)\s+(?:il|un|il\s+nostro)\s+matrimonio|matrimonio\s+(?:in\s+chiesa|religioso)|(?:get|getting)\s+married|marry\s+in\s+church|casar(?:me|nos)|me\s+marier|heiraten)\b/i.test(currentText) ||
+      /^(?:matrimonio|nozze|wedding|marriage)$/i.test(currentSubject.trim());
+    const certificateOnly = /\b(?:certificat\w*|copia|attestato|certificate|copy)\b/i.test(currentText) &&
+      !/\b(?:(?:ri)?sposar(?:mi|ci)|ci\s+sposiamo|celebrare|getting\s+married|marry|casarme|casarnos|me\s+marier|heiraten)\b/i.test(currentBody);
+    if (!marriageRequest || certificateOnly) return false;
     const normalizedSubIntents = (subIntents && typeof subIntents === 'object') ? subIntents : {};
     if (
       normalizedSubIntents.canonical_complexity === true ||
@@ -216,15 +225,9 @@ var PromptEngine = class PromptEngine {
       return true;
     }
 
-    const searchableText = [
-      emailSubject,
-      emailContent,
-      topic,
-      category,
-      requestTypeObj.topic,
-      requestTypeObj.category,
-      requestTypeObj.reason
-    ].map(value => String(value || '').toLowerCase()).join(' ');
+    const searchableText = currentText.toLowerCase()
+      .replace(/\bnon\s+(?:sono|siamo|e|è)\s+(?:(?:ne|né)\s+)?(?:divorziat[oaie]|separat[oaie]|risposat[oaie]|convivent[ei])(?:\s+(?:ne|né|o)\s+(?:divorziat[oaie]|separat[oaie]|risposat[oaie]|convivent[ei]))*/g, '')
+      .replace(/\b(?:not|never)\s+(?:divorced|separated|remarried|cohabiting)(?:\s+(?:or|nor)\s+(?:divorced|separated|remarried|cohabiting))*/g, '');
 
     return /\b(?:divorziat[oaie]?|separat[oaie]?|risposat[oaie]?|convivent[ei]|non\s+cattolic[oaie]?|matrimonio\s+precedente|precedente\s+matrimonio|annullament[oa]|nullit[aà]\s+matrimonial[ei]|sposat[oaie]?\s+civilmente|matrimonio\s+civile|divorced|separated|civilly\s+remarried|cohabiting|non[-\s]?catholic|not\s+catholic|previous\s+marriage|annulment)\b/i.test(searchableText);
   }
@@ -886,8 +889,12 @@ Vincoli:
     let effectiveKbCharsLimit = Math.max(500, rawEffectiveKbCharsLimit);
 
     if (workingKnowledgeBase && workingKnowledgeBase.length > effectiveKbCharsLimit) {
-      console.warn(`⚠️ KB eccede il budget (${workingKnowledgeBase.length} chars), tronco a ${effectiveKbCharsLimit} (budget netto)`);
-      workingKnowledgeBase = this._truncateKbSemantically(workingKnowledgeBase, effectiveKbCharsLimit);
+      console.warn(`⚠️ KB eccede il budget (${workingKnowledgeBase.length} chars), seleziono le unità pertinenti entro ${effectiveKbCharsLimit} (budget netto)`);
+      workingKnowledgeBase = this._selectKnowledgeBaseForBudget_(workingKnowledgeBase, effectiveKbCharsLimit, {
+        emailSubject, emailContent, knowledgeSelectionText: options.knowledgeSelectionText,
+        topic, category, requestType: requestTypeForRouting,
+        subIntents, activeConcerns: normalizedConcerns
+      });
       kbWasTruncated = true;
     }
 
@@ -917,7 +924,11 @@ Vincoli:
         console.warn(`ℹ️ KB troncata: recupero budget dopo riduzione allegati (${effectiveKbCharsLimit} -> ${revisedEffectiveKbCharsLimit} chars)`);
         effectiveKbCharsLimit = revisedEffectiveKbCharsLimit;
         workingKnowledgeBase = originalKnowledgeBase.length > effectiveKbCharsLimit
-          ? this._truncateKbSemantically(originalKnowledgeBase, effectiveKbCharsLimit)
+          ? this._selectKnowledgeBaseForBudget_(originalKnowledgeBase, effectiveKbCharsLimit, {
+            emailSubject, emailContent, knowledgeSelectionText: options.knowledgeSelectionText,
+            topic, category, requestType: requestTypeForRouting,
+            subIntents, activeConcerns: normalizedConcerns
+          })
           : originalKnowledgeBase;
         kbWasTruncated = originalKnowledgeBase.length > effectiveKbCharsLimit;
       }
@@ -1029,7 +1040,6 @@ Vincoli:
     const priorCommunicationContext = this._normalizePriorCommunicationContext_(
       priorOralCommunication || (subIntents && subIntents.prior_oral_communication)
     );
-    const hasPriorCommunication = Boolean(priorCommunicationContext && priorCommunicationContext.detected);
     if (priorCommunicationContext && priorCommunicationContext.detected) {
       addSection(this._renderPriorCommunicationPolicy(priorCommunicationContext), 'PriorCommunicationPolicy', { force: true, isSystem: true });
     }
@@ -1231,7 +1241,7 @@ Vincoli:
     }
 
     // 15. ARRICCHIMENTO DOTTRINALE (Selettivo)
-    if (requestTypeObj.needsDoctrine && !hasPriorCommunication) {
+    if (requestTypeObj.needsDoctrine) {
       const selectiveDoctrine = this._renderSelectiveDoctrine(
         requestTypeObj,
         topic,
@@ -1256,15 +1266,6 @@ Vincoli:
           console.warn('ℹ️ Fallback dottrinale disabilitato da allowDoctrineFallback=false.');
         }
       }
-    } else if (requestTypeObj.needsDoctrine && hasPriorCommunication) {
-      console.warn('ℹ️ Dottrina selettiva soppressa: contatto pregresso rilevato, priorità alla presa in carico.');
-      if (doctrineBaseText && allowDoctrineFallback) {
-        const doctrineSection = this._renderDoctrineFallback_(doctrineBaseText, { compact: true });
-        addSection(doctrineSection, 'DoctrineFallbackCompact');
-        console.warn('ℹ️ Fallback dottrinale compatto incluso: contatto pregresso con needsDoctrine=true.');
-      } else if (doctrineBaseText && !allowDoctrineFallback) {
-        console.warn('ℹ️ Fallback dottrinale disabilitato da allowDoctrineFallback=false.');
-      }
     }
 
     // 16. CRONOLOGIA CONVERSAZIONE
@@ -1287,10 +1288,10 @@ Vincoli:
     // BLOCCO 3: LINEE GUIDA E TEMPLATE
 
     // 20. LINEE GUIDA (Filtrabili per profilo)
-    addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines(subIntents, category, topic), 'FormattingGuidelines', { isSystem: true });
+    addTemplate('FormattingGuidelinesTemplate', this._renderFormattingGuidelines(subIntents, category, topic, effectiveResponseRegister), 'FormattingGuidelines', { isSystem: true });
 
     // 21. STRUTTURA RISPOSTA
-    addSection(this._renderResponseStructure(category, subIntents, topic), 'ResponseStructure', { isSystem: true });
+    addSection(this._renderResponseStructure(category, subIntents, topic, effectiveResponseRegister), 'ResponseStructure', { isSystem: true });
 
     // 22. TEMPLATE SPECIALI (Sbattezzo ecc.)
     const normalizedTopic = String(topic || '').toLowerCase();
@@ -1399,6 +1400,17 @@ Vincoli:
     const promptResult = {
       systemInstruction: systemInstructionStr,
       prompt: userPromptStr,
+      // Fonti separate dalla serializzazione: il correttore può conservare unità complete.
+      retrySources: [
+        { origin: 'knowledge_base', kind: 'knowledge', text: originalKnowledgeBase },
+        { origin: 'user_email', kind: 'request', text: [emailSubject, emailContent].filter(Boolean).join('\n') },
+        { origin: 'conversation_history', kind: 'history', text: workingConversationHistory },
+        ...['AICoreLite', 'AICore', 'SelectiveDoctrine', 'DoctrineFallback', 'DoctrineFallbackCompact',
+          'AttachmentsContext', 'TerritoryVerification', 'SbattezzoTemplate'].map(origin => ({
+          origin, kind: origin === 'TerritoryVerification' ? 'constraint' : 'selected',
+          text: origin === 'TerritoryVerification' ? territoryContext : includedSections.get(origin) || ''
+        }))
+      ].filter(source => source.text),
       length: systemInstructionStr.length + userPromptStr.length,
       toString: function() {
         return [this.systemInstruction, this.prompt].filter(Boolean).join('\n\n');
@@ -2968,32 +2980,9 @@ Devi dare la risposta SÌ/NO adesso, basandoti ESCLUSIVAMENTE sui dati qui sopra
     const context = this._normalizePriorCommunicationContext_(priorCommunication);
     if (!context || !context.detected) return null;
 
-    const strengthLine = context.strength === 'strong'
-      ? 'Il segnale di contatto pregresso è forte: tratta la mail come riepilogo/integrazione di una conversazione già avvenuta.'
-      : 'Il segnale di contatto pregresso è possibile ma non completo: agisci con prudenza e non azzerare il contesto operativo.';
-    const signalsLine = context.signals.length > 0
-      ? `Segnali rilevati: ${context.signals.map(signal => `"${signal}"`).join(', ')}.`
-      : '';
-    const referentLine = context.mentioned_contact
-      ? `Referente indicato o deducibile: "${context.mentioned_contact}". Se rispondi, puoi dire che il messaggio verrà trasmesso a questo referente/alla persona competente.`
-      : 'Referente non indicato: se serve per non disperdere il seguito, chiedi con garbo se il mittente ricorda o conosce il nome della persona con cui ha già parlato.';
-    const referentGuidance = context.mentioned_contact
-      ? 'procedi dicendo che il messaggio verrà trasmesso al referente indicato o alla persona competente.'
-      : 'se la continuità lo richiede, chiedi con garbo se ricorda il nome della persona con cui ha parlato; altrimenti procedi con una presa in carico generale.';
-
     return `**CONTATTO PREGRESSO TELEFONICO O PERSONALE (PRIORITÀ ALTA):**
-${strengthLine}
-${signalsLine}
-${referentLine}
-
-Questa email è il seguito di una conversazione già avviata, non una richiesta nuova. Trattala come tale.
-
-ORIENTAMENTO:
-• Accogli il messaggio come riepilogo o integrazione di quanto già discusso. Ringrazia per l'aggiornamento e conferma la presa in carico, senza riaprire questioni già affrontate.
-• Non avventurarti su dettagli liturgici, canonici o organizzativi già concordati con altri: trasmetti e basta. Usa formule come "faremo avere il Suo messaggio alla persona coinvolta" o "prenderemo nota e la contatteremo".
-• Per domande autonome e circoscritte, ad esempio orari, recapiti o come inviare un documento, rispondi normalmente.
-• Sul referente: ${referentGuidance}
-• Evita formule che sembrano ignorare il contatto già avvenuto: "è necessario prendere un appuntamento" o "si rivolga a un sacerdote" suonano come un azzeramento della conversazione precedente.`;
+Riconosci la continuità dello scambio. Distingui quanto risulta già concordato dalle nuove domande, anche dottrinali, e rispondi a quelle ancora aperte con le fonti pertinenti. Il solo contatto precedente non dimostra accordi o attività svolte.
+Conferma la ricezione; prometti presa in carico, trasmissione o ricontatto solo secondo la procedura applicabile o un accordo esplicito compatibile. Se il referente serve al seguito e manca, chiedine il nome con garbo.`;
   }
 
   // ========================================================================
@@ -3140,7 +3129,7 @@ ${messageDateLines}${currentTime ? `- **Ora locale attuale di sistema (NON MENZI
 4. Ordina sempre gli eventi futuri cronologicamente.
 5. Attento all'anno pastorale (settembre-agosto) vs anno solare.
 6. Non presentare ${papalContext.previousName} come Papa attuale o come voce magisteriale in presente. Citalo solo per eventi o documenti storici se il dato è presente nelle informazioni di riferimento. Se non è necessario citare un Papa, evita il riferimento papale.
-7. **Date senza anno esplicito**: quando l'utente cita una data come "il 15 agosto", "a Natale" o "la domenica delle Palme" senza specificare l'anno, confronta sempre quella data con la DATA ODIERNA (${currentDate}) e con gli indizi linguistici. Se la data è già trascorsa nell'anno corrente e il testo usa un futuro chiaro (es. "saranno", "ci saranno", "si terrà"), interpreta con prudenza la richiesta come riferita alla prossima ricorrenza/anno seguente; se gli indizi sono deboli o contraddittori, chiedi conferma dell'anno. Non presentare mai come futura una data già trascorsa nell'anno corrente senza esplicitare l'interpretazione adottata.
+7. **Date senza anno esplicito**: usa la risoluzione del contesto stagionale per la richiesta, senza ricalcolarne l'anno rispetto a oggi. Per riferimenti non risolti, interpreta anno e intenzione rispetto a ${messageDateRuleTarget}; usa currentDate solo per valutarne l'attualità. Mantieni distinti date biografiche, eventi ricordati e date richieste per un servizio. Se il significato o l'anno restano ambigui, chiedi conferma.
 8. **Correzione giorno/data morbida**: se l'utente associa una data a un giorno della settimana errato (es. "domenica 10 agosto" quando il 10 agosto è lunedì), indica con tono neutro il giorno corretto e, se necessario, chiarisci se intendeva la domenica più vicina. Evita formule didascaliche o ammonitive come "Desideriamo segnalarLe che", "Occorre precisare" o "Le facciamo presente".
 9. NON menzionare mai l'ora locale attuale di sistema né l'ora di ricezione del messaggio nel testo della risposta.`;
   }
@@ -3288,7 +3277,11 @@ ${hints[effectiveCategory]}` : null;
   // TEMPLATE: LINEE GUIDA FORMATTAZIONE
   // ========================================================================
 
-  _renderFormattingGuidelines(subIntents = {}, category = null, topic = '') {
+  _renderFormattingGuidelines(subIntents = {}, category = null, topic = '', responseRegister = '') {
+    if (responseRegister === 'pastoral_crisis') {
+      return `## FORMATTAZIONE ED EVIDENZIAZIONE
+**CONTESTO SENSIBILE E GERARCHIA - REGOLA ASSOLUTA:** Usa brevi paragrafi in prosa semplice, senza elenchi, titoli o emoji. Mantieni le informazioni operative pertinenti e dichiara con tatto i dati mancanti.`;
+    }
     const isSensitiveContext = this._hasSensitiveContextForTemplates_(subIntents, category, topic);
     const sensitiveOverride = isSensitiveContext
       ? `
@@ -3311,9 +3304,18 @@ ${sensitiveOverride}
   // TEMPLATE 15: STRUTTURA RISPOSTA
   // ========================================================================
 
-  _renderResponseStructure(category, subIntents, topic = '') {
+  _renderResponseStructure(category, subIntents, topic = '', responseRegister = '') {
     let hint = null;
 
+    // Il registro risolto governa la forma anche quando la categoria resta operativa.
+    if (responseRegister === 'pastoral_crisis') {
+      return `**STRUTTURA RISPOSTA (CRISI):**
+Prosa breve: riconosci i fatti espressi e rispondi ai bisogni concreti con passaggi verificati. Nelle pratiche formali mantieni neutralità e rispetto delle scelte.`;
+    }
+    if (responseRegister === 'formal_institutional' || ['formal', 'sbattezzo'].includes(category)) {
+      return `**STRUTTURA RISPOSTA (FORMALE):**
+Riscontro sobrio, risposta allo scopo attuale e prossimi passaggi verificati. Mantieni il contenuto procedurale e rispetta le scelte personali; calibra il tatto sui fatti espressi.`;
+    }
     if (this._hasBereavementContextForTemplates_(subIntents, category, topic)) {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (LUTTO):**
 Apertura: esprimi cordoglio sobrio riferendoti solo alla persona, relazione o circostanza di perdita esplicitata nel messaggio, senza formule universali. Se il messaggio è vago o formale, passa direttamente alle informazioni pratiche con tono misurato.
@@ -3323,6 +3325,9 @@ Poi fornisci informazioni pratiche con discrezione, in prosa, una dopo l'altra -
 ⚠️ FORMATO OBBLIGATORIO: Solo testo in prosa. Nessuna lista, nessuna emoji, nessun titolo Markdown, nessuna icona. Anche se le domande sono 4 o più, rispondi in modo fluente e umano, non come un modulo compilato.
 ⚠️ INCERTEZZA CON GARBO: Dichiara i dati mancanti con tatto; prometti verifiche o seguito solo se autorizzati dalla KB.
 ⚠️ LE RICHIESTE PRATICHE RESTANO PRATICHE: Preghiere da leggere a casa, streaming e materiale devozionale non richiedono automaticamente un sacerdote. Rispondi con ciò che sai, senza inventare disponibilità o impegni.`;
+    } else if (this._hasSensitiveContextForTemplates_(subIntents, category, topic)) {
+      hint = `**STRUTTURA RISPOSTA (SENSIBILE):**
+Prosa breve e sobria: riconosci quanto espresso e rispondi alle richieste concrete con informazioni e passaggi verificati.`;
     } else if (category === 'sacrament') {
       hint = `**STRUTTURA RISPOSTA RACCOMANDATA (SACRAMENTO):**
 1. Accogli con calore la richiesta
@@ -3519,7 +3524,7 @@ REGOLE DI COERENZA TEMPORALE:
 
     const digitalRule = policy === 'avoid_invitation'
       ? `- GESTIONE DIGITALE (OBBLIGATORIA): Se l'utente chiede l'invio di un documento via email o ha espresso rifiuto esplicito di venire di persona, conferma la gestione digitale solo nei limiti autorizzati dalla Knowledge Base e OMETTI COMPLETAMENTE: orari di apertura al pubblico, riferimenti al ritiro in sede e qualsiasi invito fisico, anche condizionale.`
-      : `- GESTIONE DIGITALE: Se l'utente chiede l'invio di un documento via email (es. certificato PDF), conferma la gestione digitale e ometti gli orari di apertura fisica. Menziona la presenza in sede solo se strettamente necessario e in forma condizionale.`;
+      : `- GESTIONE DIGITALE: Se l'utente chiede l'invio di un documento via email (es. certificato PDF), conferma la gestione digitale solo nei limiti della procedura KB applicabile e ometti gli orari non pertinenti. Menziona la presenza in sede solo se strettamente necessario e in forma condizionale.`;
 
     const territoryOverrideRule = this._isNegativeTerritoryContext_(territoryContext)
       ? `- PRECEDENZA TERRITORIALE: la verifica territoriale dice "NON RIENTRA" e prevale su questa policy di gestione a distanza. Non trasformare il vincolo di presenza fisica in promessa di gestire via email/PDF pratiche territoriali o sacramentali che richiedono appartenenza territoriale; comunica prima l'esito territoriale e orienta verso la parrocchia competente, mantenendo solo accoglienza e informazioni generali consentite.`
@@ -4153,70 +4158,13 @@ Accogli senza giudizio. Invita a parlare DIRETTAMENTE con un sacerdote; fornisci
   // ========================================================================
 
   _renderSbattezzoTemplate(senderName, detectedLanguage = 'it', purpose = null, salutationMode = 'full', memoryContext = null) {
-    const purposeType = typeof purpose === 'string' ? purpose : (purpose && purpose.type);
-    const hasRelatedHistory = memoryContext && memoryContext.exists && /sbattezz|apostasi|baptis\w*\s+register/i.test(String(memoryContext.memorySummary || ''));
-    if (['information_request', 'status_update', 'acknowledgment', 'mixed'].includes(purposeType) || salutationMode === 'session' || hasRelatedHistory) {
-      return `## ANNOTAZIONE NEI REGISTRI BATTESIMALI
-Rispetta lo scopo attuale: informazioni = rispondi senza avviare pratiche; aggiornamento o ringraziamento = riscontro breve; seguito operativo = prossimo passo verificato; richiesta mista = azione richiesta e domande residue. Usa la KB senza riavviare la procedura, attestare azioni non svolte o invitare a colloqui pastorali.`;
-    }
-    const sanitizedName = this._sanitizeSenderNameForPrompt_(senderName, detectedLanguage);
     const lang = String(detectedLanguage || 'it').toLowerCase();
-    if (lang !== 'it' && lang !== 'en') {
-      return `## STRUTTURA OBBLIGATORIA: ANNOTAZIONE NEI REGISTRI BATTESIMALI
-Formula nella lingua ${lang.toUpperCase()} questi contenuti, senza aggiungere altro:
-1. Apertura istituzionale e presa in carico rispettosa della comunicazione.
-2. Prima azione della parrocchia: verificare nei propri registri se il Battesimo è stato celebrato qui.
-3. Se registrato qui: trasmettere prontamente la richiesta all'Ordinario Diocesano con il certificato di Battesimo. La Curia contatterà la persona per un colloquio sulle conseguenze canoniche; se la volontà resta confermata, l'Ordinario emetterà un decreto e la parrocchia annoterà il registro.
-4. Se non registrato qui: comunicare l'impossibilità di procedere presso questa sede e indicare la parrocchia da contattare.
-5. Informare la persona dell'esito conclusa la verifica. Chiarire che il fatto storico del sacramento non viene cancellato: si annota la volontà di non appartenere più alla Chiesa cattolica.
-6. Chiusura istituzionale e firma della segreteria nella lingua della risposta.
-Non aggiungere inviti a telefonare o fissare appuntamenti; mantieni il colloquio della Curia previsto dalla procedura. Usa il tag <email>.`;
-    }
-    if (lang === 'en') {
-      return `## MANDATORY TEMPLATE: BAPTISM REGISTER ANNOTATION REQUEST
-USE EXACTLY THIS STRUCTURE. DO NOT ADD ANYTHING ELSE.
-
-Dear ${sanitizedName},
-
-We have received your communication and will handle it with respect.
-
-As a first step, this parish will check its registers to determine whether your Baptism was celebrated here.
-
-* If the Baptism is recorded in this parish, we will promptly forward your request to the Diocesan Ordinary, attaching the baptismal certificate. The Diocesan Curia will contact you for a personal meeting to clarify the canonical consequences of the decision expressed. If your intention remains confirmed, the Ordinary will issue a formal decree and this parish will add the annotation to the baptismal register.
-
-* If the Baptism is not recorded in this parish's registers, we will inform you that we cannot proceed further here and will indicate the parish to contact.
-
-Once the verification is complete, we will inform you of the outcome.
-
-We would like to note that the Church does not "erase" the historical record of the sacrament, which remains an event that took place, but formally records the intention no longer to belong to the Catholic Church.
-
-Kind regards,
-Parish Secretariat of Sant'Eugenio
-
-**Output rules:** keep the institutional text, do not add phone or appointment invitations, use the <email> tag as required.`;
-    }
-
-    return `## TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI (SBATTEZZO)
-USA ESATTAMENTE QUESTA STRUTTURA. NON AGGIUNGERE ALTRO.
-
-Gentile ${sanitizedName},
-
-abbiamo ricevuto la Sua comunicazione e la prendiamo in carico con rispetto.
-
-Come primo passo, questa parrocchia verificherà i propri registri per accertare se il Suo Battesimo sia stato celebrato presso questa sede.
-
-* Se il Battesimo risulterà registrato in questa parrocchia, trasmetteremo prontamente la Sua richiesta all'Ordinario Diocesano, allegando il certificato di Battesimo. La Curia diocesana La contatterà per un colloquio personale, volto a chiarire le conseguenze canoniche della decisione espressa. Qualora la Sua volontà resti confermata, l'Ordinario emetterà un apposito Decreto e questa parrocchia provvederà all'annotazione sul registro di Battesimo.
-
-* Se invece il Battesimo non risulterà nei registri di questa parrocchia, Le comunicheremo l'impossibilità di procedere oltre in questa sede e Le indicheremo la parrocchia alla quale rivolgersi.
-
-Conclusa la verifica, sarà nostra cura informarLa dell'esito.
-
-Ci preme ricordarle che la Chiesa non "cancella" il dato storico del sacramento (che resta un fatto avvenuto), ma annota formalmente la volontà di non appartenere più alla Chiesa cattolica.
-
-Cordiali saluti,
-Segreteria Parrocchia Sant'Eugenio
-
-**Regole di output:** mantieni il testo istituzionale, non aggiungere inviti a telefonare o fissare appuntamenti, usa il tag <email> come prescritto.`;
+    const source = typeof getBaptismAnnotationProcedure_ === 'function'
+      ? getBaptismAnnotationProcedure_() : '';
+    return `## CONTENUTI PROCEDURALI: ANNOTAZIONE NEI REGISTRI BATTESIMALI
+Formula nella lingua ${lang.toUpperCase()}, con saluto e chiusura coerenti con lo scambio e con il registro già risolto. Mantieni neutralità istituzionale e tatto; in crisi usa brevi paragrafi in prosa.
+${source || 'Fonte interna non disponibile: esplicita il limite e usa solo procedure verificate nella KB.'}
+Rispondi anche alle domande residue pertinenti. Presenta le azioni future come tali, senza inviti pastorali aggiuntivi. Usa il tag <email>.`;
   }
 
   _sanitizeSenderNameForPrompt_(senderName, detectedLanguage = 'it') {
@@ -4258,6 +4206,113 @@ ${safeAiCoreLiteText}
   }
 
   /**
+   * Seleziona prima le righe della KB pertinenti a ciascuna domanda corrente.
+   * Le righe complete mantengono insieme categoria, domanda, risposta e condizioni.
+   */
+  _selectKnowledgeBaseForBudget_(kbContent, charLimit, context = {}) {
+    const source = String(kbContent || '');
+    const limit = Math.max(0, Math.floor(Number(charLimit) || 0));
+    if (!source || source.length <= limit) return source;
+    if (limit < 120) return this._truncateKbSemantically(source, limit);
+
+    const normalizeWords = value => String(value || '').normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '').toLowerCase()
+      .match(/[\p{L}\p{N}]{4,}/gu) || [];
+    const stopWords = new Set([
+      'della', 'delle', 'dello', 'degli', 'dallo', 'dalla', 'nelle', 'nello', 'nella',
+      'come', 'quando', 'quale', 'quali', 'quanto', 'quanta', 'quanti', 'quante',
+      'sono', 'siamo', 'siete', 'essere', 'avere', 'dove', 'dopo', 'prima', 'anche',
+      'pero', 'perche', 'come', 'quindi', 'vorrei', 'desidero', 'chiedo', 'sapere',
+      'informazioni', 'informazione', 'potete', 'possiamo', 'possono', 'sarebbe',
+      'grazie', 'buongiorno', 'salve', 'gentile', 'please', 'would', 'could',
+      'about', 'when', 'where', 'what', 'which', 'have', 'with', 'from', 'into',
+      'this', 'that', 'there', 'their', 'your', 'does', 'should', 'will', 'want'
+    ]);
+    const queryParts = [
+      context.emailSubject, context.knowledgeSelectionText || context.emailContent,
+      context.topic, context.category,
+      context.requestType && (typeof context.requestType === 'string'
+        ? context.requestType
+        : [context.requestType.type, context.requestType.name, context.requestType.purpose].filter(Boolean).join(' ')),
+      ...Object.keys(context.subIntents || {}).filter(key => context.subIntents[key]),
+      ...Object.keys(context.activeConcerns || {}).filter(key => context.activeConcerns[key])
+    ].filter(Boolean).join('\n');
+    const queryClauses = queryParts.split(/[\n!?;]+|(?<!\d)\.(?!\d)/)
+      .map(clause => new Set(normalizeWords(clause).filter(word => !stopWords.has(word))))
+      .filter(tokens => tokens.size);
+    const minStem = word => word.length >= 5 ? word.slice(0, 5) : word;
+    const tokenGroups = queryClauses.map(tokens => new Set(Array.from(tokens, minStem)));
+
+    if (!tokenGroups.length) {
+      return this._truncateKbSemantically(source, limit);
+    }
+
+    const lines = source.split(/\r?\n/);
+    const records = [];
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index].trim();
+      if (!line) continue;
+      const fields = line.split(/\s+\|\s+/).map(field => field.trim());
+      const tokens = new Set(normalizeWords(line).map(minStem));
+      const headingTokens = new Set(normalizeWords(fields.slice(0, 2).join(' ')).map(minStem));
+      const hits = tokenGroups.map(query => {
+        let count = 0;
+        for (const token of query) if (tokens.has(token)) count++;
+        return count;
+      });
+      const bestHits = Math.max(...hits);
+      const totalHits = hits.reduce((sum, count) => sum + count, 0);
+      const headingHits = tokenGroups.reduce((sum, query) => {
+        let count = 0;
+        for (const token of query) if (headingTokens.has(token)) count++;
+        return sum + count;
+      }, 0);
+      records.push({
+        text: line, index, fields, hits, bestHits, totalHits, headingHits,
+        selectedForQuestion: false
+      });
+    }
+    if (!records.length) return this._truncateKbSemantically(source, limit);
+
+    const relevantRecords = records.filter(record => record.bestHits > 0);
+    if (!relevantRecords.length) return this._truncateKbSemantically(source, limit);
+
+    // Mantiene almeno i risultati più forti di ogni domanda distinta; poi usa il
+    // punteggio complessivo per aggiungere procedure, requisiti ed eccezioni pertinenti.
+    for (const queryIndex of tokenGroups.keys()) {
+      const ranked = relevantRecords.filter(record => record.hits[queryIndex] > 0)
+        .sort((a, b) => b.hits[queryIndex] - a.hits[queryIndex] ||
+          b.headingHits - a.headingHits || a.index - b.index);
+      for (const record of ranked.slice(0, 2)) record.selectedForQuestion = true;
+    }
+    relevantRecords.sort((a, b) =>
+      Number(b.selectedForQuestion) - Number(a.selectedForQuestion) ||
+      b.bestHits - a.bestHits ||
+      b.totalHits - a.totalHits ||
+      b.headingHits - a.headingHits ||
+      a.index - b.index);
+
+    const marker = '\n[KB selezionata per le domande correnti; possono esserci omissioni, non dedurre dati mancanti.]';
+    if (limit <= marker.length + 1) return this._truncateKbSemantically(source, limit);
+    const contentBudget = limit - marker.length;
+    const selected = [];
+    let used = 0;
+    for (const record of relevantRecords) {
+      const separator = selected.length ? '\n' : '';
+      if (used + separator.length + record.text.length > contentBudget) continue;
+      selected.push(record);
+      used += separator.length + record.text.length;
+    }
+
+    // Una selezione senza corrispondenze non deve produrre una KB vuota.
+    if (!selected.length) return this._truncateKbSemantically(source, limit);
+    selected.sort((a, b) => a.index - b.index);
+    const result = selected.map(record => record.text).join('\n') + marker;
+    console.log(`📚 KB oltre budget: selezionate ${selected.length}/${records.length} righe pertinenti alle domande correnti (${result.length}/${limit} caratteri)`);
+    return result;
+  }
+
+  /**
    * Tronca KB semanticamente per paragrafi preservando il contesto.
    * Invece di tagliare a metà frase, mantiene paragrafi completi fino al budget.
    * @param {string} kbContent - Contenuto KB originale
@@ -4267,7 +4322,7 @@ ${safeAiCoreLiteText}
   _truncateKbSemantically(kbContent, charLimit) {
     const budgetChars = Math.max(0, Math.floor(Number(charLimit) || 0));
     if (budgetChars === 0) return '';
-    let truncationMarker = '\n\n... [SEZIONI OMESSE PER LIMITI LUNGHEZZA - INFO PRINCIPALI PRESERVATE] ...\n\n';
+    let truncationMarker = '\n\n... [SEZIONI OMESSE PER LIMITI DI BUDGET - KB PARZIALE, NON DEDURRE DATI MANCANTI] ...\n\n';
 
     if (kbContent.length <= budgetChars) {
       return kbContent;

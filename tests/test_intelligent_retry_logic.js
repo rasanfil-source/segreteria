@@ -265,9 +265,9 @@ const temporalRuntimePrompt = processor._buildCorrectionPrompt(
     }
 );
 assert(
-    temporalRuntimePrompt.includes('Regola 1: usa currentDate (2026-06-07)') &&
-      temporalRuntimePrompt.includes('Regola 2: usa messageDate (2026-06-01)') &&
-      temporalRuntimePrompt.includes('email vecchia') &&
+    temporalRuntimePrompt.includes('currentDate risposta: 2026-06-07') &&
+      temporalRuntimePrompt.includes('messageDate email originale: 2026-06-01') &&
+      temporalRuntimePrompt.includes('messageDate per interpretare i relativi') &&
       temporalRuntimePrompt.includes('Inizio ministero Papa attuale: 2025-05-18'),
     'Temporal retry prompt should include explicit currentDate/messageDate/papal retry rules'
 );
@@ -297,18 +297,12 @@ const renderedRuntimeContext = processor._renderRuntimeContextForCorrection_(
     'soft'
 );
 assert(
-    Array.isArray(temporalAwarenessArgs) &&
-      temporalAwarenessArgs.length === 4 &&
-      temporalAwarenessArgs[0].currentDate === '2026-06-07' &&
-      temporalAwarenessArgs[1] === 'it' &&
-      temporalAwarenessArgs[2].includes('Papa Leone XIV') &&
-      temporalAwarenessArgs[2].includes('2025-05-08') &&
-      temporalAwarenessArgs[3].currentName === 'Papa Leone XIV',
-    'Runtime context retry should call _renderTemporalAwareness with temporal, language, papal source text and papal object only'
+    temporalAwarenessArgs === null,
+    'Il retry usa un solo promemoria temporale senza duplicare il renderer del prompt iniziale'
 );
 assert(
-    renderedRuntimeContext.includes('TEMPORAL_AWARENESS_SENTINEL'),
-    'Runtime context retry should include rendered temporal awareness'
+    renderedRuntimeContext.includes('currentDate risposta: 2026-06-07') && !renderedRuntimeContext.includes('20:30'),
+    'Il promemoria conserva le date e omette gli orari tecnici'
 );
 
 const sensitiveValidation = {

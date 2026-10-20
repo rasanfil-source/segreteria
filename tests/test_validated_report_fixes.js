@@ -39,6 +39,13 @@ soft.semanticValidator = { shouldRun: () => true,
 soft.validateResponse(clean, 'it', '', '', '', 'full', false);
 assert.equal(softCalls, 1);
 
+const leakRefinement = new ctx.ResponseValidator();
+const exposedResponse = 'Dopo aver consultato le fonti, servono il certificato e il modulo richiesto.';
+const leakResult = leakRefinement._perfezionamentoAutomatico(
+  exposedResponse, ['RAGIONAMENTO ESPOSTO: riferimento alle fonti interne'], 'it');
+assert.equal(leakResult.fixed, false, 'un thinking leak richiede rigenerazione, non una cancellazione automatica');
+assert.equal(leakResult.text, exposedResponse, 'la correzione automatica non deve mutilare la risposta');
+
 for (const Gmail of [undefined, null, {}, { Users: { Messages: {} } }]) {
   const { ctx: c, warnings } = setup(['gas_gmail_service.js'], { Gmail });
   const service = new c.GmailService();
@@ -72,15 +79,15 @@ for (const file of ['gas_config.js', 'gas_config.example.js']) {
   config.MEMORY_RETENTION_DAYS = 30;
   config.SENSITIVE_FLAGS_TTL_DAYS = 180;
   const before = warnings.length;
-  for (let i = 0; i < 3; i++) assert.equal(c.validateConfig().warnings.length, 1);
-  assert.equal(warnings.length - before, 1);
+  for (let i = 0; i < 3; i++) assert.equal(c.validateConfig().warnings.length, 0);
+  assert.equal(warnings.length - before, 0);
   config.MEMORY_RETENTION_DAYS = 40;
   c.validateConfig();
-  assert.equal(warnings.length - before, 2);
+  assert.equal(warnings.length - before, 0);
   config.MEMORY_RETENTION_DAYS = 180;
   assert.equal(c.validateConfig().warnings.length, 0);
   config.MEMORY_RETENTION_DAYS = 40;
   c.validateConfig();
-  assert.equal(warnings.length - before, 3);
+  assert.equal(warnings.length - before, 0);
 }
 console.log('Validated report regressions passed');

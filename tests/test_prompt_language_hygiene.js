@@ -35,14 +35,14 @@ for (const lang of [...Object.keys(apologies), 'pl']) {
   assert(warm.includes('cordiale, rispettoso e sobrio') && warm.includes('saluto temporale fornito'));
   if (lang !== 'en') {
     const formal = engine._renderSbattezzoTemplate('Alex', lang);
-    for (const condition of ['verificare nei propri registri', 'Se registrato qui', 'Ordinario Diocesano', 'certificato di Battesimo', 'conseguenze canoniche', 'se la volontà resta confermata', 'decreto', 'Se non registrato qui', 'indicare la parrocchia', 'esito conclusa la verifica', 'fatto storico del sacramento non viene cancellato', 'non appartenere più alla Chiesa cattolica', 'Non aggiungere inviti a telefonare o fissare appuntamenti', '<email>']) {
+    for (const condition of ['verifica nei registri della parrocchia', 'Se il Battesimo risulta qui', 'Ordinario Diocesano', 'certificato di Battesimo', 'conseguenze canoniche', 'se la volontà resta confermata', 'decreto', 'Se il Battesimo non risulta qui', 'indica la parrocchia competente solo se conosciuta', "L'esito sarà comunicato dopo la verifica", 'fatto storico del sacramento resta registrato', 'non appartenere più alla Chiesa cattolica', 'Mantieni il solo colloquio della Curia', '<email>']) {
       assert(formal.includes(condition), `${lang}: procedura incompleta: ${condition}`);
     }
   }
 }
 assert(engine._renderResponseDelay({ shouldApologize: true }, 'it').includes('Ci scusiamo per il ritardo con cui rispondiamo.'));
-assert(engine._renderSbattezzoTemplate('Mario', 'it').includes('Gentile Mario,'));
-assert(engine._renderSbattezzoTemplate('Alex', 'en').includes('Dear Alex,'));
+assert(engine._renderSbattezzoTemplate('Mario', 'it').includes('Formula nella lingua IT'));
+assert(engine._renderSbattezzoTemplate('Alex', 'en').includes('Formula nella lingua EN'));
 assert(engine._renderOutputEnvelopePolicy('it', 'full_warm', '', '').includes('Gentile [nome]'));
 const bereavement = engine._renderResponseStructure('bereavement', [], 'lutto');
 assert(bereavement.includes('cordoglio sobrio') && bereavement.includes('esplicitata nel messaggio'));

@@ -25,6 +25,10 @@ var PromptContext = class PromptContext {
         }
 
         this.input = this._normalizeInput(safeInput);
+        this.crisisSignal = this._detectPastoralCrisisSignal_(this.input.email?.subject, this.input.email?.body);
+        const currentSignals = this.input.classification?.currentSignals || [];
+        if (currentSignals.some(signal => signal.kind === 'critical')) this.crisisSignal.critical = true;
+        if (this.crisisSignal.critical || currentSignals.some(signal => signal.kind === 'crisis')) this.crisisSignal.strong = true;
         this.concerns = this._computeConcerns();
         this.profile = this._computeProfile();
         this.meta = this._buildMeta();
@@ -32,6 +36,18 @@ var PromptContext = class PromptContext {
 
     _normalizeInput(input) {
         const normalizedInput = Object.assign({}, input);
+        if (input.email) {
+            const originalBody = String(input.email.body || '');
+            const messageEvidence = typeof Classifier === 'function' && typeof Classifier.prototype._extractMessageEvidence_ === 'function'
+                ? Classifier.prototype._extractMessageEvidence_(originalBody)
+                : { currentText: originalBody };
+            normalizedInput.messageEvidence = messageEvidence;
+            normalizedInput.email = Object.assign({}, input.email, {
+                originalBody,
+                body: messageEvidence.currentText,
+                subject: this._currentSignalSubject_(input.email.subject)
+            });
+        }
         const classificationSubIntents = this._normalizeSubIntentMap(normalizedInput.classification?.subIntents);
         const rootSubIntents = this._normalizeSubIntentMap(normalizedInput.subIntents);
         normalizedInput._resolvedSubIntents = this._mergeSubIntentMaps(classificationSubIntents, rootSubIntents);
@@ -360,7 +376,7 @@ var PromptContext = class PromptContext {
         );
         const requestTypeName = String(i.requestType?.type || '').toLowerCase();
         const classificationCategory = String(i.classification?.category || '').toLowerCase();
-        const crisisSignal = this._detectPastoralCrisisSignal_(i.email?.subject, i.email?.body);
+        const crisisSignal = this.crisisSignal;
         const hasEmotionalSensitivity = Boolean(
             i.requestType?.type === 'pastoral' ||
             classificationCategory === 'emotional_support' ||
@@ -384,7 +400,9 @@ var PromptContext = class PromptContext {
             'document_submission',
             'document_submission_with_question',
             'certificate',
-            'certificates'
+            'certificates',
+            'sacrament',
+            'mixed'
         ];
         const requestLooksOperational = operationalTypes.includes(requestTypeName);
         const categoryLooksOperational = operationalTypes.includes(classificationCategory);
@@ -504,9 +522,29 @@ var PromptContext = class PromptContext {
             .toLowerCase();
     }
 
+    _currentSignalSubject_(subject) {
+        if (typeof Classifier === 'function' && typeof Classifier.prototype._currentSubject_ === 'function') {
+            return Classifier.prototype._currentSubject_(subject);
+        }
+        return /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+-\s+)/i.test(String(subject || '').trim()) ? '' : subject;
+    }
+
     _detectPastoralCrisisSignal_(subject, body) {
-        const text = this._normalizeSignalText_([subject, body].filter(Boolean).join(' '))
-            .replace(/\b(?:sono\s+in\s+crisi|non\s+ce\s+la\s+faccio)\s+(?:con|a\s+compilare|per)\s+(?:(?:il|la|un|una|i)\s+)?(?:modul\w*|stampante|computer|compilazione|prenotazione|document\w*)\b/g, 'difficolta operativa');
+        const currentBody = typeof Classifier === 'function' && typeof Classifier.prototype._extractMessageEvidence_ === 'function'
+            ? Classifier.prototype._extractMessageEvidence_(body).currentText : body;
+        const currentSubject = this._currentSignalSubject_(subject);
+        const text = this._normalizeSignalText_([currentSubject, currentBody].filter(Boolean).join('\n'))
+            .split(/[.!?;\n]+|\b(?:ma|pero|but)\b/)
+            .filter(clause => {
+                // Una frase didattica non descrive una crisi; una testimonianza personale resta valutabile.
+                const topic = /\b(?:parola|termine|significa|significato|tema|convegno|organizz\w*|prevenzione|lezione|articolo|romanzo|tradurr\w*|traduzion\w*|translation|meaning|seminar|prevention)\b/.test(clause);
+                if (/\b(?:significato\s+(?:della\s+(?:parola|frase)|del\s+termine)|(?:cosa|che)\s+significa|traduci|translate|meaning\s+of)\b/.test(clause)) return false;
+                const experience = /\b(?:io|mio|mia|my|mi|voglio|vorrei|vuole|penso|sto|sono|i\s+(?:am|want|plan|intend)|wants\s+to|je\s+veux|quiero|quero|ich\s+will|ho\s+subito)\b/.test(clause);
+                return !topic || experience;
+            }).join('\n')
+            .replace(/\b(?:sono\s+in\s+crisi|non\s+ce\s+la\s+faccio)(?:\s+piu)?\s+(?:con|a\s+compilare|per)\s+(?:(?:il|la|un|una|i)\s+)?(?:modul\w*|stampante|computer|compilazione|prenotazione|document\w*)\b/g, 'difficolta operativa')
+            .replace(/\bnon\s+(?:sono|siamo|mi\s+sento|e|si\s+sente)\s+(?:piu\s+)?(?:in\s+crisi|disperat[oaie]|a\s+pezzi)\b/g, '')
+            .replace(/\bnon\s+(?:ho|ha|sto\s+avendo)\s+(?:un\s+)?attacco\s+di\s+panico\b/g, '');
         if (!text.trim()) {
             return { critical: false, strong: false };
         }
@@ -524,13 +562,13 @@ var PromptContext = class PromptContext {
             /\b(?:(?:penso|sto\s+pensando)\s+al\s+suicidio|pensieri\s+suicidari|(?:pratico|soffro\s+di)\s+autolesionismo|sono\s+suicida|mi\s+faccio\s+del\s+male|mi\s+taglio\s+(?:i\s+polsi|le\s+braccia)|sta\s+per\s+suicidarsi|vuole\s+(?:morire|suicidarsi)|wants\s+to\s+kill\s+(?:himself|herself)|veut\s+se\s+suicider)\b/.test(riskText) ||
             /\b(?:non\s+so\s+piu\s+come\s+andare\s+avanti|non\s+vedo\s+via\s+d[' ]?uscita|non\s+trovo\s+via\s+d[' ]?uscita|non\s+riesco\s+piu\s+ad?\s+andare\s+avanti)\b/.test(text)
         );
-        const hasAcuteSignal = /\b(?:sono\s+in\s+crisi|mi\s+sento\s+disperat[oaie]?|sono\s+disperat[oaie]?|sto\s+crollando|sono\s+a\s+pezzi|attacco\s+di\s+panico|angoscia\s+fortissima|trauma|emergenza\s+personale)\b/.test(text);
+        const hasAcuteSignal = /\b(?:sono\s+in\s+crisi|mi\s+sento\s+disperat[oaie]?|sono\s+disperat[oaie]?|sto\s+crollando|sono\s+a\s+pezzi|(?:ho|ha|sto\s+avendo|sta\s+avendo)\s+(?:un\s+)?attacco\s+di\s+panico|(?:provo|sento)\s+(?:un[' ]?)?angoscia\s+fortissima|(?:ho\s+subito|sto\s+vivendo)\s+un\s+trauma|emergenza\s+personale)\b/.test(text);
         const hasDistressSignal = /\b(?:crisi|disperat[oaie]?|crollo|panico|angoscia|trauma|non\s+ce\s+la\s+faccio)\b/.test(text);
         const hasHelpContext = /\b(?:aiuto|aiutatemi|parlare\s+con\s+qualcuno|sacerdote|prete|parroco|colloquio|ascolto|confessione|pregare|preghiera|fede|dio)\b/.test(text);
 
         return {
             critical: hasCriticalSignal,
-            strong: hasCriticalSignal || hasAcuteSignal || (hasDistressSignal && hasHelpContext)
+            strong: hasCriticalSignal || hasAcuteSignal || (hasDistressSignal && hasHelpContext && /\b(?:mi|mio|mia|io|ho|sto|sono|aiutatemi)\b/.test(text))
         };
     }
 
@@ -609,20 +647,7 @@ var PromptContext = class PromptContext {
         const category = String(this.input.classification?.category || '').toLowerCase();
         const isFormal = type === 'formal' || requestType.formalScore > 0.6 || category === 'formal' || category === 'sbattezzo';
 
-        const subIntents = this.input._resolvedSubIntents || {};
-        const hasEmotionalDistress = !!subIntents.emotional_distress;
-        const hasBereavement = !!subIntents.bereavement;
-        const crisisSignal = this._detectPastoralCrisisSignal_(this.input.email?.subject, this.input.email?.body);
-        const hasStrongCrisisSignal = crisisSignal.strong;
-        const hasPastoralCrisisContext = Boolean(
-            hasEmotionalDistress ||
-            hasBereavement ||
-            c.emotional_sensitivity ||
-            type === 'pastoral' ||
-            category === 'emotional_support'
-        );
-
-        if (crisisSignal.critical || (hasStrongCrisisSignal && hasPastoralCrisisContext)) {
+        if (this.crisisSignal.strong) {
             return 'pastoral_crisis';
         }
         if (isFormal) {
@@ -996,7 +1021,7 @@ var PromptContext = class PromptContext {
         const continuityPolicy = this._computeContinuityPolicy(responseMode);
         const concernSynthesis = this._buildConcernSynthesis(responseRegister, responseMode, operationalConstraints);
 
-        const crisisSignal = this._detectPastoralCrisisSignal_(this.input.email?.subject, this.input.email?.body);
+        const crisisSignal = this.crisisSignal;
         return {
             profile: this.profile,
             activeConcerns: active,

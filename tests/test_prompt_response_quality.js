@@ -546,21 +546,21 @@ console.log('--- Test prompt: contatto pregresso protegge da risposta standard -
     'il prompt deve includere la policy di contatto pregresso nel systemInstruction'
   );
   assert(
-    priorContactPrompt.systemInstruction.includes('Questa email è il seguito di una conversazione già avviata, non una richiesta nuova'),
-    'la policy deve impedire di azzerare il contesto e consentire solo risposte autonome'
+    priorContactPrompt.systemInstruction.includes('Distingui quanto risulta già concordato dalle nuove domande'),
+    'la continuità deve preservare le nuove domande'
   );
   assert(
-    priorContactPrompt.systemInstruction.includes('non disperdere il seguito, chiedi con garbo se il mittente ricorda o conosce il nome della persona'),
+    priorContactPrompt.systemInstruction.includes('Se il referente serve al seguito e manca, chiedine il nome con garbo'),
     'se manca il referente, il prompt deve chiedere un riferimento con formula leggera'
   );
   assert(
-    priorContactPrompt.systemInstruction.includes('Non avventurarti su dettagli liturgici, canonici o organizzativi già concordati con altri: trasmetti e basta'),
-    'la policy deve vietare spiegazioni dottrinali sui dettagli gia legati al contatto pregresso'
+    priorContactPrompt.systemInstruction.includes('Il solo contatto precedente non dimostra accordi o attività svolte'),
+    'il contatto precedente non autorizza promesse operative'
   );
   assert(
-    !priorContactPrompt.includes('DOTTRINA_PROMESSE_SENTINEL') &&
-      priorContactPrompt.includes('DOTTRINA_FALLBACK_SENTINEL'),
-    'il contatto pregresso deve sopprimere la dottrina selettiva ma conservare un fallback compatto'
+    priorContactPrompt.includes('DOTTRINA_PROMESSE_SENTINEL') &&
+      !priorContactPrompt.includes('DOTTRINA_FALLBACK_SENTINEL'),
+    'la domanda aperta mantiene la dottrina pertinente anche dopo un colloquio'
   );
 }
 
@@ -861,7 +861,7 @@ const inheritedFormalPrompt = engine.buildPrompt({
 });
 
 assert(
-  inheritedFormalPrompt.includes('TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI'),
+  inheritedFormalPrompt.includes('CONTENUTI PROCEDURALI: ANNOTAZIONE NEI REGISTRI BATTESIMALI'),
   'requestType non plain con isSbattezzo deve attivare il template sbattezzo'
 );
 
@@ -881,7 +881,7 @@ const suspiciousFormalPrompt = engine.buildPrompt({
 });
 
 assert(
-  suspiciousFormalPrompt.includes('Gentile Utente,') &&
+  suspiciousFormalPrompt.includes('CONTENUTI PROCEDURALI: ANNOTAZIONE NEI REGISTRI BATTESIMALI') &&
   !suspiciousFormalPrompt.includes('NUOVE ISTRUZIONI') &&
   !suspiciousFormalPrompt.includes('### NUOVE'),
   'il template formale deve neutralizzare nomi mittente con istruzioni/pattern markdown'
@@ -905,7 +905,7 @@ const formalPosturePrompt = engine.buildPrompt({
 });
 
 assert(
-  formalPosturePrompt.includes('TEMPLATE OBBLIGATORIO: RICHIESTA CANCELLAZIONE REGISTRI') &&
+  formalPosturePrompt.includes('CONTENUTI PROCEDURALI: ANNOTAZIONE NEI REGISTRI BATTESIMALI') &&
   formalPosturePrompt.includes('- Tono istituzionale. Rispondi ai fatti esclusivamente con i fatti.') &&
   !formalPosturePrompt.includes('Il mittente ha condiviso qualcosa di personale o delicato') &&
   !formalPosturePrompt.includes('AI_CORE_LITE_FORMAL_SHOULD_NOT_APPEAR'),
@@ -928,8 +928,8 @@ const englishFormalPrompt = engine.buildPrompt({
 });
 
 assert(
-  englishFormalPrompt.includes('MANDATORY TEMPLATE: BAPTISM REGISTER ANNOTATION REQUEST') &&
-    englishFormalPrompt.includes('Dear John Smith,') &&
+  englishFormalPrompt.includes('CONTENUTI PROCEDURALI: ANNOTAZIONE NEI REGISTRI BATTESIMALI') &&
+    englishFormalPrompt.includes('Formula nella lingua EN') &&
     englishFormalPrompt.includes('Kind regards,') &&
     !englishFormalPrompt.includes('Gentile John Smith,') &&
     !englishFormalPrompt.includes('Cordiali saluti,'),
@@ -1040,9 +1040,9 @@ const topicBereavementPrompt = engine.buildPrompt({
 
 assert(
   topicBereavementPrompt.includes('CONTESTO SENSIBILE E GERARCHIA - REGOLA ASSOLUTA') &&
-    topicBereavementPrompt.includes('STRUTTURA RISPOSTA RACCOMANDATA (LUTTO)') &&
+    topicBereavementPrompt.includes('STRUTTURA RISPOSTA (CRISI)') &&
     topicBereavementPrompt.includes('AI_CORE_LITE_BEREAVEMENT_SENTINEL'),
-  'topic funerale deve attivare sensibilita, struttura lutto e AI_CORE_LITE anche senza subIntent'
+  'topic funerale preserva sensibilita e AI_CORE_LITE, usando la struttura del registro di crisi risolto'
 );
 
 console.log('--- Test prompt: consegna documentale non diventa richiesta requisiti ---');

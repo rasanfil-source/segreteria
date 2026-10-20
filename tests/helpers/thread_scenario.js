@@ -168,6 +168,7 @@ function runScenario(root, scenario = {}, instrumentation = {}) {
       updateMemoryAtomic: (...args) => { record('memory.update', args); if (scenario.memoryError) fail('memory failure'); return true; } },
     territoryValidator: { analyzeEmailForAddress: (...args) => { record('territory', args); return { addressFound: false }; } }
   };
+  if (instrumentation.setup) instrumentation.setup(context, services);
   const originals = Object.fromEntries(Object.entries(services).map(([key, value]) => [key, value.logger]));
   const processor = new context.EmailProcessor(services);
   if (scenario.crisis) context.createPromptContext = () => ({ profile: 'standard', concerns: {}, meta: { crisisCritical: true } });

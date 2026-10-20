@@ -910,7 +910,7 @@ var EmailProcessor = class EmailProcessor {
       });
       if (classified.terminal) return result;
       const analysis = ThreadPolicy.quickCheck(policyServices, {
-        ...unread, ...message, ...language, threadId, messages, messageState,
+        ...unread, ...message, ...language, ...classified, threadId, messages, messageState,
         threadLogger, result, languageMode, skippedMessageIds
       });
       if (analysis.terminal) return result;
@@ -973,7 +973,7 @@ var EmailProcessor = class EmailProcessor {
       if (profile.terminal) return result;
       const routing = ThreadContext.routeKnowledge(contextServices, {
         ...policy, ...analysis, ...territory, ...documents, ...profile, greeting,
-        closing, routedAiCoreLite, routedAiCore, routedDoctrine, routedDoctrineStructured, result
+        closing, routedAiCoreLite, routedAiCore, routedDoctrine, routedDoctrineStructured, requestType, result
       });
       const runtime = ThreadContext.runtime(contextServices, {
         ...message, ...classified, ...analysis, ...knowledge, ...conversation,
@@ -1132,6 +1132,7 @@ var EmailProcessor = class EmailProcessor {
   _threadDocumentsServices_() {
     return {
       _detectDocumentRequestWithSupportingData_: this._detectDocumentRequestWithSupportingData_.bind(this),
+      _hasCurrentOperationalRequest_: this._hasCurrentOperationalRequest_.bind(this),
       _buildDocumentDeliveryModel_: this._buildDocumentDeliveryModel_.bind(this),
       _resolveRequestPurpose_: this._resolveRequestPurpose_.bind(this),
       _detectIndirectSbattezzoRequest_: this._detectIndirectSbattezzoRequest_.bind(this),
@@ -3227,7 +3228,7 @@ var EmailProcessor = class EmailProcessor {
     for (let index = 0; index < 20; index++) {
       const found = this._extractExplicitDateFromText_(remainingDates, requestAnchorDate.getFullYear());
       if (!found || !Number.isInteger(found.matchIndex) || !found.matchLength) break;
-      const normalized = this._normalizeExplicitDateForTemporalIntent_(found, requestText, requestAnchorDate);
+      const normalized = this._normalizeExplicitDateForTemporalIntent_(found, this._scheduleDateClause_(requestText, found.matchIndex), requestAnchorDate);
       const range = this._resolveSummerScheduleRange_(knowledgeBaseText, normalized.date.getFullYear());
       const iso = this._formatDateOnlyIso_(normalized.date);
       if (!targets.some(item => item.targetDate === iso)) targets.push({
@@ -3296,7 +3297,8 @@ var EmailProcessor = class EmailProcessor {
     const sources = ['relative:dopodomani', 'relative:domani', 'relative:oggi'];
     const explicitDate = this._extractExplicitDateFromText_(normalizedText, current.getFullYear());
     if (explicitDate) {
-      const normalizedExplicitDate = this._normalizeExplicitDateForTemporalIntent_(explicitDate, normalizedText, current);
+      const normalizedExplicitDate = this._normalizeExplicitDateForTemporalIntent_(explicitDate,
+        this._scheduleDateClause_(normalizedText, explicitDate.matchIndex), current);
       return {
         date: normalizedExplicitDate.date,
         isExplicit: true,
@@ -3313,11 +3315,48 @@ var EmailProcessor = class EmailProcessor {
         return { date: this._addDaysToDateOnly_(current, offsets[index]), isExplicit: true, source: sources[index] };
       }
     }
+    const weekdayText = relativeText.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const weekdays = {
+      it: ['domenica', 'lunedi', 'martedi', 'mercoledi', 'giovedi', 'venerdi', 'sabato'],
+      en: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
+      fr: ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'],
+      es: ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'],
+      pt: ['domingo', 'segunda-feira', 'terca-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sabado'],
+      de: ['sonntag', 'montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag']
+    };
+    const names = weekdays[lang] || weekdays.it;
+    const weekdayMatch = weekdayText.match(new RegExp('\\b(' + names.join('|') + ')\\b'));
+    if (weekdayMatch && !/\b(?:ogni|tutti i|tutte le|every|chaque|cada|jeden|alle)\s*$/.test(weekdayText.slice(0, weekdayMatch.index))) {
+      const day = names.indexOf(weekdayMatch[1]);
+      const vicinity = weekdayText.slice(Math.max(0, weekdayMatch.index - 25), weekdayMatch.index + weekdayMatch[0].length + 25);
+      const past = /\b(?:scors[oa]|passat[oa]|last|dernier|passe|pasado|passado|letzten)\b/.test(vicinity);
+      const next = /\b(?:prossim[oa]|next|prochain|prochaine|proxim[oa]|nachsten)\b/.test(vicinity);
+      const policy = typeof CONFIG !== 'undefined' && CONFIG.TEMPORAL_PARSING
+        ? CONFIG.TEMPORAL_PARSING.nextWeekdayPolicy : 'upcoming';
+      let delta = (day - current.getDay() + 7) % 7;
+      if (past) delta = -((current.getDay() - day + 7) % 7 || 7);
+      else if (next && policy === 'strict_next_week') {
+        delta = 7 - ((current.getDay() + 6) % 7) + ((day + 6) % 7);
+      } else if (delta === 0 && next) delta = 7;
+      return { date: this._addDaysToDateOnly_(current, delta), isExplicit: true, source: 'relative:weekday' };
+    }
     return {
       date: current,
       isExplicit: false,
       source: 'current_date'
     };
+  }
+
+  _scheduleDateClause_(text, index) {
+    const source = String(text || '');
+    const at = Number.isInteger(index) ? index : 0;
+    const boundary = /[!?;\n]|(?<!\d)\.(?!\d)/g;
+    let start = 0, end = source.length, match;
+    while ((match = boundary.exec(source)) !== null) {
+      if (match.index < at) start = match.index + 1;
+      else { end = match.index; break; }
+    }
+    return source.slice(start, end);
   }
 
   _extractExplicitDateFromText_(text, defaultYear) {
@@ -3327,8 +3366,11 @@ var EmailProcessor = class EmailProcessor {
     const birthDatePrefixPattern = /\b(?:nat[oaie](?:\s+a\s+[\p{L}'’ ().-]{1,60})?\s+(?:(?:il\s+)?giorno\s+|il\s+)?|data\s+di\s+nascita(?:\s+(?:di|del|della)\s+[\p{L}'’ -]{1,40})?\s*[:\-]?\s*|born(?:\s+on)?\s*[:\-]?\s*)$/iu;
     const historicalEventPrefixPattern = /\b(?:battezzat[oaie]|sposat[oaie]|celebrat[oaie]|battesimo|matrimonio|cresima|comunione)\s*(?:[:\-]\s*)?(?:(?:il|del|in\s+data)\s+)?(?:giorno\s+)?$/iu;
     // Il contesto biografico esclude date personali; l'anno da solo non esclude una richiesta storica.
+    const completedEventPrefix = /\b(?:battezzat[oaie]|sposat[oaie]|decedut[oaie]|mort[oaie]|decesso|data\s+di\s+morte|died)\s*(?:(?:il|del|on|in\s+data)\s+)?$/iu;
     const isPersonalDate = (prefix, year) => birthDatePrefixPattern.test(prefix) ||
-      (year < defaultYear && historicalEventPrefixPattern.test(prefix));
+      (completedEventPrefix.test(prefix) && !/\b(?:sar[aà]|verr[aà]|saranno|verranno|essere)\s+(?:\p{L}+\s+){0,2}(?:battezzat[oaie]|sposat[oaie])\s*(?:il\s+)?$/iu.test(prefix)) ||
+      (historicalEventPrefixPattern.test(prefix) && (year < defaultYear ||
+        (year <= defaultYear && /\b(?:certificato|attestato|celebrato|avvenuto)\b/i.test(prefix))));
     const textualPattern = new RegExp(`(?<!\\d)(\\d{1,2})[°º]?\\s+(${monthNames})(?![\\p{L}\\p{N}_])(?:\\s+(\\d{4}))?(?!\\d)`, 'giu');
     let textualMatch;
     let textualCandidate = null;
@@ -4707,7 +4749,8 @@ var EmailProcessor = class EmailProcessor {
     // sensitive_quality: senza, il modello deve "indovinare" la domanda dalla
     // sola risposta fallita.
     const groundingContext = this._buildRetryGroundingContext_(
-      originalPrompt, (flags.hallucination || flags.kb_relevance) ? 10000 : 6000
+      originalPrompt, (flags.hallucination || flags.kb_relevance) ? 10000 : 6000,
+      runtimeContext && runtimeContext.retrySources
     );
     const groundingReminder = groundingContext
       ? `\n\n### FONTI DI GROUNDING PER LA CORREZIONE ###\n${groundingContext}`
@@ -4727,7 +4770,19 @@ Restituisci esclusivamente la nuova email racchiusa in <email>...</email>.
 La prima riga deve essere esattamente <email>; l'ultima esattamente </email>.`;
   }
 
-  _buildRetryGroundingContext_(prompt, maxChars = 10000) {
+  _buildRetryGroundingContext_(prompt, maxChars = 10000, retrySources = null) {
+    const structured = Array.isArray(retrySources) ? retrySources : prompt && prompt.retrySources;
+    if (Array.isArray(structured) && structured.length) {
+      const compatibleSources = structured.slice();
+      if (!(prompt && Array.isArray(prompt.retrySources))) {
+        const legacy = this._normalizePromptForRetry_(prompt);
+        for (const [tag, kind] of [['user_email', 'request'], ['knowledge_base', 'knowledge'], ['conversation_history', 'history']]) {
+          const match = legacy.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`));
+          if (match) compatibleSources.push({ origin: 'legacy_' + tag, kind, text: match[1] });
+        }
+      }
+      return this._selectRetrySourceUnits_(compatibleSources, maxChars);
+    }
     const source = this._normalizePromptForRetry_(prompt);
     const limit = Math.max(1000, Math.floor(Number(maxChars) || 10000));
     if (!source) return '';
@@ -4767,6 +4822,63 @@ La prima riga deve essere esattamente <email>; l'ultima esattamente </email>.`;
     return this._repairRetryPromptXmlFences_(blocks.join('\n\n'), limit);
   }
 
+  _selectRetrySourceUnits_(sources, maxChars) {
+    const limit = Math.max(1000, Math.floor(Number(maxChars) || 10000));
+    const byOrigin = new Map();
+    for (const source of sources) {
+      if (source && typeof source.text === 'string' && source.text.trim()) {
+        byOrigin.set(String(source.origin || 'source'), source);
+      }
+    }
+    const request = Array.from(byOrigin.values()).filter(source => source.kind === 'request')
+      .map(source => source.text).join('\n');
+    const stopWords = new Set(['della', 'delle', 'degli', 'questo', 'questa', 'quali', 'vorrei',
+      'sapere', 'grazie', 'buongiorno', 'gentile', 'please', 'would', 'could', 'about']);
+    const tokens = text => String(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().match(/[a-z]{4,}/g) || [];
+    const query = new Set(tokens(request).filter(word => !stopWords.has(word)).map(word => word.slice(0, 6)));
+    const units = [];
+    const seen = new Set();
+    for (const [origin, source] of byOrigin) {
+      const chunks = source.kind === 'request' ? [source.text] : source.text.split(/\n\s*\n/);
+      chunks.forEach((text, index) => {
+        const content = text.trim();
+        if (!content || seen.has(content)) return;
+        seen.add(content);
+        const overlap = new Set(tokens(content).map(word => word.slice(0, 6)).filter(word => query.has(word))).size;
+        const tier = source.kind === 'request' ? 0 : source.kind === 'constraint' ? 1 :
+          source.kind === 'history' ? 3 : 2;
+        const priority = source.kind === 'selected' ? 80 : 0;
+        units.push({ origin, kind: source.kind, text: content, index, tier, score: priority + overlap * 20 });
+      });
+    }
+    units.sort((a, b) => a.tier - b.tier || b.score - a.score || a.index - b.index);
+    const blocks = [];
+    const omission = '\n[Fonti parziali: usa solo i dati presenti; i passaggi mancanti restano da verificare.]';
+    let used = omission.length;
+    let omitted = false;
+    for (const unit of units) {
+      const origin = unit.origin.replace(/[^\w.-]/g, '_');
+      const open = `<retry_source origin="${origin}">`;
+      const close = '</retry_source>';
+      let content = unit.text;
+      // L'email mantiene inizio e fine; procedure e condizioni restano unità indivise.
+      if (unit.kind === 'request') {
+        content = this._buildRetryPromptReducedContent_(content,
+          Math.min(2500, Math.floor(limit * 0.4)), '[...EMAIL RIDOTTA...]', 'head_tail');
+        if (content !== unit.text) omitted = true;
+      }
+      const block = `${open}\n${content}\n${close}`;
+      if (used + block.length + 2 > limit) {
+        omitted = true;
+        continue;
+      }
+      blocks.push(block);
+      used += block.length + 2;
+    }
+    return blocks.join('\n\n') + (omitted ? omission : '');
+  }
+
   _renderRuntimeContextForCorrection_(runtimeContext = null, detectedLanguage = 'it', salutationMode = 'full') {
     if (!runtimeContext || typeof runtimeContext !== 'object') return '';
     const temporal = runtimeContext.temporal && typeof runtimeContext.temporal === 'object'
@@ -4785,81 +4897,22 @@ La prima riga deve essere esattamente <email>; l'ultima esattamente </email>.`;
     };
     const currentPope = pick(papal.currentName, papalConfig.currentName, hasConfig ? CONFIG.CURRENT_POPE_NAME : null, 'Leone XIV');
     const previousPope = pick(papal.previousName, papalConfig.previousName, hasConfig ? CONFIG.PREVIOUS_POPE_NAME : null, 'Papa Francesco');
-    const papalForPrompt = Object.assign({}, papal, {
-      currentName: currentPope,
-      previousName: previousPope
-    });
     const lines = [];
-
-    if (temporal.currentDate) {
-      lines.push(`- currentDate risposta: ${temporal.currentDate}`);
+    if (temporal.currentDate) lines.push(`- currentDate risposta: ${temporal.currentDate}`);
+    if (temporal.messageDate) lines.push(`- messageDate email originale: ${temporal.messageDate}`);
+    if (temporal.messageDateSource) lines.push(`- sorgente messageDate: ${temporal.messageDateSource}`);
+    const schedule = runtimeContext.scheduleContext;
+    if (schedule && schedule.isExplicitTarget) {
+      const targets = schedule.targets || [{ targetDate: schedule.targetDate, season: schedule.season }];
+      lines.push(`- Date richieste già risolte: ${targets.map(item => `${item.targetDate}: ${item.season}`).join('; ')}${schedule.requestAnchorDateIsFallback ? ' (stima: data originale non disponibile)' : ''}.`);
     }
-    if (temporal.currentTime) {
-      lines.push(`- currentTime risposta (NON MENZIONARE): ${temporal.currentTime}`);
-    }
-    if (temporal.messageDate) {
-      lines.push(`- messageDate email originale: ${temporal.messageDate}`);
-    }
-    if (temporal.messageTime) {
-      lines.push(`- messageTime email originale (NON MENZIONARE): ${temporal.messageTime}`);
-    }
-    if (temporal.messageDateSource) {
-      lines.push(`- sorgente messageDate: ${temporal.messageDateSource}`);
-    }
-    if (Number.isFinite(Number(temporal.daysAgo)) && Number(temporal.daysAgo) > 0) {
-      lines.push(`- eta email originale: ${temporal.daysAgo} giorni`);
-    }
-    if (temporal.isOldMessage) {
-      lines.push('- ATTENZIONE: email vecchia; i relativi dell\'utente restano ancorati a messageDate.');
-    }
-    if (currentPope) {
-      lines.push(`- Papa attuale/regnante: ${currentPope}`);
-    }
-    if (previousPope) {
-      lines.push(`- Papa precedente/non regnante: ${previousPope}`);
-    }
-    if (papal.ministryStart) {
-      lines.push(`- Inizio ministero Papa attuale: ${papal.ministryStart}`);
-    }
-    if (lines.length === 0) return '';
-
-    let temporalAwareness = '';
-    if (
-      this.promptEngine &&
-      typeof this.promptEngine._renderTemporalAwareness === 'function' &&
-      temporal.currentDate
-    ) {
-      try {
-        const papalSourceText = [
-          papal.currentName,
-          papal.previousName,
-          papal.currentSince,
-          papal.ministryStart
-        ].filter(Boolean).join('\n');
-        temporalAwareness = this.promptEngine._renderTemporalAwareness(
-          temporal,
-          detectedLanguage,
-          papalSourceText,
-          papalForPrompt
-        ) || '';
-      } catch (_) {
-        temporalAwareness = '';
-      }
-    }
-
-    const fallbackRules = [
-      `Regola 1: usa currentDate (${temporal.currentDate || '?'}) come unica data di riferimento per stabilire se un evento è passato, presente o futuro.`,
-      `Regola 2: usa messageDate (${temporal.messageDate || '?'}) solo per i relativi dell'email originale: oggi, domani, ieri, sabato prossimo.`,
-      `Regola 3: se messageDate deriva da fallback tecnico e l'anno è ambiguo, chiedi conferma senza darlo per certo.`,
-      `Regola 4: non presentare ${previousPope || 'il Papa precedente'} come Papa attuale o voce magisteriale in presente.`,
-      `Regola 5: ometti dal testo l'ora di sistema (${temporal.currentTime || '?'}) e di ricezione (${temporal.messageTime || '?'}).`
-    ].join('\n');
-
-    const rulesBlock = temporalAwareness
-      ? `\n\n### REGOLE TEMPORALI COMPLETE PER IL RETRY ###\n${temporalAwareness}`
-      : `\n${fallbackRules}`;
-
-    return `\n\n### RUNTIME CONTEXT IMMUTATO PER IL RETRY ###\n${lines.join('\n')}${rulesBlock}`;
+    if (currentPope) lines.push(`- Papa attuale/regnante: ${currentPope}`);
+    if (previousPope) lines.push(`- Papa precedente/non regnante: ${previousPope}`);
+    if (papal.ministryStart) lines.push(`- Inizio ministero Papa attuale: ${papal.ministryStart}`);
+    if (!lines.length) return '';
+    return `\n\n### RUNTIME CONTEXT IMMUTATO PER IL RETRY ###
+${lines.join('\n')}
+Usa currentDate per stabilire se gli eventi sono trascorsi e messageDate per interpretare i relativi del mittente. Se la data deriva da fallback tecnico e l'anno è ambiguo, mantieni l'incertezza. Cita il Papa precedente solo nel suo contesto storico.`;
   }
 
   _trimPromptForRetry_(prompt, maxChars) {
@@ -5309,7 +5362,11 @@ La prima riga deve essere esattamente <email>; l'ultima esattamente </email>.`;
     } else if (physicalPresenceConstraint && physicalPresenceConstraint.has_constraint) {
       flags.remote_user = true;
     }
-    if (subIntents.bereavement === true) {
+    const hasCurrentBereavement = !classification.messageEvidence ||
+      (typeof Classifier === 'function' && Classifier.prototype._detectBereavementEvidence_(
+        [classification.messageEvidence.currentSubject, classification.messageEvidence.currentText].filter(Boolean).join('\n'))) ||
+      (classification.currentSignals || []).some(signal => signal.kind === 'bereavement');
+    if (subIntents.bereavement === true && hasCurrentBereavement) {
       flags.bereaved = true;
       flags._evidence = Object.assign({}, flags._evidence, { bereaved: new Date().toISOString() });
     }
@@ -5370,7 +5427,7 @@ La prima riga deve essere esattamente <email>; l'ultima esattamente </email>.`;
       return "RICHIESTA INFORMATIVA SUI CERTIFICATI: spiega solo la procedura richiesta. Specifica che il certificato va richiesto alla parrocchia in cui e stato celebrato il sacramento; chiedi dati personali soltanto se servono al passo successivo e precisando che valgono per sacramenti celebrati presso la nostra parrocchia.";
     }
     if (type === 'operational_request') {
-      return "RICHIESTA OPERATIVA DI DOCUMENTO: il mittente sta chiedendo il rilascio o la preparazione di un documento, anche quando trasmette i dati necessari. Conferma la ricezione e la presa in carico nominando il documento richiesto e tenendo conto della finalità indicata. Descrivi soltanto il seguito previsto dalla KB per quel caso o già concordato nello scambio; se non è specificato, esprimi l’impegno a occuparsi della richiesta e dare riscontro, senza dedurre procedure né garantire il rilascio. Recepisci eventuali preferenze di formato, consegna o data come richieste, senza trasformarle in accordi confermati. Riunisci i passaggi pertinenti in una formulazione concisa, con un solo impegno di riscontro, senza presentare come già svolte attività non confermate. Non riaprire spiegazioni già acquisite e non chiedere dati già forniti; chiedi soltanto quelli mancanti indispensabili secondo la procedura pertinente. Se emerge un impedimento documentato, spiegalo in modo mirato.";
+      return "RICHIESTA OPERATIVA DI DOCUMENTO: nomina il documento richiesto e la finalità. Conferma la ricezione; descrivi presa in carico, rilascio, invio e riscontro nei limiti della procedura KB applicabile o di un accordo esplicito compatibile. Se il seguito manca, chiarisci ciò che resta da verificare. Mantieni le possibilità autorizzate per i certificati ordinari e i requisiti specifici dell'idoneità padrino/madrina. Tratta formato, consegna e data proposti come richieste da verificare. Distingui azioni future da attività già svolte. Chiedi solo i dati indispensabili mancanti e rispondi alle domande ancora aperte.";
     }
     if (type === 'mixed') {
       return "RICHIESTA MISTA DI CERTIFICATO: gestisci prima l'azione richiesta, poi rispondi soltanto alle domande procedurali ancora aperte. Non ripetere requisiti o indicazioni che l'utente ha gia soddisfatto nel messaggio.";
@@ -6557,10 +6614,7 @@ La prima riga deve essere esattamente <email>; l'ultima esattamente </email>.`;
     return pattern.test(text);
   }
 
-  _deriveAttachmentIntentContext_(body, subject, attachmentItems, ocrText, phase = 'pre_ocr') {
-    const fullText = `${subject || ''} ${body || ''} ${ocrText || ''}`.normalize('NFC').toLowerCase();
-    const currentBodyText = String(body || '').normalize('NFC').toLowerCase();
-    const attachmentSignalText = `${ocrText || ''} ${(Array.isArray(attachmentItems) ? attachmentItems.map((i) => (i && i.name) ? i.name : '').join(' ') : '')}`.normalize('NFC').toLowerCase();
+  _hasCurrentOperationalRequest_(body, subject = '') {
     // Rileva domande esplicite, ma anche richieste implicite, condizionali e intenti
     // operativi (es. "se era possibile programmare...") che non contengono "?" né
     // le formule esatte "vorrei sapere"/"chiedo se". \w* dopo gli stem evita che il
@@ -6574,8 +6628,15 @@ La prima riga deve essere esattamente <email>; l'ultima esattamente </email>.`;
       /\b(?:firmare|timbrare|restituir\w*|rinviare|inviare|inoltrare)\b[\s\S]{0,100}\b(?:modul\w*|document\w*|letter\w*|autorizz\w*|permesso|nulla\s*osta)\b/i.test(attachmentBodyQuestionText) ||
       /\b(?:vi|le)\s+prego\s+di\s+(?:firmare|timbrare|restituir\w*|rinviare|inviare|inoltrare|confermare|autorizzare|approvare|rispondere)\b/i.test(attachmentBodyQuestionText)
     );
-    const hasBodyQuestion = /[?？]|(?<![\p{L}\p{N}_])(?:vorrei|chiedo|mi dica|sapere|possibil[\p{L}]*|possiamo|potremmo|programmare|fissare|disponibil[\p{L}]*|se\s+(?:era|fosse|pu[oò]|potete))(?![\p{L}\p{N}_])/iu.test(attachmentBodyQuestionText)
+    return /[?？]|(?<![\p{L}\p{N}_])(?:vorrei|chiedo|si richiede|mi dica|sapere|possibil[\p{L}]*|possiamo|potremmo|passerei|verrei|programmare|fissare|disponibil[\p{L}]*|would like|could i|can i|je voudrais|je souhaite|quisiera|gostaria|ich möchte|se\s+(?:era|fosse|pu[oò]|potete))(?![\p{L}\p{N}_])/iu.test(attachmentBodyQuestionText)
       || hasBodyOperationalRequest;
+  }
+
+  _deriveAttachmentIntentContext_(body, subject, attachmentItems, ocrText, phase = 'pre_ocr') {
+    const fullText = `${subject || ''} ${body || ''} ${ocrText || ''}`.normalize('NFC').toLowerCase();
+    const currentBodyText = String(body || '').normalize('NFC').toLowerCase();
+    const attachmentSignalText = `${ocrText || ''} ${(Array.isArray(attachmentItems) ? attachmentItems.map((i) => (i && i.name) ? i.name : '').join(' ') : '')}`.normalize('NFC').toLowerCase();
+    const hasBodyQuestion = this._hasCurrentOperationalRequest_(body, subject);
     // Non trattare punti interrogativi o label OCR come domande rivolte alla segreteria:
     // un form/certificato può contenere campi o diciture interrogative non intenzionali.
     const hasOcrQuestion = false;

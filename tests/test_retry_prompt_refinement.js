@@ -96,11 +96,11 @@ if (process.env.RETRY_PROMPT_BASELINE_SOURCE) {
   assert.match(prompts.temporal[1], /Confronta le date con currentDate risposta/);
   assert.match(prompts.temporal[1], /Se data o anno sono incerti, mantieni l'incertezza/);
   assert.match(prompts.temporal[1], /currentDate risposta: 2026-10-14/);
-  assert.match(prompts.temporal[1], /messageDate \(2026-10-10\) solo per i relativi/);
-  assert.match(prompts.temporal[1], /fallback tecnico e l'anno è ambiguo, chiedi conferma/);
-  assert.match(prompts.temporal[1], /ometti dal testo l'ora di sistema \(12:34\) e di ricezione \(09:17\)/);
-  assert.match(prompts.temporal[3], /REGOLE_COMPLETE_SENTINEL/);
-  assert(!prompts.temporal[3].includes('Regola 1:'), 'Il renderer completo prevale sul fallback');
+  assert.match(prompts.temporal[1], /messageDate email originale: 2026-10-10/);
+  assert.match(prompts.temporal[1], /fallback tecnico e l'anno è ambiguo, mantieni l'incertezza/);
+  assert(!prompts.temporal[1].includes('12:34') && !prompts.temporal[1].includes('09:17'));
+  assert(!prompts.temporal[3].includes('REGOLE_COMPLETE_SENTINEL'));
+  assert.match(prompts.temporal[3], /messageDate per interpretare i relativi/);
   assert.match(prompts.papal[1], /Il Papa regnante è Pontefice runtime/);
   assert(!prompts.papal[1].includes('ADERENZA ALLE FONTI:'), 'Il solo riferimento papale evita la correzione generica delle allucinazioni');
   const override = render(cases.papal, profiles[1], { currentPopeReference: { currentPope: 'Pontefice validatore' } });
