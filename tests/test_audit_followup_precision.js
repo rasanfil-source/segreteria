@@ -88,4 +88,11 @@ for (const [subject, expected] of [['Re-iscrizione catechismo', false], ['Re: ca
   { messageDetails: { subject, body: 'Vorrei informazioni' }, buildRuleContext: x => x, result: {} });
   assert.equal(received, expected, subject);
 }
+const classifier = new ctx.Classifier();
+for (const [subject, expected] of [['Re-iscrizione catechismo', 'Re-iscrizione catechismo'],
+  ['Re: catechismo', ''], ['Re - catechismo', '']]) {
+  assert.equal(classifier._currentSubject_(subject), expected, `Classifier subject: ${subject}`);
+}
+assert.equal(classifier.classifyEmail('Re-iscrizione catechismo', 'Grazie mille').shouldReply, true,
+  'Re-iscrizione non deve diventare un prefisso di risposta e sopprimere la richiesta');
 console.log('Audit follow-up: focus, validator, phone, territory, HTML, greetings and reply prefixes passed');

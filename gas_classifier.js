@@ -108,7 +108,7 @@ var Classifier = class Classifier {
     const safeSubject = typeof subject === 'string' ? subject : '';
     let safeBody = typeof body === 'string' ? body : '';
 
-    const replySubjectPattern = /^(?:re|rif|r|ris|risp|aw|sv)\s*(?::|-|–|—)/i;
+    const replySubjectPattern = /^(?:re|rif|r|ris|risp|aw|sv)(?:\s*:|\s+[-–—]\s+)/i;
     // Supporto firma alternativa: il 3° parametro può essere senderEmail anziché booleano.
     if (typeof isReply === 'string' && senderEmail === null) {
       senderEmail = isReply;
@@ -160,7 +160,7 @@ var Classifier = class Classifier {
     console.log(`      Contenuto principale: ${mainContent.length} caratteri`);
 
     // Lo storico non prefissato può contenere una risposta intercalata: decide il quick check.
-    const subjectForChecks = safeSubject.replace(/^(?:(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*(?::|-|–|—)\s*)+/i, '').trim();
+    const subjectForChecks = safeSubject.replace(/^(?:(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+[-–—]\s+)\s*)+/i, '').trim();
     if (this._isOutOfOfficeAutoReply(safeSubject, safeBody)) {
       return { shouldReply: false, reason: 'out_of_office_auto_reply', category: null, subIntents: {}, confidence: 0.98 };
     }
@@ -170,7 +170,7 @@ var Classifier = class Classifier {
       return { shouldReply: false, reason: 'empty_email', category: null, subIntents: {}, confidence: 1.0 };
     }
     const hasFreshSubjectQuestion = /[?？]/.test(safeSubject) &&
-      !/^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*(?::|-|–|—)/i.test(safeSubject.trim());
+      !/^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+[-–—]\s+)/i.test(safeSubject.trim());
     const hasCurrentRequest = this._isSbattezzoFormalRequest_(mainContent) || this._isDocumentSubmission(mainContent);
     // Un oggetto ereditato dalla conversazione non riapre un messaggio esplicito di chiusura.
     // Una risposta con corpo vuoto viene analizzata in base all’oggetto.
@@ -298,7 +298,7 @@ var Classifier = class Classifier {
 
   _currentSubject_(subject) {
     const value = String(subject || '');
-    return /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*(?::|-|–|—)/i.test(value.trim()) ? '' : value;
+    return /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+[-–—]\s+)/i.test(value.trim()) ? '' : value;
   }
 
   /** Conserva la provenienza del testo senza promuovere lo storico a messaggio corrente. */
