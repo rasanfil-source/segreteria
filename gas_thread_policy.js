@@ -411,7 +411,7 @@ var ThreadPolicy = {
     const MAX_SUBJECT_LENGTH = 1000;
     const safeSubject = (messageDetails.subject || '').substring(0, MAX_SUBJECT_LENGTH);
     const safeBody = (messageDetails.body || '');
-    const isReplyPattern = /^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+-\s+)/i;
+    const isReplyPattern = /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+[-–—]\s+)/i;
     const isReplyBySubject = isReplyPattern.test(safeSubject.toLowerCase());
 
     let classification = deps.classifier.classifyEmail(

@@ -287,11 +287,32 @@ var ThreadAttachments = {
     if (attachmentAnalysis) {
       const reliable = attachmentAnalysis.status === 'analyzed' && attachmentAnalysis.confidence >= 0.75;
       const docs = reliable ? attachmentAnalysis.documents : [];
+      const readableAttachmentText = typeof deps._documentEvidenceText_ === 'function'
+        ? deps._documentEvidenceText_(textFromAttachments)
+        : String(textFromAttachments || '')
+          .replace(/^\s*--- (?:File visivo inviato|Contenuto file):[^\n]*$/gim, '')
+          .replace(/^\s*Ruolo allegato:[^\n]*$/gim, '')
+          .replace(/^\s*\[Avviso di sistema[^\n]*$/gim, '').trim();
+      const normalizedAttachmentText = readableAttachmentText.normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+      const attachmentCoverage = typeof normalizeRequestCoverage_ === 'function'
+        ? normalizeRequestCoverage_(attachmentAnalysis.requestCoverage) : attachmentAnalysis.requestCoverage;
+      const attachmentOpenRequests = attachmentCoverage && Array.isArray(attachmentCoverage.openRequests)
+        ? attachmentCoverage.openRequests : [];
+      const groundedAttachmentRequests = attachmentOpenRequests.length
+        ? attachmentOpenRequests.filter(request => {
+          const evidence = String(request.evidence || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+          return evidence && normalizedAttachmentText.includes(evidence);
+        })
+        : [];
+      const hasGroundedAttachmentRequest = groundedAttachmentRequests.length > 0;
+      if (reliable && attachmentOpenRequests.length && !hasGroundedAttachmentRequest) {
+        console.log('   📎 Richieste degli allegati ignorate: nessuna evidenza testuale leggibile da riscontrare.');
+      }
       // I file storici sono contesto, non nuove istanze da riaprire.
       const requests = usedLookbackAttachments ? [] : docs.filter(doc => doc.role === 'request');
       const hasDocumentRequest = requests.length > 0;
       const hasBodyQuestions = Boolean(attachmentIntentContext && attachmentIntentContext.hasQuestions);
-      const hasActionPurpose = reliable && !usedLookbackAttachments &&
+      const hasActionPurpose = reliable && !usedLookbackAttachments && (hasDocumentRequest || hasBodyQuestions) &&
         ['information_request', 'operational_request', 'mixed'].includes(attachmentAnalysis.requestPurpose);
       const pureDelivery = reliable && attachmentAnalysis.consistent === true && !attachmentAnalysis.partial && !usedLookbackAttachments &&
         docs.length > 0 && docs.every(doc => ['delivery', 'supporting'].includes(doc.role)) &&
@@ -303,7 +324,7 @@ var ThreadAttachments = {
         requestPurpose: hasActionPurpose ? attachmentAnalysis.requestPurpose : null,
         requestSummary: requests.map(doc => doc.request).join(' ').slice(0, 400),
         requestCoverage: reliable && !usedLookbackAttachments && hasDocumentRequest
-          ? attachmentAnalysis.requestCoverage : null,
+          ? Object.assign({}, attachmentCoverage, { openRequests: groundedAttachmentRequests }) : null,
         responseDirective: '',
         categoryHintSource: (hasDocumentRequest || hasActionPurpose) && attachmentAnalysis.category !== 'unknown'
           ? attachmentAnalysis.category : null,

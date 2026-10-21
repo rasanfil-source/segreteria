@@ -619,13 +619,25 @@ function validateConfig() {
   }
 
   // Riprova Logica
-  if (CONFIG.SEMANTIC_VALIDATION && CONFIG.SEMANTIC_VALIDATION.completenessAlways !== undefined) {
-    checkType('SEMANTIC_VALIDATION.completenessAlways', CONFIG.SEMANTIC_VALIDATION.completenessAlways, 'boolean');
-    if (!['observe', 'enforce'].includes(CONFIG.SEMANTIC_VALIDATION.completenessMode)) {
+  if (CONFIG.SEMANTIC_VALIDATION !== undefined &&
+      (!CONFIG.SEMANTIC_VALIDATION || typeof CONFIG.SEMANTIC_VALIDATION !== 'object')) {
+    errors.push("Errore Config: 'SEMANTIC_VALIDATION' deve essere un oggetto");
+  } else if (CONFIG.SEMANTIC_VALIDATION && typeof CONFIG.SEMANTIC_VALIDATION === 'object') {
+    const semanticConfig = CONFIG.SEMANTIC_VALIDATION;
+    if (semanticConfig.completenessAlways !== undefined) {
+      checkType('SEMANTIC_VALIDATION.completenessAlways', semanticConfig.completenessAlways, 'boolean');
+    }
+    if (semanticConfig.completenessMode !== undefined && !['observe', 'enforce'].includes(semanticConfig.completenessMode)) {
       errors.push('Errore Config: SEMANTIC_VALIDATION.completenessMode deve essere observe o enforce');
     }
-    checkType('SEMANTIC_VALIDATION.coverageBodyMaxChars', CONFIG.SEMANTIC_VALIDATION.coverageBodyMaxChars, 'number');
-    checkRange('SEMANTIC_VALIDATION.coverageBodyMaxChars', CONFIG.SEMANTIC_VALIDATION.coverageBodyMaxChars, 2000, 60000);
+    if (semanticConfig.coverageBodyMaxChars !== undefined) {
+      checkType('SEMANTIC_VALIDATION.coverageBodyMaxChars', semanticConfig.coverageBodyMaxChars, 'number');
+      checkRange('SEMANTIC_VALIDATION.coverageBodyMaxChars', semanticConfig.coverageBodyMaxChars, 2000, 60000);
+    }
+    if (semanticConfig.knowledgeBaseMaxChars !== undefined) {
+      checkType('SEMANTIC_VALIDATION.knowledgeBaseMaxChars', semanticConfig.knowledgeBaseMaxChars, 'number');
+      checkRange('SEMANTIC_VALIDATION.knowledgeBaseMaxChars', semanticConfig.knowledgeBaseMaxChars, 4000, 40000);
+    }
   }
 
   if (!CONFIG.INTELLIGENT_RETRY || typeof CONFIG.INTELLIGENT_RETRY !== 'object') {

@@ -3460,7 +3460,7 @@ var GmailService = class GmailService {
                 }
 
                 let replySubject = this._sanitizeSubjectForHeader(messageDetails.subject);
-                if (!/^(re|rif|r|ris|risp|aw|sv|fw|fwd|tr)\s*:/i.test(replySubject)) {
+                if (!/^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr)(?:\s*:|\s+[-–—]\s+)/i.test(replySubject)) {
                     replySubject = 'Re: ' + replySubject;
                 }
 

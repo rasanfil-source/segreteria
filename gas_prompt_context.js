@@ -526,7 +526,7 @@ var PromptContext = class PromptContext {
         if (typeof Classifier === 'function' && typeof Classifier.prototype._currentSubject_ === 'function') {
             return Classifier.prototype._currentSubject_(subject);
         }
-        return /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+-\s+)/i.test(String(subject || '').trim()) ? '' : subject;
+        return /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+[-–—]\s+)/i.test(String(subject || '').trim()) ? '' : subject;
     }
 
     _detectPastoralCrisisSignal_(subject, body) {

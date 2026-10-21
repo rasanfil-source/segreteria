@@ -121,14 +121,20 @@ var ThreadDocuments = {
       });
     }
     // Il riepilogo dell'analisi non sostituisce l'evidenza documentale originale.
+    const rawAttachmentText = physicalAttachmentsDetected ? String(textFromAttachments || '') : '';
+    const readableAttachmentText = deps._documentEvidenceText_
+      ? deps._documentEvidenceText_(rawAttachmentText)
+      : rawAttachmentText.replace(/^\s*--- (?:File visivo inviato|Contenuto file):[^\n]*$/gim, '')
+        .replace(/^\s*Ruolo allegato:[^\n]*$/gim, '')
+        .replace(/^\s*\[Avviso di sistema[^\n]*$/gim, '').trim();
     const coverageSources = {
       currentBody: String(messageDetails.body || ''),
-      attachmentText: physicalAttachmentsDetected ? String(textFromAttachments || '').slice(0, 20000) : '',
-      attachmentsTruncated: physicalAttachmentsDetected && (String(textFromAttachments || '').length > 20000 ||
+      attachmentText: readableAttachmentText.slice(0, 20000),
+      attachmentsTruncated: physicalAttachmentsDetected && (readableAttachmentText.length > 20000 ||
         (Array.isArray(attachmentSkipped) && attachmentSkipped.some(item =>
           !['micro_image_ignored', 'no_attachments'].includes(item.reason))) ||
         Boolean(attachmentAnalysis && attachmentAnalysis.partial)),
-      attachmentsUnavailable: physicalAttachmentsDetected && !String(textFromAttachments || '').trim()
+      attachmentsUnavailable: physicalAttachmentsDetected && !readableAttachmentText
     };
     console.log(`   Scopo richiesta: ${requestPurpose.type}, confidence=${requestPurpose.confidence}, source=${requestPurpose.source}`);
 

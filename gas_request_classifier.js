@@ -148,7 +148,7 @@ var RequestTypeClassifier = class RequestTypeClassifier {
       { pattern: /\bsbattezzo\b/i, weight: 4 },
       { pattern: /\bapostasia\b/i, weight: 4 },
       { pattern: /\bapostatare\b/i, weight: 4 },
-      { pattern: /\bcancellazione dal registro\b/i, weight: 4 },
+      { pattern: /\bcancellazione\s+(?:dal|dai|dei)\s+registr(?:o|i)\b[^.!?\n]{0,40}\bbattesim\w*/i, weight: 4 },
       { pattern: /\bnon mi ritengo più cristiano\b/i, weight: 4 },
       { pattern: /\bcancellarmi\s+dalla\s+chiesa\b/i, weight: 4 },
       { pattern: /\bdisiscrivermi\s+dalla\s+chiesa\b/i, weight: 4 },
@@ -610,7 +610,12 @@ var RequestTypeClassifier = class RequestTypeClassifier {
       externalHint.description
     ].map(value => String(value || '').toLowerCase()).join(' ');
 
-    return /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|cancellazione\s+(?:dal|dai|dei)\s+registr|rinunciare\s+al\s+battesim[oa]/i.test(searchableText) ||
+    const ecclesialRegistryCancellation = searchableText.split(/[.!?;\n]+/).some(clause =>
+      /cancellazione\s+(?:dal|dai|dei)\s+registr/i.test(clause) &&
+      /\b(?:battesim\w*|parrocch\w*|cattolic\w*|cristian\w*|chiesa|diocesi|apostasi\w*|religion\w*)\b/i.test(clause)
+    );
+    return /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|cancellazione\s+(?:dal\s+registro\s+battesimale|dai\s+registri\s+(?:del\s+)?battesimo)|rinunciare\s+al\s+battesim[oa]/i.test(searchableText) ||
+      ecclesialRegistryCancellation ||
       this._hasNonPhysicalChurchExit_(searchableText);
   }
 

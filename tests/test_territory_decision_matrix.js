@@ -82,4 +82,7 @@ row('addresses after long introduction', () => {
   assert.equal(v.extractAddressFromText('x'.repeat(1001) + ' Via Esempio 10')[0].civic, 10);
   assert.equal(v.extractStreetOnlyFromText('x'.repeat(1001) + ' Via Esempio')[0], 'via Esempio');
 });
+for (const type of ['circonvallazione', 'borgo', 'clivo', 'scalinata', 'traversa', 'rampa', 'villaggio', 'strada', 'pza', 'ple', 'ltevere', 'cso']) {
+  row(`street type ${type}`, () => assert.ok(v._normalizeStreetType(type)));
+}
 console.log(`Territory decision matrices: ${cases} cases passed`);

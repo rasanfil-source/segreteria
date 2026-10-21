@@ -32,6 +32,16 @@ for (const [length, score, errors, warnings] of [
   assert.equal(result.errors.length, errors);
   assert.equal(result.warnings.length, warnings);
 });
+for (const mode of ['session', 'none_or_continuity']) {
+  for (const [len, sc, err, warn] of [[0, 0, 1, 0], [7, 0, 1, 0], [8, 1, 0, 0], [20, 1, 0, 0]]) {
+    row(`length compact ${mode}/${len}`, () => {
+      const res = v._checkLength('a'.repeat(len), mode);
+      assert.equal(res.score, sc);
+      assert.equal(res.errors.length, err);
+      assert.equal(res.warnings.length, warn);
+    });
+  }
+}
 
 const signatures = ["Segreteria Parrocchia Sant'Eugenio", "Parish secretariat of Sant'Eugenio", 'Secretaría parroquial', "Secretaria paroquial Sant'Eugenio", "Secrétariat paroissial Sant'Eugenio", "Pfarrsekretariat Sant'Eugenio"];
 for (const mode of ['full', 'soft', 'session', 'none_or_continuity']) for (const signature of ['', ...signatures]) row(`signature ${mode}/${signature}`, () => {

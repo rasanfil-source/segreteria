@@ -40,7 +40,7 @@ var Classifier = class Classifier {
         'information', 'know', 'how to', 'procedure', 'clarification', 'hours'
       ],
       'document_submission': [
-        'in allegato', 'allego', 'le invio', 'vi invio',
+        'in allegato', 'allego',
         'trasmetto', 'trova allegato', 'troverete allegato',
         'invio il documento', 'documento allegato', 'documento di',
         'mando il documento', 'inoltro il documento'
@@ -68,7 +68,7 @@ var Classifier = class Classifier {
       'sbattezzo': [
         'sbattezzo', 'sbattezzamento', 'apostasia', 'apostatare',
         'abbandonare la religione', 'abbandonare la fede', 'rinnegare la fede',
-        'non mi ritengo più cristiano', 'cancellazione dal registro', 'registri del battesimo',
+        'non mi ritengo più cristiano', 'cancellazione dal registro battesimale', 'registri del battesimo',
         'uscire dalla chiesa', 'non voglio più essere cattolico', 'non voglio piu essere cattolico',
         'cancellarmi dalla chiesa', 'disiscrivermi dalla chiesa', 'rinunciare al battesimo',
         'togliermi dai registri', 'essere rimosso dai registri',
@@ -108,7 +108,7 @@ var Classifier = class Classifier {
     const safeSubject = typeof subject === 'string' ? subject : '';
     let safeBody = typeof body === 'string' ? body : '';
 
-    const replySubjectPattern = /^(?:re|rif|r|ris|risp|aw|sv)(?:\s*:|\s+-\s+)/i;
+    const replySubjectPattern = /^(?:re|rif|r|ris|risp|aw|sv)\s*(?::|-|–|—)/i;
     // Supporto firma alternativa: il 3° parametro può essere senderEmail anziché booleano.
     if (typeof isReply === 'string' && senderEmail === null) {
       senderEmail = isReply;
@@ -160,7 +160,7 @@ var Classifier = class Classifier {
     console.log(`      Contenuto principale: ${mainContent.length} caratteri`);
 
     // Lo storico non prefissato può contenere una risposta intercalata: decide il quick check.
-    const subjectForChecks = safeSubject.replace(/^(?:(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]\s*)+/i, '').trim();
+    const subjectForChecks = safeSubject.replace(/^(?:(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*(?::|-|–|—)\s*)+/i, '').trim();
     if (this._isOutOfOfficeAutoReply(safeSubject, safeBody)) {
       return { shouldReply: false, reason: 'out_of_office_auto_reply', category: null, subIntents: {}, confidence: 0.98 };
     }
@@ -170,7 +170,7 @@ var Classifier = class Classifier {
       return { shouldReply: false, reason: 'empty_email', category: null, subIntents: {}, confidence: 1.0 };
     }
     const hasFreshSubjectQuestion = /[?？]/.test(safeSubject) &&
-      !/^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*[:\-]/i.test(safeSubject.trim());
+      !/^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*(?::|-|–|—)/i.test(safeSubject.trim());
     const hasCurrentRequest = this._isSbattezzoFormalRequest_(mainContent) || this._isDocumentSubmission(mainContent);
     // Un oggetto ereditato dalla conversazione non riapre un messaggio esplicito di chiusura.
     // Una risposta con corpo vuoto viene analizzata in base all’oggetto.
@@ -298,7 +298,7 @@ var Classifier = class Classifier {
 
   _currentSubject_(subject) {
     const value = String(subject || '');
-    return /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+-\s+)/i.test(value.trim()) ? '' : value;
+    return /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*(?::|-|–|—)/i.test(value.trim()) ? '' : value;
   }
 
   /** Conserva la provenienza del testo senza promuovere lo storico a messaggio corrente. */
@@ -517,7 +517,7 @@ var Classifier = class Classifier {
     if (wordCount > 3) return false;
 
     // Deve contenere parola di ringraziamento/ricevuto
-    const thankWords = ['grazie', 'ringrazio', 'ricevuto', 'ok', 'perfetto'];
+    const thankWords = ['grazie', 'ringrazio', 'ricevuto', 'ok', 'perfetto', 'thanks', 'thank', 'received', 'noted', 'gracias', 'agradezco', 'recibido', 'merci', 'remercie', 'danke', 'erhalten', 'obrigado', 'obrigada', 'recebido'];
     const normalizedWords = normalized.split(' ').filter(w => w.length > 0);
     const hasThanks = normalizedWords.some(word => thankWords.includes(word));
 
@@ -532,9 +532,9 @@ var Classifier = class Classifier {
     const extractedBody = this._extractMainContent(String(body || ''), { preserveGreetings: true });
     const normalized = `${rawSubject} ${extractedBody}`.toLowerCase();
     // Una descrizione personale dell'assenza non prova un autoresponder.
-    const isReplySubject = /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+-\s+)/i.test(rawSubject.trim());
+    const isReplySubject = /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+[-–—]\s+)/i.test(rawSubject.trim());
     const declaresAutoReply = text => /^\s*(?:(?:gentile\s+mittente|dear\s+sender)[,:]?\s*)?(?:auto(?:matic)?\s*reply|risposta\s+automatica|out\s+of\s+(?:the\s+)?office)\b/i.test(text);
-    const subjectWithoutReplyMarkers = rawSubject.trim().replace(/^(?:\s*(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*:)+\s*/i, '');
+    const subjectWithoutReplyMarkers = rawSubject.trim().replace(/^(?:\s*(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+[-–—]\s+))+\s*/i, '');
     if (!isReplySubject && declaresAutoReply(subjectWithoutReplyMarkers)) return true;
     const textForRequestCheck = isReplySubject ? extractedBody.toLowerCase() : normalized;
     if (/[?？]|\b(?:possiamo|vorrei|potete|chiedo|fissare|appuntamento)\b/i.test(textForRequestCheck)) return false;
@@ -695,18 +695,29 @@ var Classifier = class Classifier {
 
   /** Un lutto personale richiede un'esperienza affermata, non il solo nome del tema. */
   _detectBereavementEvidence_(text) {
-    const normalizedText = String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const rawText = String(text || '').normalize('NFC').toLowerCase();
+    const rawClauses = rawText.split(/[.!?;\n]+|(?<![\p{L}\p{N}_])(?:ma|però|pero|but)(?![\p{L}\p{N}_])/iu);
+    const normalizedText = rawText.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const clauses = normalizedText.split(/[.!?;\n]+|(?<![\p{L}\p{N}_])(?:ma|pero|but)(?![\p{L}\p{N}_])/iu);
-    return clauses.find(clause => {
+    return clauses.find((clause, index) => {
       if (this._isNonAssertedSensitiveEvidence_(clause, 'bereavement')) return false;
+      const hasAccentedFather = /\bpapà\b/i.test(rawClauses[index] || '');
       const personal = /\b(?:mi[oaie]|nostr[oaie])\s+(?:car[oa]\s+)?(?:marito|moglie|padr[ei]|madr[ei]|mamma|papa|nonn[oa]|figli[oa]|fratello|sorella|zi[oa]|cugin[oa]|amic[oa]|compagn[oa]|fidanzat[oa]|suocer[oa]|cognat[oa]|nipot[ei]|coniuge|familiare|parente)\b|\b(?:my|our)\s+(?:husband|wife|father|mother|mum|dad|son|daughter|brother|sister|grandmother|grandfather|friend|partner|relative)\b/.test(clause);
       const implicitCloseRelative = /\b(?:la\s+(?:mamma|madre|nonna|suocera|cognata|nipote)|il\s+(?:papa|padre|nonno|suocero|cognato|nipote|coniuge)|mamma|papa)\b/.test(clause);
       const namedPope = /\bpapa\s+(?:francesco|leone|benedetto|giovanni|paolo|pietro)\b/.test(clause);
+      const papalTitle = !hasAccentedFather && /\b(?:il\s+)?papa\b[^.!?;\n]{0,50}\b(?:e|era|ha|aveva|fu|sara|sarà|morto|deceduto|scomparso)\b/.test(clause);
       const familyBereavement = /\b(?:lutto\s+in\s+famiglia|un\s+lutto\s+familiare|stiamo\s+vivendo\s+un\s+lutto\s+in\s+famiglia)\b/.test(clause);
       const event = /\b(?:mort[oaie]|decedut[oaie]|defunt[oaie]|decesso|venut[oaie]\s+a\s+mancare|(?:e|era|sono)\s+(?:(?:purtroppo|recentemente|improvvisamente|da\s+poco)\s+)?mancat[oaie]|scompars[oaie]|funerale|esequie|died|deceased|passed\s+away|funeral)\b/.test(clause);
       const lostRelative = /\b(?:(?:ho|abbiamo)\s+(?:da\s+poco\s+|recentemente\s+)?perso|i\s+(?:have\s+)?lost)\s+(?:(?:il|la|i|le)\s+)?(?:mi[oaie]|nostr[oaie]|my|our)\s+(?:car[oa]\s+)?(?:marito|moglie|padr[ei]|madr[ei]|mamma|papa|nonn[oa]|figli[oa]|fratello|sorella|zi[oa]|cugin[oa]|amic[oa]|compagn[oa]|fidanzat[oa]|suocer[oa]|cognat[oa]|nipot[ei]|coniuge|familiare|parente|husband|wife|father|mother|mum|dad|son|daughter|brother|sister|grandmother|grandfather|friend|partner|relative)\b/.test(clause);
+      const explicitCurrentGrief = /\b(?:lutto|suffragio|anniversario|ricorrenza|mi\s+manca|ci\s+manca|sto\s+soffrendo|stiamo\s+soffrendo|ricordo\s+con\s+affetto)\b/.test(clause);
+      const datedPast = clause.match(/\b(?:nel|in)\s+((?:18|19|20)\d{2})\b/);
+      const oldDeath = Boolean(
+        (datedPast && new Date().getFullYear() - Number(datedPast[1]) >= 2) ||
+        /\b(?:\d+|molti|parecchi|diversi)\s+anni\s+fa\b|\bda\s+(?:molti|parecchi|diversi)\s+anni\b/.test(clause)
+      );
+      if (oldDeath && !explicitCurrentGrief) return false;
       return (personal && event) || lostRelative ||
-        (!namedPope && implicitCloseRelative && event) || familyBereavement ||
+        (!namedPope && !papalTitle && implicitCloseRelative && event) || familyBereavement ||
         /\b(?:(?:sono|siamo|sto|stiamo)\s+(?:vivendo\s+un\s+|affrontando\s+un\s+|in\s+)lutto|i\s+am\s+(?:bereaved|in\s+mourning))\b/.test(clause);
     })?.trim() || '';
   }
@@ -758,8 +769,13 @@ var Classifier = class Classifier {
 
   _isSbattezzoFormalRequest_(text) {
     const source = String(text || '').toLowerCase();
-    const explicitRequest = /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|\babbandonare\s+la\s+(?:fede|religione)\b|\brinnegare\s+la\s+fede\b|cancellazione\s+(?:dal|dai|dei)\s+registr|cancellarmi\s+dalla\s+chiesa|disiscrivermi\s+dalla\s+chiesa|rinunciare\s+al\s+battesim[oa]|(?:togliermi|rimuovermi|essere\s+rimoss[oa])\s+dai\s+registr|non\s+(?:voglio|desidero)\s+(?:piu|più)\s+essere\s+(?:cattolic[oa]|cristian[oa])|non\s+(?:mi\s+)?(?:ritengo|sento)\s+(?:piu|più)\s+(?:cattolic[oa]|cristian[oa])|non\s+essere\s+(?:piu|più)\s+registrat[oa]\s+come\s+cattolic[oa]/i.test(source);
+    const explicitRequest = /\bsbattezzo\b|\bsbattezzamento\b|\bapostasia\b|\bapostatare\b|\babbandonare\s+la\s+(?:fede|religione)\b|\brinnegare\s+la\s+fede\b|cancellazione\s+(?:dal|dai|dei)\s+registr(?:o\s+battesimale|i\s+(?:del\s+)?battesimo)\b|cancellarmi\s+dalla\s+chiesa|disiscrivermi\s+dalla\s+chiesa|rinunciare\s+al\s+battesim[oa]|(?:togliermi|rimuovermi|essere\s+rimoss[oa])\s+dai\s+registr|non\s+(?:voglio|desidero)\s+(?:piu|più)\s+essere\s+(?:cattolic[oa]|cristian[oa])|non\s+(?:mi\s+)?(?:ritengo|sento)\s+(?:piu|più)\s+(?:cattolic[oa]|cristian[oa])|non\s+essere\s+(?:piu|più)\s+registrat[oa]\s+come\s+cattolic[oa]/i.test(source);
     if (explicitRequest) return true;
+    const ecclesialRegistryCancellation = source.split(/[.!?;\n]+/).some(clause =>
+      /\bcancellazione\s+(?:dal|dai|dei)\s+registr/i.test(clause) &&
+      /\b(?:battesim\w*|parrocch\w*|cattolic\w*|cristian\w*|chiesa|diocesi|apostasi\w*|religion\w*)\b/i.test(clause)
+    );
+    if (ecclesialRegistryCancellation) return true;
     // Valuta ogni dichiarazione di uscita nel suo contesto, indipendentemente da eventi estranei.
     return source.split(/[.!?;\n]+/).some(clause => {
       if (!/\buscire\s+dalla\s+chiesa\b/i.test(clause)) return false;
@@ -871,8 +887,10 @@ var Classifier = class Classifier {
    * @returns {boolean}
    */
   _isDocumentSubmission(text) {
-    return /\b(in\s+allegato|allego|le\s+invio|vi\s+invio|trasmetto|trova\s+allegato|troverete\s+allegato|invio\s+il\s+documento|documento\s+allegato|mando\s+il\s+documento|inoltro\s+il\s+documento)\b/i
-      .test(String(text || ''));
+    const source = String(text || '');
+    const explicitDocumentDelivery = /\b(in\s+allegato|allego|trasmetto|trova\s+allegato|troverete\s+allegato|invio\s+il\s+documento|documento\s+allegato|mando\s+il\s+documento|inoltro\s+il\s+documento)\b/i.test(source);
+    const pronounDeliveryWithDocument = /\b(?:le|vi)\s+invio\b[^.!?\n]{0,80}\b(?:document\w*|sched\w*|modul\w*|certificat\w*|allegat\w*|file|attest\w*)\b/i.test(source);
+    return explicitDocumentDelivery || pronounDeliveryWithDocument;
   }
 
   /**

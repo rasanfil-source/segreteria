@@ -188,7 +188,7 @@ var PromptEngine = class PromptEngine {
       ? Classifier.prototype._extractMessageEvidence_(emailContent).currentText : emailContent;
     const currentSubject = typeof Classifier === 'function' && typeof Classifier.prototype._currentSubject_ === 'function'
       ? Classifier.prototype._currentSubject_(emailSubject)
-      : (/^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+-\s+)/i.test(String(emailSubject || '').trim()) ? '' : String(emailSubject || ''));
+      : (/^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+[-–—]\s+)/i.test(String(emailSubject || '').trim()) ? '' : String(emailSubject || ''));
     const currentText = [currentSubject, currentBody].join(' ');
     const marriageRequest = /\b(?:(?:ri)?sposar(?:mi|ci|si)|ci\s+sposiamo|(?:celebrare|per)\s+(?:il|un|il\s+nostro)\s+matrimonio|matrimonio\s+(?:in\s+chiesa|religioso)|(?:get|getting)\s+married|marry\s+in\s+church|casar(?:me|nos)|me\s+marier|heiraten)\b/i.test(currentText) ||
       /^(?:matrimonio|nozze|wedding|marriage)$/i.test(currentSubject.trim());

@@ -90,6 +90,8 @@ var TerritoryValidator = class TerritoryValidator {
             '(?:\\bs\\.\\s*|\\bs\\s+)': 'san ',
             '(?:^\\s*v\\.\\s*le\\b)': 'viale ',
             '(?:^\\s*p\\.\\s*zza\\b)': 'piazza ',
+            '(?:^\\s*p\\.?\\s*za\\b)': 'piazza ',
+            '(?:^\\s*p\\.?\\s*le\\b)': 'piazzale ',
             '(?:^\\s*l\\.\\s*go\\b)': 'largo ',
             '(?:^\\s*c\\.\\s*so\\b)': 'corso ',
             '(?:^\\s*l\\.?\\s*tevere\\b)': 'lungotevere ',
@@ -109,7 +111,7 @@ var TerritoryValidator = class TerritoryValidator {
      */
     _buildStreetTypePatternSource() {
         return [
-            'v\\.\\s*le', 'p\\.\\s*zza', 'l\\.\\s*go', 'c\\.\\s*so',
+            'v\\.\\s*le', 'p\\.\\s*zza', 'p\\.?\\s*za', 'p\\.?\\s*le', 'l\\.\\s*go', 'l\\.\\s*tevere', 'c\\.\\s*so',
             'circonvallazione', 'borgo', 'clivo', 'scalinata', 'traversa', 'rampa', 'villaggio', 'strada',
             'v[\\s.]*[iìíï][\\s.]*a(?:[\\s.]*l[\\s.]*e)?', // via / viale
             'p[\\s.]*[iìíï][\\s.]*a[\\s.]*z[\\s.]*z[\\s.]*a(?:[\\s.]*l[\\s.]*e)?', // piazza / piazzale
@@ -133,7 +135,7 @@ var TerritoryValidator = class TerritoryValidator {
             .replace(/[\u0300-\u036f]/g, '')
             .replace(/[^a-z]/g, '');
 
-        const abbreviations = { vle: 'viale', pzza: 'piazza', lgo: 'largo', cso: 'corso' };
+        const abbreviations = { vle: 'viale', pzza: 'piazza', pza: 'piazza', ple: 'piazzale', lgo: 'largo', ltevere: 'lungotevere', cso: 'corso' };
         if (abbreviations[canonical]) return abbreviations[canonical];
         if (['circonvallazione', 'borgo', 'clivo', 'scalinata', 'traversa', 'rampa', 'villaggio', 'strada'].includes(canonical)) return canonical;
         if (canonical.startsWith('piazzale')) return 'piazzale';
@@ -358,6 +360,10 @@ var TerritoryValidator = class TerritoryValidator {
 
                     // Validazione lunghezza nome via
                     if (viaName.length < 2 || viaName.length > 100) continue;
+                    if (/(?:^|\s)(?:da|e|ma|per|alle?|nel|nella|in|tra|fra|dopo|prima|quando|passeremo|passero|passerò|andremo|verremo)\s*$/i.test(viaName)) continue;
+                    const matchEnd = match.index + match[0].length;
+                    const followingText = text.slice(matchEnd, matchEnd + 30);
+                    if (/^\s*(?:anni|giorni|mesi|settimane|ore|volte|dopo|prima|passeremo|passero|passerò|andremo|verremo)\b/i.test(followingText)) continue;
 
                     const street = viaType + ' ' + viaName;
                     const civicRaw = match[3];
@@ -418,8 +424,8 @@ var TerritoryValidator = class TerritoryValidator {
 
         for (const stopWord of stopWords) {
             const escaped = stopWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const inlineRegex = new RegExp(`\\s*(?:\\||;|,)?\\s*${escaped}\\s*:?`, 'gi');
-            sanitized = sanitized.replace(inlineRegex, '\n');
+            const inlineRegex = new RegExp(`(^|[^\\wÀ-ÖØ-öø-ÿ])${escaped}(?![\\wÀ-ÖØ-öø-ÿ])\\s*:?`, 'gi');
+            sanitized = sanitized.replace(inlineRegex, '$1\n');
         }
 
         sanitized = sanitized
@@ -690,10 +696,9 @@ var TerritoryValidator = class TerritoryValidator {
 
         // 2. Aggiunge le vie parziali SOLO se non sovrapposte
         streetsOnly.forEach(street => {
-            const streetLower = street.toLowerCase();
+            const streetNormalized = this.normalizeStreetName(street);
             const isCovered = addresses.some(addr => {
-                const addrStreetLower = addr.street.toLowerCase();
-                return addrStreetLower.includes(streetLower) || streetLower.includes(addrStreetLower);
+                const addrNorm = this.normalizeStreetName(addr.street); return addrNorm.includes(streetNormalized) || streetNormalized.includes(addrNorm);
             });
 
             if (!isCovered) {

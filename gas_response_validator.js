@@ -459,10 +459,22 @@ var ResponseValidator = class ResponseValidator {
           evaluation: coverage || null, metrics: semHalluc.metrics || null,
           sourceCompleteness: semHalluc.sourceCompleteness || null
         };
+        const evaluatedCoverageRows = coverage
+          ? (coverage.requests || []).concat(coverage.additionalRequests || [])
+          : [];
+        const sourceEvidenceMismatchReason = 'Evidenza della richiesta non riscontrabile nelle fonti correnti disponibili.';
+        const undeterminableDiagnostics = coverageState === 'undeterminable' ? {
+          declaredReason: Boolean(coverage && coverage.undeterminableReason),
+          undeterminableRows: evaluatedCoverageRows.filter(row => row.status === 'undeterminable').length,
+          sourceEvidenceMismatchRows: evaluatedCoverageRows.filter(row =>
+            row.status === 'undeterminable' && row.reason === sourceEvidenceMismatchReason
+          ).length
+        } : null;
         console.log('SEMANTIC_COVERAGE ' + JSON.stringify({
           mode: coverageEnforced ? 'enforce' : 'observe', state: coverageState,
           additionalCall: !legacyGroundingReview,
           sourceCompleteness: semHalluc.sourceCompleteness || null,
+          ...(undeterminableDiagnostics ? { undeterminableDiagnostics } : {}),
           ...(semHalluc.metrics || {})
         }));
         if (coverageState !== 'complete') {
@@ -619,7 +631,7 @@ var ResponseValidator = class ResponseValidator {
     let score = 1.0;
 
     // === CONTROLLO 1: Lunghezza ===
-    const lengthResult = this._checkLength(response);
+    const lengthResult = this._checkLength(response, salutationMode);
     errors.push(...lengthResult.errors);
     warnings.push(...lengthResult.warnings);
     details.length = lengthResult;
@@ -866,17 +878,20 @@ var ResponseValidator = class ResponseValidator {
   /**
    * Controllo 1: Validazione lunghezza
    */
-  _checkLength(response) {
+  _checkLength(response, salutationMode = 'full') {
     const errors = [];
     const warnings = [];
     let score = 1.0;
 
     const length = response.trim().length;
+    const compactMode = salutationMode === 'none_or_continuity' || salutationMode === 'session';
+    const minimumLength = compactMode ? 8 : this.MIN_LENGTH_CHARS;
+    const optimalMinimumLength = compactMode ? minimumLength : this.OPTIMAL_MIN_LENGTH;
 
-    if (length < this.MIN_LENGTH_CHARS) {
-      errors.push(`Risposta troppo corta (${length} caratteri, minimo ${this.MIN_LENGTH_CHARS})`);
+    if (length < minimumLength) {
+      errors.push(`Risposta troppo corta (${length} caratteri, minimo ${minimumLength})`);
       score = 0.0;
-    } else if (length < this.OPTIMAL_MIN_LENGTH) {
+    } else if (length < optimalMinimumLength) {
       warnings.push(`Risposta piuttosto corta (${length} caratteri)`);
       score *= 0.85;
     } else if (length > this.WARNING_MAX_LENGTH) {
@@ -978,14 +993,10 @@ var ResponseValidator = class ResponseValidator {
     }
 
     // Scegli lingua con punteggio più alto
-    let detectedLang = expectedLanguage;
-    let maxScore = 0;
-    for (const lang in markerScores) {
-      if (markerScores[lang] > maxScore) {
-        maxScore = markerScores[lang];
-        detectedLang = lang;
-      }
-    }
+    const maxScore = Math.max(0, ...Object.values(markerScores));
+    const detectedLang = markerScores[expectedLanguage] === maxScore
+      ? expectedLanguage
+      : (Object.keys(markerScores).find(lang => markerScores[lang] === maxScore) || expectedLanguage);
 
     // Verifica corrispondenza
     if (detectedLang !== expectedLanguage) {
@@ -1254,7 +1265,7 @@ var ResponseValidator = class ResponseValidator {
     // Compatibilità GAS: evita lookbehind a lunghezza variabile, che in alcuni runtime V8
     // può fallire in fase di parsing. Il filtro di contesto replica le esclusioni precedenti.
     const timePattern = /\b\d{1,2}[:.]\d{2}\b(?![\/.]\d{2,4})(?!-\d{4}\b)(?!\.[a-z])/gi;
-    const contextualHourPattern = /\b(?:alle?|ore)\s+(\d{1,2})(?![:.]\d{2})\b/gi;
+    const contextualHourPattern = /\b(?:alle|ore)\s+(\d{1,2})(?:[:,.](\d{2}))?\b/gi;
     const collectStandaloneTimes = (text) => {
       const found = [];
       const safeText = text || '';
@@ -1275,7 +1286,7 @@ var ResponseValidator = class ResponseValidator {
         if (/(?:via|viale|piazza|corso|largo|vicolo|civico|n\.|num\.|int\.|scala)\s*$/i.test(prefix)) continue;
         if (/^\s*(?:euro|\u20AC|eur)/i.test(suffix)) continue;
         if (/^\.\d{2,4}\b/.test(suffix) || /(?:^|[\s(])\d{1,2}[\/.-]\d{1,2}$/.test(prefix.trim())) continue;
-        if (/\b(?:gv|mt|mc|lc|gen|es|lv|nm|dt|gs|dc|rut|1?sam|2sam|1?re|2re|1?cr|2cr|esd|ne|tb|gdt|est|gb|sal|pr|qo|ct|sap|sir|is|ger|lam|bar|ez|dn|os|gl|am|abd|gna|mi|na|ab|sof|ag|zc|ml|at|rm|1?cor|2cor|gal|ef|fil|col|1?ts|2ts|1?tm|2tm|tt|fm|eb|gc|1?pt|2pt|1?gv|2gv|3gv|gd|ap)\.?\s*$/i.test(prefix)) continue;
+        if (/\b(?:gv|mt|mc|lc|gen|es|lv|nm|dt|gs|dc|rut|1?sam|2sam|1?re|2re|1?cr|2cr|esd|ne|tb|gdt|est|gb|sal|pr|qo|ct|sap|sir|ger|lam|bar|ez|dn|os|gl|abd|gna|mi|na|ab|sof|ag|zc|ml|rm|1?cor|2cor|gal|ef|fil|col|1?ts|2ts|1?tm|2tm|tt|fm|eb|gc|1?pt|2pt|1?gv|2gv|3gv|gd|ap)\.?\s*$/i.test(prefix)) continue;
 
         found.push(timeStr);
       }
@@ -1290,8 +1301,11 @@ var ResponseValidator = class ResponseValidator {
       let contextualHourMatch;
       while ((contextualHourMatch = contextualHourPattern.exec(text || '')) !== null) {
         const suffix = String(text || '').slice(contextualHourPattern.lastIndex);
-        if (/^\s+(?:coppie|persone|famiglie|bambini|bambine|ragazzi|ragazze|partecipanti|gruppi|documenti|richieste|domande|giorni|settimane|mesi|anni|euro|volte)\b/i.test(suffix)) continue;
-        target.push(contextualHourMatch[1]);
+        if (/^\s+(?:coppie|persone|famiglie|bambini|bambine|ragazzi|ragazze|partecipanti|gruppi|documenti|richieste|domande|giorni|settimane|mesi|anni|euro|volte|messe|lezioni|libri|pratiche)\b/i.test(suffix)) continue;
+        const hour = Number(contextualHourMatch[1]);
+        const minutes = contextualHourMatch[2];
+        if (hour > 23 || (minutes !== undefined && Number(minutes) > 59)) continue;
+        target.push(minutes === undefined ? contextualHourMatch[1] : `${contextualHourMatch[1]}:${minutes}`);
       }
     };
 
@@ -1460,7 +1474,7 @@ var ResponseValidator = class ResponseValidator {
     // === Controllo numeri telefono ===
     // Pattern selettivo: richiede prefisso internazionale o separatori standard
     // Esclude pattern data (GG/MM/AAAA) e orari common
-    const phonePattern = /(?:(?:(?:\+\d{1,3}|0039)[\s.-])?\(?\d{2,4}\)?[\s.-]\d{3,4}[\s.-]?\d{3,4}(?!\d))|(?:(?:\+?39|0039)[ \t.-]*)?(?:0\d{7,9}|3\d{8,9})\b/g;
+    const phonePattern = /(?:(?:(?:\+\d{1,3}|0039)[ \t.-])?\(?\d{2,4}\)?[ \t.-]\d{3,4}[ \t.-]?\d{3,4}(?!\d))|(?:(?:\+?39|0039)[ \t.-]*)?(?:0\d{7,9}|3\d{8,9})\b/g;
     const responsePhonesRaw = response.match(phonePattern) || [];
     const kbPhonesRaw = safeKnowledgeBase.match(phonePattern) || [];
 
@@ -1556,7 +1570,7 @@ var ResponseValidator = class ResponseValidator {
 
     // Regex mirata ai token alfabetici semplici dopo virgola: evita falsi positivi su forme elise (es. Un'altra).
     // Nota: mantenuta intenzionalmente conservativa perché questa regola genera warning stilistici, non errori bloccanti.
-    const pattern = /,\s+([A-Z\u00C0-\u00D6\u00D8-\u00DE][a-z\u00DF-\u00F6\u00F8-\u00FF]*)/g;
+    const pattern = /,[ \t]+([A-Z\u00C0-\u00D6\u00D8-\u00DE][a-z\u00DF-\u00F6\u00F8-\u00FF]*)/g;
     let match;
     const violations = [];
 
@@ -1812,6 +1826,7 @@ var ResponseValidator = class ResponseValidator {
     }
 
     // Controlla congruenza saluto-orario
+
     if (detectedTimeSlot !== expectedTimeSlot) {
       const timeSlotNames = { morning: 'mattina', afternoon: 'pomeriggio', evening: 'sera' };
       warnings.push(
@@ -2054,8 +2069,12 @@ var ResponseValidator = class ResponseValidator {
 
     const visitPolicy = String(constraint.visit_policy || 'conditional_only').trim().toLowerCase();
     const source = this._stripDiacritics_(String(response || '').toLowerCase());
+    const scheduledPresence = constraint.scheduled_presence ||
+      (temporalContext && temporalContext.scheduled_presence) || {};
+    const scheduledLabel = this._stripDiacritics_(String(scheduledPresence.label || '').toLowerCase()).trim();
     const invitationPatterns = [
       /\b(?:puo|potra|puoi|potete|potrete)\s+(?:venire|passare|recarsi|presentarsi)\b[^.\n]{0,120}\b(?:segreteria|parrocchia|di\s+persona|persona)\b/i,
+      /\b(?:puo|potra|puoi|potete|potrete)\s+(?:anche\s+|eventualmente\s+)?(?:ritirar\w*|consegnar\w*)\b[^.\n]{0,100}\b(?:in|presso|alla)\s+(?:segreteria|parrocchia)\b/i,
       /\b(?:venga|passi|si\s+rechi|si\s+presenti)\b[^.\n]{0,120}\b(?:segreteria|parrocchia|di\s+persona|persona)\b/i,
       /\b(?:venire|passare|recarsi|presentarsi)\b[^.\n]{0,80}\b(?:in|presso|alla)\s+(?:segreteria|parrocchia)\b/i,
       /\b(?:venire|passare)\s+a\s+trovarci\b/i,
@@ -2092,6 +2111,12 @@ var ResponseValidator = class ResponseValidator {
           if (!negated) hasInvitation = true;
         }
       }
+      const scheduledMention = (scheduledLabel && sentence.includes(scheduledLabel)) ||
+        (String(scheduledPresence.type || '').toLowerCase() === 'appointment' && /\b(?:appuntamento|incontro|colloquio)\b/.test(sentence));
+      const scheduledTimingCue = /\b(?:giorno|data|durante|in\s+occasione|nel\s+corso|all['’]?inizio|in\s+concomitanza)\b/.test(sentence);
+      const scheduledCue = scheduledPresence.detected === true && scheduledMention && scheduledTimingCue;
+      const additionalVisitCue = /\b(?:prima|in anticipo|ulteriore|un altro momento|anche in precedenza)\b/.test(sentence);
+      if (scheduledCue && !additionalVisitCue) hasInvitation = false;
       if (hasInvitation && (visitPolicy === 'avoid_invitation' || !conditionalPatterns.some(pattern => pattern.test(sentence)))) {
         violations.push(sentence.trim().substring(0, 220));
       }
@@ -2170,8 +2195,13 @@ var ResponseValidator = class ResponseValidator {
     }
 
     const rawText = this._stripDiacritics_(String(response || '').toLowerCase());
+    const responseLower = String(response || '').normalize('NFC').toLowerCase();
     // Le subordinate di verifica non dichiarano un esito territoriale.
-    const text = rawText.replace(/\b(?:per\s+verificare\s+se|verificare\s+se|to\s+(?:check|verify)\s+(?:if|whether)|para\s+(?:verificar|comprobar)\s+si|pour\s+verifier\s+si|para\s+verificar\s+se|um\s+zu\s+prufen,?\s+ob)[^,.;!?\n]*/g, ' ');
+    const verificationClausePattern = /\b(?:per\s+verificare\s+se|verificare\s+se|to\s+(?:check|verify)\s+(?:if|whether)|para\s+(?:verificar|comprobar)\s+si|pour\s+v[eé]rifier\s+si|para\s+verificar\s+se|um\s+zu\s+pr[uü]fen,?\s+ob)[^,.;!?\n]*/gi;
+    const text = rawText.replace(verificationClausePattern, ' ');
+    const affirmativeResponse = responseLower
+      .replace(verificationClausePattern, ' ')
+      .replace(/\bnon\s+(?:è|e['’])\s+(?:nel|nella|in)\s+(?:nostro|nostra)\s+(?:territorio|parrocchia|competenza)/gi, '.');
     const outsidePatterns = [
       /\b(?:outside|not\s+(?:within|in|part\s+of))\s+(?:the\s+|our\s+)?parish(?:\s+territory)?\b/,
       /\b(?:no\s+(?:pertenece|esta)|fuera)\s+(?:a\s+|de\s+|del\s+|en\s+)?(?:la\s+)?(?:parroquia|territorio)\b/,
@@ -2194,11 +2224,13 @@ var ResponseValidator = class ResponseValidator {
       /\b(?:fait\s+partie\s+de|dans)\s+la\s+paroisse\b/,
       /\b(?:im\s+pfarrgebiet|in\s+der\s+pfarrei)\b/,
       /\b(?:pertence\s+a|fica\s+na)\s*(?:a\s+)?paroquia\b/,
-      /\bsi[,:\s]+[^.\n!?]{0,120}\brientra(?:no)?\b/,
       /\brientra(?:no)?\s+(?:nel|nella|in)\s+(?:territorio|parrocchia|competenza)/,
       /\bfa\s+parte\s+(?:del|della)\s+(?:territorio|parrocchia|competenza)/,
-      /\be\s+(?:nel|nella|in)\s+(?:nostro|nostra)\s+(?:territorio|parrocchia|competenza)/
-    ].some(pattern => pattern.test(affirmativeText));
+      /\b(?:è|e['’])\s+(?:nel|nella|in)\s+(?:nostro|nostra)\s+(?:territorio|parrocchia|competenza)/
+    ].some(pattern => pattern.test(affirmativeText)) ||
+      /\b(?:è|e['’])\s+(?:nel|nella|in)\s+(?:nostro|nostra)\s+(?:territorio|parrocchia|competenza)/i.test(
+        affirmativeResponse
+      );
     const saysOutside = outsidePatterns.some(pattern => pattern.test(text));
 
     const violations = [];
@@ -2589,8 +2621,23 @@ var ResponseValidator = class ResponseValidator {
       { label: 'registrazione nei nostri archivi', pattern: /\bregistrazione\s+nei\s+nostri\s+archivi\b/i },
       { label: 'se tutto risultera completo', pattern: /\bse\s+tutto\s+risulter[aà]\s+completo\b/i }
     ];
+    const hasAssertedMatch = pattern => {
+      const rx = new RegExp(pattern.source, (pattern.flags || '').replace(/g/g, '') + 'g');
+      let match;
+      while ((match = rx.exec(text)) !== null) {
+        const clauseStart = Math.max(
+          text.lastIndexOf('.', match.index), text.lastIndexOf('!', match.index),
+          text.lastIndexOf('?', match.index), text.lastIndexOf(';', match.index),
+          text.lastIndexOf('\n', match.index)
+        ) + 1;
+        const prefix = text.slice(clauseStart, match.index);
+        if (/\b(?:non\s+(?:(?:abbiamo|ho|avete|hanno|risulta|risultano)\s+)?(?:ancora\s+)?|not\s+(?:(?:we|have|has)\s+)?|no\s+(?:hemos\s+)?|n['’]?\s*avons\s+pas\s+|nicht\s+(?:haben\s+wir\s+)?|nao\s+(?:recebemos\s+)?)$/i.test(prefix)) continue;
+        return true;
+      }
+      return false;
+    };
     const forbiddenReceiptMatches = forbiddenReceiptPatterns
-      .filter((entry) => entry.pattern.test(text))
+      .filter((entry) => hasAssertedMatch(entry.pattern))
       .map((entry) => entry.label);
     const hasMissingDocumentStatement = hasAny([
       /\bnon\s+troviamo\s+allegat[ao]\s+n(?:e|é|è)\s+riportat[ao]\s+nel\s+testo\b/i,
@@ -3127,7 +3174,7 @@ var ResponseValidator = class ResponseValidator {
       giugno: 6, giu: 6, june: 6, jun: 6, junio: 6, juin: 6, junho: 6, juni: 6,
       luglio: 7, lug: 7, july: 7, jul: 7, julio: 7, juillet: 7, julho: 7, juli: 7,
       agosto: 8, ago: 8, august: 8, aug: 8, aout: 8,
-      settembre: 9, set: 9, september: 9, sep: 9, septiembre: 9, septembre: 9, setembro: 9,
+      settembre: 9, september: 9, sep: 9, septiembre: 9, septembre: 9, setembro: 9,
       ottobre: 10, ott: 10, october: 10, oct: 10, octubre: 10, octobre: 10, outubro: 10, oktober: 10, okt: 10,
       novembre: 11, nov: 11, november: 11, noviembre: 11, novembro: 11,
       dicembre: 12, dic: 12, december: 12, dec: 12, diciembre: 12, decembre: 12, dezembro: 12, dezember: 12, dez: 12
@@ -3176,15 +3223,17 @@ var ResponseValidator = class ResponseValidator {
   _extractRelativePointReferences_(source, normalized, anchor) {
     const references = [];
     const relativePatterns = [
-      { pattern: /(?<![a-zA-Z])dopodomani(?![a-zA-Z])/g, days: 2, intent: 'future' },
-      { pattern: /(?<![a-zA-Z])domani(?![a-zA-Z])/g, days: 1, intent: 'future' },
-      { pattern: /(?<![a-zA-Z])oggi(?![a-zA-Z])/g, days: 0, intent: 'present' },
-      { pattern: /(?<![a-zA-Z])ieri(?![a-zA-Z])/g, days: -1, intent: 'past' }
+      { pattern: /\b(?:dopodomani|day\s+after\s+tomorrow|pasado\s+manana|despues\s+de\s+manana|apres-demain|ubermorgen)\b/g, days: 2, intent: 'future' },
+      { pattern: /\b(?:domani|tomorrow|manana|amanha|demain|morgen)\b/g, days: 1, intent: 'future' },
+      { pattern: /\b(?:oggi|today|hoy|aujourd['’]hui|heute|hoje)\b/g, days: 0, intent: 'present' },
+      { pattern: /\b(?:ieri|yesterday|ayer|hier|gestern|ontem)\b/g, days: -1, intent: 'past' }
     ];
 
     relativePatterns.forEach(definition => {
       let match;
       while ((match = definition.pattern.exec(normalized)) !== null) {
+        if (match[0] === 'morgen' && /\bguten\s*$/.test(normalized.slice(Math.max(0, match.index - 12), match.index))) continue;
+        if (match[0] === 'manana' && /\b(?:la|esta|toda|por\s+la|durante\s+la)\s*$/.test(normalized.slice(Math.max(0, match.index - 16), match.index))) continue;
         references.push(this._makeTemporalReference_('relative_point', source, match, anchor, {
           normalizedDate: this._addDaysToDateOnly_(anchor.date, definition.days),
           confidence: 0.85,
@@ -3204,18 +3253,17 @@ var ResponseValidator = class ResponseValidator {
 
   _weekdayNameMap_() {
     return {
-      lunedi: 1,
-      martedi: 2,
-      mercoledi: 3,
-      giovedi: 4,
-      venerdi: 5,
-      sabato: 6,
-      domenica: 0
+      lunedi: 1, monday: 1, lunes: 1, lundi: 1, montag: 1, segunda: 1, 'segunda-feira': 1,
+      martedi: 2, tuesday: 2, martes: 2, mardi: 2, dienstag: 2, terca: 2, 'terca-feira': 2,
+      mercoledi: 3, wednesday: 3, miercoles: 3, mercredi: 3, mittwoch: 3, quarta: 3, 'quarta-feira': 3,
+      giovedi: 4, thursday: 4, jueves: 4, jeudi: 4, donnerstag: 4, quinta: 4, 'quinta-feira': 4,
+      venerdi: 5, friday: 5, viernes: 5, vendredi: 5, freitag: 5, sexta: 5, 'sexta-feira': 5,
+      sabato: 6, saturday: 6, sabado: 6, samedi: 6, samstag: 6, domingo: 0, sunday: 0, dimanche: 0, sonntag: 0
     };
   }
 
   _weekdayAlternation_() {
-    return 'lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica';
+    return 'lunedi|martedi|mercoledi|giovedi|venerdi|sabato|domenica|monday|tuesday|wednesday|thursday|friday|saturday|sunday|lunes|martes|miercoles|jueves|viernes|sabado|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|segunda(?:-feira)?|terca(?:-feira)?|quarta(?:-feira)?|quinta(?:-feira)?|sexta(?:-feira)?';
   }
 
   _resolveWeekdayDate_(anchorDate, weekdayNumber, direction) {
@@ -3270,31 +3318,41 @@ var ResponseValidator = class ResponseValidator {
       }));
     };
 
+    const nextQualifier = '(?:prossim[oa]|next|proxim[oa]|prochain(?:e)?|nachst(?:e|en|er)?|kommend(?:e|en|er)?|proximo)';
+    const previousQualifier = '(?:scors[oa]|last|pasad[oa]|dernier(?:e)?|letzt(?:e|en|er)?|passad[oa])';
+    const currentQualifier = '(?:quest[oa]|this|est[ea]|ce|cette|diese?)';
+    const article = '(?:il|la|el|los|le|les|der|die|das|am)?';
     const compositePatterns = [
-      new RegExp('\\b(?:il\\s+|la\\s+)?(' + weekdayAlternation + ')\\s+(?:della|nella|di)\\s+(prossima|scorsa|questa)\\s+settimana\\b', 'g'),
-      new RegExp('\\b(?:il\\s+|la\\s+)?(' + weekdayAlternation + ')\\s+(?:della|nella|di)\\s+settimana\\s+(prossima|scorsa)\\b', 'g')
+      new RegExp('\\b' + article + '\\s*(' + weekdayAlternation + ')\\s+(?:della|nella|di|de\\s+la|de\\s+los|of|in|im|na|nesta|desta)\\s+(' + nextQualifier + '|' + previousQualifier + '|' + currentQualifier + ')\\s+(?:settimana|week|semana|semaine|woche)\\b', 'g'),
+      new RegExp('\\b' + article + '\\s*(' + weekdayAlternation + ')\\s+(?:della|nella|di|de\\s+la|de\\s+los|of|in|im|na|nesta|desta)\\s+(?:settimana|week|semana|semaine|woche)\\s+(' + nextQualifier + '|' + previousQualifier + ')\\b', 'g'),
+      new RegExp('\\b' + article + '\\s*(' + weekdayAlternation + ')\\s+(' + nextQualifier + '|' + previousQualifier + '|' + currentQualifier + ')\\s+(?:settimana|week|semana|semaine|woche)\\b', 'g')
     ];
     compositePatterns.forEach(pattern => {
       let match;
       while ((match = pattern.exec(normalized)) !== null) {
         const qualifier = match[2];
-        const direction = qualifier === 'scorsa'
+        const direction = new RegExp(previousQualifier).test(qualifier)
           ? 'previous_week'
-          : (qualifier === 'questa' ? 'current_week' : 'next_week_strict');
+          : (new RegExp(currentQualifier).test(qualifier) ? 'current_week' : 'next_week_strict');
         addWeekdayRef(match, match[1], direction);
       }
     });
 
-    const suffixPattern = new RegExp('\\b(?:il\\s+|la\\s+)?(' + weekdayAlternation + ')\\s+(prossimo|prossima|scorso|scorsa)\\b', 'g');
+    const suffixPattern = new RegExp('\\b' + article + '\\s*(' + weekdayAlternation + ')\\s+(' + nextQualifier + '|' + previousQualifier + '|' + currentQualifier + ')\\b', 'g');
     let match;
     while ((match = suffixPattern.exec(normalized)) !== null) {
-      const direction = /^scors/.test(match[2]) ? 'previous_week' : 'next_week';
+      const direction = new RegExp(previousQualifier).test(match[2])
+        ? 'previous_week'
+        : (new RegExp(currentQualifier).test(match[2]) ? 'current_week' : 'next_week');
       addWeekdayRef(match, match[1], direction);
     }
 
-    const prefixPattern = new RegExp('\\b(?:il\\s+|la\\s+)?(prossimo|prossima|scorso|scorsa)\\s+(' + weekdayAlternation + ')\\b', 'g');
+    const prefixPattern = new RegExp('\\b(' + nextQualifier + '|' + previousQualifier + '|' + currentQualifier + ')\\s+' + article + '\\s*(' + weekdayAlternation + ')\\b', 'g');
     while ((match = prefixPattern.exec(normalized)) !== null) {
-      const direction = /^scors/.test(match[1]) ? 'previous_week' : 'next_week';
+      const qualifier = match[1];
+      const direction = new RegExp(previousQualifier).test(qualifier)
+        ? 'previous_week'
+        : (new RegExp(currentQualifier).test(qualifier) ? 'current_week' : 'next_week');
       addWeekdayRef(match, match[2], direction);
     }
 
@@ -3327,18 +3385,20 @@ var ResponseValidator = class ResponseValidator {
       }));
     };
 
-    const weekPattern = /\b(?:la\s+)?(?:prossima\s+settimana|settimana\s+prossima|scorsa\s+settimana|settimana\s+scorsa|questa\s+settimana|settimana\s+corrente)\b/g;
+    const weekPattern = /\b(?:(?:la\s+)?(?:prossima\s+settimana|settimana\s+prossima|scorsa\s+settimana|settimana\s+scorsa|questa\s+settimana|settimana\s+corrente)|(?:next|last|this|current)\s+week|week\s+(?:next|last|current)|(?:la\s+)?(?:proxima\s+semana|semana\s+(?:que\s+viene|pasada|passada)|esta\s+semana)|(?:la\s+)?(?:semaine\s+prochaine|semaine\s+derniere|cette\s+semaine)|(?:nachste\s+woche|letzte\s+woche|diese\s+woche)|(?:nesta\s+semana|na\s+proxima\s+semana))\b/g;
     let match;
     while ((match = weekPattern.exec(normalized)) !== null) {
       const value = match[0];
-      const offset = /scorsa/.test(value) ? -1 : (/prossima/.test(value) ? 1 : 0);
+      const offset = /scorsa|last|pasada|passada|derniere|letzte/.test(value) ? -1
+        : (/prossima|proxima|next|prochaine|nachste/.test(value) ? 1 : 0);
       addIntervalRef(match, 'week', offset);
     }
 
-    const monthPattern = /\b(?:il\s+)?(?:prossimo\s+mese|mese\s+prossimo|scorso\s+mese|mese\s+scorso|questo\s+mese|mese\s+corrente)\b/g;
+    const monthPattern = /\b(?:(?:il\s+)?(?:prossimo\s+mese|mese\s+prossimo|scorso\s+mese|mese\s+scorso|questo\s+mese|mese\s+corrente)|(?:next|last|this|current)\s+month|month\s+(?:next|last|current)|(?:el\s+)?(?:proximo\s+mes|mes\s+pasado|este\s+mes)|(?:le\s+)?(?:mois\s+prochain|mois\s+dernier|ce\s+mois)|(?:nachsten\s+monat|letzten\s+monat|diesen\s+monat)|(?:proximo\s+mes|mes\s+passado|este\s+mes))\b/g;
     while ((match = monthPattern.exec(normalized)) !== null) {
       const value = match[0];
-      const offset = /scorso/.test(value) ? -1 : (/prossimo/.test(value) ? 1 : 0);
+      const offset = /scorso|last|pasado|dernier|letzten|passado/.test(value) ? -1
+        : (/prossimo|proximo|next|prochain|nachsten/.test(value) ? 1 : 0);
       addIntervalRef(match, 'month', offset);
     }
 
@@ -3349,11 +3409,17 @@ var ResponseValidator = class ResponseValidator {
     const normalized = this._stripDiacritics_(String(text || '').toLowerCase()).trim();
     const map = {
       un: 1, uno: 1, una: 1,
+      one: 1, a: 1, an: 1, ein: 1, eine: 1, eins: 1, une: 1, um: 1, uma: 1,
       due: 2, tre: 3, quattro: 4, cinque: 5,
       sei: 6, sette: 7, otto: 8, nove: 9, dieci: 10,
       undici: 11, dodici: 12, tredici: 13, quattordici: 14,
       quindici: 15, sedici: 16, diciassette: 17, diciotto: 18,
-      diciannove: 19, venti: 20, trenta: 30
+      diciannove: 19, venti: 20, trenta: 30,
+      two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+      zwei: 2, drei: 3, vier: 4, funf: 5, sechs: 6, sieben: 7, acht: 8, neun: 9, zehn: 10,
+      dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10,
+      deux: 2, trois: 3, quatre: 4, cinq: 5, sept: 7, huit: 8, neuf: 9, dix: 10,
+      dois: 2, duas: 2, quatro: 4, sete: 7, oito: 8, dez: 10
     };
     if (Object.prototype.hasOwnProperty.call(map, normalized)) return map[normalized];
     const parsed = parseInt(normalized, 10);
@@ -3362,13 +3428,16 @@ var ResponseValidator = class ResponseValidator {
 
   _extractRelativeOffsetReferences_(source, normalized, anchor) {
     const references = [];
-    const rx = /\b(?:tra|fra|in)\s+(\d+|un|uno|una|due|tre|quattro|cinque|sei|sette|otto|nove|dieci|undici|dodici|tredici|quattordici|quindici|sedici|diciassette|diciotto|diciannove|venti|trenta)\s+(giorn[io]|settiman[ae]|mes[ei])\b/g;
+    const numbers = 'one|a|an|ein|eine|eins|une|two|three|four|five|six|seven|eight|nine|ten|zwei|drei|vier|funf|sechs|sieben|acht|neun|zehn|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|deux|trois|quatre|cinq|sept|huit|neuf|dix|dois|duas|quatro|sete|oito|dez|un[oa]?|due|tre|quattro|cinque|sei|sette|otto|nove|dieci|undici|dodici|tredici|quattordici|quindici|sedici|diciassette|diciotto|diciannove|venti|trenta';
+    const unit = '((?:giorn[io]|day[s]?|d[ií]as?|jour[s]?|tag(?:e|en)?|dia[s]?|settiman[ae]|week[s]?|semana[s]?|semaine[s]?|woch(?:e|en)?|mes[ei]|month[s]?|m[eê]s(?:es)?|mois|monat[e]?))';
+    const rx = new RegExp('\\b(?:tra|fra|in|within|dentro\\s+de|en|dans|daqui\\s+a|em)\\s+(\\d+|' + numbers + ')\\s+' + unit + '\\b', 'g');
     let match;
     while ((match = rx.exec(normalized)) !== null) {
       const amount = this._textToNumber_(match[1]);
       if (!Number.isFinite(amount) || amount <= 0) continue;
       const unitText = match[2];
-      const unit = /^giorn/.test(unitText) ? 'days' : (/^settiman/.test(unitText) ? 'weeks' : 'months');
+      const unit = /^(?:giorn|day|dia|jour|tag)/.test(unitText) ? 'days'
+        : (/^(?:settiman|week|semana|semaine|woch)/.test(unitText) ? 'weeks' : 'months');
       const normalizedDate = unit === 'months'
         ? this._addMonthsToDateOnly_(anchor.date, amount)
         : this._addDaysToDateOnly_(anchor.date, amount * (unit === 'weeks' ? 7 : 1));
@@ -3409,9 +3478,9 @@ var ResponseValidator = class ResponseValidator {
     }
 
     const fuzzyPatterns = [
-      { pattern: /\bnei\s+prossimi\s+giorni\b/g, intent: 'future', granularity: 'day', meta: { direction: 'future', unit: 'days' } },
-      { pattern: /\b(?:a\s+breve|quanto\s+prima)\b/g, intent: 'future', granularity: null, meta: { direction: 'future', unit: 'unspecified' } },
-      { pattern: /\b(?:la\s+)?settimana\b/g, intent: 'ambiguous', granularity: 'week', meta: { direction: 'ambiguous', unit: 'weeks' } }
+      { pattern: /\b(?:nei\s+prossimi\s+giorni|in\s+the\s+coming\s+days|within\s+the\s+next\s+few\s+days|en\s+los\s+proximos\s+dias|dans\s+les\s+prochains\s+jours|in\s+den\s+nachsten\s+tagen|nos\s+proximos\s+dias)\b/g, intent: 'future', granularity: 'day', meta: { direction: 'future', unit: 'days' } },
+      { pattern: /\b(?:a\s+breve|quanto\s+prima|soon|shortly|pronto|d'ici\s+peu|bald|em\s+breve)\b/g, intent: 'future', granularity: null, meta: { direction: 'future', unit: 'unspecified' } },
+      { pattern: /\b(?:la\s+)?settimana\b|\bweek\b|\bsemana\b|\bsemaine\b|\bwoche\b/g, intent: 'ambiguous', granularity: 'week', meta: { direction: 'ambiguous', unit: 'weeks' } }
     ];
     fuzzyPatterns.forEach(definition => {
       let fuzzyMatch;
@@ -3591,22 +3660,23 @@ var ResponseValidator = class ResponseValidator {
   }
 
   _hasFutureTemporalQualification_(text, detectedLanguage) {
-    const source = this._stripDiacritics_(String(text || '').toLowerCase());
+    // Conserva gli accenti italiani: «sarà» e «terrà» sono futuri, «Sara» e «terra» no.
+    const source = String(text || '').normalize('NFC').toLowerCase();
     const patterns = [
-      /\b(?:ci\s+)?sar(?:a|anno)\b/i,
-      /\b(?:si\s+)?terr(?:a|anno)\b/i,
-      /\b(?:si\s+)?svolger(?:a|anno)\b/i,
-      /\b(?:si\s+)?celebrer(?:a|anno)\b/i,
-      /\b(?:si\s+)?concluder(?:a|anno)\b/i,
-      /\b(?:si\s+)?inizier(?:a|anno)\b/i,
-      /\bavr(?:a|anno)\s+luogo\b/i,
+      /\b(?:ci\s+)?sar(?:à|anno)(?![\wÀ-ÿ])/i,
+      /\b(?:si\s+)?terr(?:à|anno)(?![\wÀ-ÿ])/i,
+      /\b(?:si\s+)?svolger(?:à|anno)(?![\wÀ-ÿ])/i,
+      /\b(?:si\s+)?celebrer(?:à|anno)(?![\wÀ-ÿ])/i,
+      /\b(?:si\s+)?concluder(?:à|anno)(?![\wÀ-ÿ])/i,
+      /\b(?:si\s+)?inizier(?:à|anno)(?![\wÀ-ÿ])/i,
+      /\bavr(?:à|anno)\s+luogo\b/i,
       /\b(?:e|resta)\s+(?:in\s+programma|previst[oa]|programmato|programmata)\b/i,
-      /\b(?:potr(?:a|anno)|potrete|puo|puoi|possiamo)\s+(?:passare|venire|partecipare|presentarsi|presentarvi)\b/i,
+      /\b(?:potr(?:[aà]|anno)|potrete|pu[oò]|puoi|possiamo)\s+(?:passare|venire|partecipare|presentarsi|presentarvi)\b/i,
       /\b(?:will|is|are)\s+(?:take place|be held|be celebrated|begin|start|end)\b/i,
       /\b(?:is|are)\s+(?:scheduled|planned)\b/i,
-      /\b(?:se\s+)?(?:celebrara|realizara|tendra|llevara\s+a\s+cabo)\b/i,
-      /\b(?:sera|estara)\s+(?:previsto|programado)\b/i,
-      /\b(?:(?:sera|est)\s+(?:prevu|programme|prevue|programmee)|aur(?:a|ont)\s+lieu|se\s+tiendr(?:a|ont))\b/i,
+      /\b(?:se\s+)?(?:celebr(?:ará|ara)|realiz(?:ará|ara)|tendr(?:á|a)|llevar(?:á|a)\s+a\s+cabo)\b/i,
+      /\b(?:será|sera|estará|estara)\s+(?:previsto|programado)\b/i,
+      /\b(?:(?:sera|est)\s+(?:prévu|prevu|programmé|programme|prevue|programmée|programmee)|aura|auront\s+lieu|se\s+tiendra|se\s+tiendront|terá|será)\b/i,
       /\b(?:findet|wird)\s+(?:stattfinden|statt|beginnen|enden)\b/i
     ];
 
@@ -3620,18 +3690,20 @@ var ResponseValidator = class ResponseValidator {
   /**
    * Tenta di correggere automaticamente gli errori rilevati
    */
-  _perfezionamentoAutomatico(response, errors, language, temporalContext = null, cosmeticOnly = false) {
+  _perfezionamentoAutomatico(response, errors, language, temporalContext = null) {
     let textPerfezionato = response;
     let modified = false;
-    const hasThinkingLeak = errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('meta-commento'));
+    let hasThinkingLeak = errors.some(e => e.includes('RAGIONAMENTO ESPOSTO') || e.includes('meta-commento'));
     if (hasThinkingLeak) {
       // Rimuove solo un'introduzione metatestuale riconoscibile, conservando il contenuto seguente.
       const safePrefix = /^(?:in base alla knowledge base|consultando i dati|consultando la knowledge base|rivedendo le istruzioni),?\s*/i;
       if (!safePrefix.test(String(response || ''))) return { fixed: false, text: response };
       const cleaned = this._rimuoviThinkingLeak(response);
-      return cleaned !== String(response || '').trim()
-        ? { fixed: true, text: cleaned }
-        : { fixed: false, text: response };
+      if (cleaned === String(response || '').trim()) return { fixed: false, text: response };
+      textPerfezionato = cleaned;
+      modified = true;
+      const remainingLeak = this._checkExposedReasoning(cleaned);
+      hasThinkingLeak = remainingLeak.errors.length > 0 || remainingLeak.warnings.length > 0;
     }
 
     const applicaOttimizzazione = (label, optimizer) => {
@@ -3801,7 +3873,7 @@ var ResponseValidator = class ResponseValidator {
       return text;
     }
 
-    const capitalizationExceptions = ['Dio', 'Gesù', 'Maria', 'Santo', 'Padre', 'Lei', 'Le', 'La', 'Ella'];
+    const capitalizationExceptions = ['Dio', 'Gesù', 'Maria', 'Santo', 'Padre', 'Lei', 'Ella'];
     let result = text;
 
     // Per ogni parola vietata, cerca ", Parola" e sostituisci con ", parola"
@@ -3812,9 +3884,15 @@ var ResponseValidator = class ResponseValidator {
       const apostropheAgnosticWord = escapedWord.replace(/'/g, "['\u2019]");
       const regex = new RegExp(`,([ \\t]+)(${apostropheAgnosticWord})(?!['\\u2019])(?![\\wÀ-ÖØ-öø-ÿ])(?![ \\t]+[A-ZÀÈÉÌÒÙ])`, 'g');
       result = result.replace(regex, (fullMatch, sep, p1, offset, source) => {
-        if (capitalizationExceptions.includes(p1) || (p1.length === 1 && source[offset + fullMatch.length] === '.')) {
+        const after = source.substring(offset + fullMatch.length);
+        const nextWordMatch = after.match(/^\s+([a-zàèéìòù']+)/i);
+        const nextWord = nextWordMatch ? nextWordMatch[1].toLowerCase() : '';
+        const italianCourtesyPronoun = language === 'it' && ['La', 'Le'].includes(p1) &&
+          /^(informo|informeremo|ringrazio|ringraziamo|avviso|avvisiamo|aggiorno|aggiorniamo|contatto|contatteremo|invito|invitiamo|prego|preghiamo|saluto|salutiamo|ascolto|ascoltiamo|rassicuro|rassicuriamo|confermo|confermiamo|comunico|comunichiamo|scrivo|scriviamo|ricordo|ricordiamo|attendo|attendiamo|chiedo|chiediamo|allego|alleghiamo|inoltro|inoltriamo)$/.test(nextWord);
+        if (capitalizationExceptions.includes(p1) || italianCourtesyPronoun || (p1.length === 1 && source[offset + fullMatch.length] === '.')) {
           return fullMatch;
         }
+        if (after.match(/^\s+[A-ZÀÈÉÌÒÙ][a-zàèéìòù]+/)) return fullMatch;
         return `,${sep}${p1.toLowerCase()}`;
       });
     });
@@ -4068,7 +4146,6 @@ var SemanticValidator = class SemanticValidator {
   }
 
   _buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose = '', groundingParts = null, coverageContext = null) {
-    const kbTruncated = knowledgeBase;
     const bounded = (value, limit) => {
       const text = String(value || '');
       if (text.length <= limit) return text;
@@ -4076,6 +4153,13 @@ var SemanticValidator = class SemanticValidator {
       const head = Math.floor((limit - marker.length) / 2);
       return text.slice(0, head) + marker + text.slice(-(limit - marker.length - head));
     };
+    const configuredKbLimit = typeof CONFIG !== 'undefined' && CONFIG.SEMANTIC_VALIDATION
+      ? Number(CONFIG.SEMANTIC_VALIDATION.knowledgeBaseMaxChars)
+      : NaN;
+    const kbLimit = Number.isFinite(configuredKbLimit)
+      ? Math.max(4000, Math.min(40000, Math.floor(configuredKbLimit)))
+      : null;
+    const kbTruncated = kbLimit ? bounded(knowledgeBase, kbLimit) : knowledgeBase;
     // Budget indipendenti: un corpo lungo non deve eliminare lo storico.
     // Mantieni il contratto testuale per i chiamanti legacy senza parti esplicite.
     const emailTruncated = coverageContext ? JSON.stringify(coverageContext.sources) : groundingParts && typeof groundingParts === 'object'
@@ -4365,7 +4449,7 @@ Rispondi SOLO con questo JSON (senza markdown):
     const fail = reason => { throw new Error('Contratto copertura incompleto o incoerente: ' + reason); };
     if (!payload || payload.evaluated !== true || !Array.isArray(payload.requests) ||
         !Array.isArray(payload.additionalRequests) || !Array.isArray(payload.unsupportedExtractedRequests)) fail('coverage richiede evaluated=true e i tre elenchi');
-    const normalize = value => String(value || '').normalize('NFC').replace(/\s+/g, ' ').trim();
+    const normalize = value => String(value || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
     const sources = context && context.sources || {};
     const completeness = context && context.completeness || {};
     const extracted = context && Array.isArray(context.openRequests) ? context.openRequests : [];
@@ -4386,8 +4470,15 @@ Rispondi SOLO con questo JSON (senza markdown):
       const original = extracted.find(request => request.id === row.id);
       const sourceText = original && original.source === 'attachment' ? sources.attachments
         : [sources.subject, sources.body, sources.attachments].filter(Boolean).join('\n');
-      const evidence = original ? original.evidence : row.evidence;
-      if (!evidence || !normalize(sourceText).includes(normalize(evidence))) {
+      if (original && normalize(row.need) !== normalize(original.need)) fail('need modificato rispetto alla richiesta estratta: ' + row.id);
+      const originalEvidence = original && typeof original.evidence === 'string' ? original.evidence : '';
+      const evidence = row.evidence;
+      const normalizedSource = normalize(sourceText);
+      const evidenceIsGrounded = Boolean(evidence && normalizedSource.includes(normalize(evidence)));
+      const originalEvidenceIsGrounded = !original || Boolean(
+        originalEvidence && normalizedSource.includes(normalize(originalEvidence))
+      );
+      if (!evidenceIsGrounded || !originalEvidenceIsGrounded) {
         row.status = 'undeterminable';
         row.reason = 'Evidenza della richiesta non riscontrabile nelle fonti correnti disponibili.';
       } else if (row.status === 'explicit_limit_service' &&
@@ -4407,6 +4498,7 @@ Rispondi SOLO con questo JSON (senza markdown):
     const unsupportedExtractedRequests = payload.unsupportedExtractedRequests.map(item => {
       if (!item || typeof item.id !== 'string' || typeof item.reason !== 'string' || !item.reason.trim() ||
           !extracted.some(request => request.id === item.id) || ids.has(item.id)) fail('voce scartata non identificabile, duplicata o senza reason');
+
       ids.add(item.id);
       return { id: item.id, reason: item.reason };
     });
