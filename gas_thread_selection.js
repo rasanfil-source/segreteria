@@ -214,13 +214,20 @@ var ThreadSelection = {
       unlabeledUnread.forEach(message => {
         const messageId = message.getId();
         if (externalIds.has(messageId)) {
-          // Temporal Reversal: rispondendo al messaggio esterno piu recente,
-          // consumiamo anche gli esterni antecedenti rimasti appesi nel thread.
+          // I messaggi antecedenti si chiudono solo per lo stesso interlocutore.
           const messageDate = (message && typeof message.getDate === 'function') ? message.getDate() : null;
           const messageTimestamp = (messageDate && typeof messageDate.getTime === 'function')
             ? messageDate.getTime()
             : 0;
-          if (isAbortAll || messageState.isInResponseContext(message) || messageTimestamp <= candidateTimestamp) {
+          const senderOf = item => {
+            const raw = item && typeof item.getFrom === 'function' ? item.getFrom() || '' : '';
+            const email = deps.gmailService && typeof deps.gmailService._extractEmailAddress === 'function'
+              ? deps.gmailService._extractEmailAddress(raw) : raw;
+            return deps._normalizeConversationEmailAddress_(email || '');
+          };
+          const sender = senderOf(message);
+          const sameSender = sender && sender === senderOf(messageState.candidate);
+          if (isAbortAll || messageState.isInResponseContext(message) || (sameSender && messageTimestamp <= candidateTimestamp)) {
             deps._markMessageAsProcessed(message, labeledMessageIds, skippedMessageIds);
           }
         } else {

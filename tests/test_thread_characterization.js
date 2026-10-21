@@ -67,9 +67,12 @@ function withoutCoverage(value) {
   if (Array.isArray(value)) return value.map(withoutCoverage);
   if (!value || typeof value !== 'object') return value;
   return Object.fromEntries(Object.entries(value).filter(([key]) =>
-    !['requestCoverage', 'coverageSources'].includes(key)).map(([key, item]) => [key, withoutCoverage(item)]));
+    !['requestCoverage', 'coverageSources', 'userThreadContext'].includes(key)).map(([key, item]) => [key, withoutCoverage(item)]));
 }
 const expected = JSON.parse(JSON.stringify(originalExpected));
+// Un quick check negativo non chiude messaggi antecedenti di mittenti distinti.
+expected.mixed_senders.effects = expected.mixed_senders.effects.filter(([event, id]) =>
+  !(event === 'label.processed' && id === 'm0'));
 // Il prompt atteso del retry è separato dalla baseline storica immutabile.
 // Il confronto integrale conserva opzioni del modello, ordine ed effetti sui servizi.
 const retryPrompt = fs.readFileSync(path.join(__dirname, 'fixtures', 'thread_retry_prompt.txt'), 'utf8')

@@ -5508,7 +5508,8 @@ Usa currentDate per stabilire se gli eventi sono trascorsi e messageDate per int
     category = null,
     requestType = null,
     requestPurpose = null,
-    conversationHistory = ''
+    conversationHistory = '',
+    userThreadContext = ''
   } = {}) {
     const normalizedConcerns = (activeConcerns && typeof activeConcerns === 'object')
       ? Object.assign({}, activeConcerns)
@@ -5572,7 +5573,9 @@ Usa currentDate per stabilire se gli eventi sono trascorsi e messageDate per int
       // Evidenza grezza e limitata del thread: serve al validatore semantico per
       // riconoscere dati esplicitamente presenti nei messaggi precedenti. Non è
       // una fonte autonoma per procedure o capacità istituzionali.
-      explicitThreadContext: String(conversationHistory || '').slice(-4000)
+      explicitThreadContext: String(conversationHistory || '').slice(-4000),
+      ...(String(userThreadContext || '').trim()
+        ? { userThreadContext: String(userThreadContext || '').slice(-4000) } : {})
     };
   }
 
@@ -5627,7 +5630,11 @@ Usa currentDate per stabilire se gli eventi sono trascorsi e messageDate per int
           .replace(/\s+/g, ' ')
           .trim();
         if (!text || text.length > 120) return;
-        if (!/\b(?:via|viale|piazza|piazzale|largo|lungotevere|salita|vicolo|corso)\b/i.test(text)) return;
+        const streetTypeSource = typeof TerritoryValidator === 'function' && TerritoryValidator.prototype &&
+          typeof TerritoryValidator.prototype._buildStreetTypePatternSource === 'function'
+          ? TerritoryValidator.prototype._buildStreetTypePatternSource()
+          : 'via|viale|piazza|piazzale|largo|lungotevere|salita|vicolo|corso';
+        if (!new RegExp('(?:^|[^\\p{L}\\p{N}_])(?:' + streetTypeSource + ')(?![\\p{L}\\p{N}_])', 'iu').test(text)) return;
         if (!candidates.some(existing => existing.toLowerCase() === text.toLowerCase())) {
           candidates.push(text);
         }

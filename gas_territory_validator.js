@@ -88,6 +88,10 @@ var TerritoryValidator = class TerritoryValidator {
     _buildAbbreviationRegexes_() {
         return Object.entries({
             '(?:\\bs\\.\\s*|\\bs\\s+)': 'san ',
+            '(?:^\\s*v\\.\\s*le\\b)': 'viale ',
+            '(?:^\\s*p\\.\\s*zza\\b)': 'piazza ',
+            '(?:^\\s*l\\.\\s*go\\b)': 'largo ',
+            '(?:^\\s*c\\.\\s*so\\b)': 'corso ',
             '(?:^\\s*l\\.?\\s*tevere\\b)': 'lungotevere ',
             '(?:^\\s*l\\.\\s*|^\\s*l\\s+)': 'largo ',
             '(?:^\\s*v\\.\\s*|^\\s*v\\s+)(?!ia)': 'via ',
@@ -105,6 +109,8 @@ var TerritoryValidator = class TerritoryValidator {
      */
     _buildStreetTypePatternSource() {
         return [
+            'v\\.\\s*le', 'p\\.\\s*zza', 'l\\.\\s*go', 'c\\.\\s*so',
+            'circonvallazione', 'borgo', 'clivo', 'scalinata', 'traversa', 'rampa', 'villaggio', 'strada',
             'v[\\s.]*[iìíï][\\s.]*a(?:[\\s.]*l[\\s.]*e)?', // via / viale
             'p[\\s.]*[iìíï][\\s.]*a[\\s.]*z[\\s.]*z[\\s.]*a(?:[\\s.]*l[\\s.]*e)?', // piazza / piazzale
             'l[\\s.]*a[\\s.]*r[\\s.]*g[\\s.]*o', // largo
@@ -127,6 +133,9 @@ var TerritoryValidator = class TerritoryValidator {
             .replace(/[\u0300-\u036f]/g, '')
             .replace(/[^a-z]/g, '');
 
+        const abbreviations = { vle: 'viale', pzza: 'piazza', lgo: 'largo', cso: 'corso' };
+        if (abbreviations[canonical]) return abbreviations[canonical];
+        if (['circonvallazione', 'borgo', 'clivo', 'scalinata', 'traversa', 'rampa', 'villaggio', 'strada'].includes(canonical)) return canonical;
         if (canonical.startsWith('piazzale')) return 'piazzale';
         if (canonical.startsWith('piazza')) return 'piazza';
         if (canonical.startsWith('viale')) return 'viale';

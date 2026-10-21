@@ -1558,7 +1558,7 @@ console.log('--- Test processThread: burst multi-mittente consuma la coda tempor
   assert(!capturedBody.includes('Vorrei informazioni sugli orari.'), 'il burst di risposta non deve aggregare mittenti diversi');
   assert(labeled.includes('m-candidate'), 'deve marcare il candidato filtrato');
   assert(labeled.includes('m-same-sender'), 'deve marcare il messaggio dello stesso mittente incluso nel burst');
-  assert(labeled.includes('m-other-sender'), 'deve marcare anche messaggi esterni antecedenti di altri mittenti');
+  assert(!labeled.includes('m-other-sender'), 'deve lasciare non letto il messaggio distinto di un altro mittente');
 
   global.Session = originalSession;
   global.GmailApp = originalGmailApp;

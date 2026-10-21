@@ -478,7 +478,7 @@ ${lines.join('\n')}
     if (value === true || value === false) return value;
     if (typeof value === 'string') {
       const normalized = value.trim().toLowerCase();
-      if (normalized === 'true' || normalized === 'yes' || normalized === 'si') return true;
+      if (normalized === 'true' || normalized === 'yes' || normalized.normalize('NFC') === 'sì' || normalized === 'si') return true;
       if (normalized === 'false' || normalized === 'no') return false;
     }
     return undefined;
@@ -1020,13 +1020,10 @@ Output JSON:
 
     EmailQuickCheckPolicy.stripForbiddenQuickCheckFields(data);
 
-    const replyNeeded = data.reply_needed;
-    const normalizedReplyNeeded = (typeof replyNeeded === 'string')
-      ? replyNeeded.toLowerCase()
-      : replyNeeded;
-    // Fail-closed: il campo e obbligatorio. Un JSON sintatticamente valido ma
-    // incompleto non deve trasformarsi in un'autorizzazione implicita a rispondere.
-    const shouldRespond = (normalizedReplyNeeded === true || normalizedReplyNeeded === 'true');
+    const normalizedReplyNeeded = EmailQuickCheckPolicy.normalizeBoolean(data.reply_needed);
+    // Un verdetto incompleto resta visibile come errore, conservando gli altri dati utili.
+    const decisionFailed = typeof normalizedReplyNeeded !== 'boolean';
+    const shouldRespond = decisionFailed ? false : normalizedReplyNeeded;
     const finalShouldRespond = shouldRespond;
     const safeDimensions = (data.dimensions && typeof data.dimensions === 'object')
       ? data.dimensions
@@ -1095,7 +1092,7 @@ Output JSON:
     return {
       shouldRespond: finalShouldRespond,
       language: resolveLanguage(data.language, safeDetection.lang, safeDetection.safetyGrade),
-      reason: data.reason || 'quick_check',
+      reason: decisionFailed ? 'quick_check_failed' : (data.reason || 'quick_check'),
       current_signals: Array.isArray(data.current_signals) ? data.current_signals.slice(0, 6)
         .filter(signal => signal && ['bereavement', 'distress', 'crisis', 'critical', 'prior_contact'].includes(signal.kind) &&
           typeof signal.text === 'string' && signal.text.trim().length >= 8 && signal.text.length <= 300)

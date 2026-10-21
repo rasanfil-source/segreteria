@@ -82,7 +82,7 @@ var Classifier = class Classifier {
         'deluso', 'delusa', 'delusione', 'arrabbiato', 'arrabbiata',
         'insoddisfatto', 'insoddisfatta', 'frustrato', 'frustrata',
         'scandalizzato', 'indignato', 'amareggiato', 'dispiaciuto',
-        'non va bene', 'inaccettabile', 'vergogna', 'pessimo',
+        'inaccettabile', 'vergogna', 'pessimo',
         'disappointed', 'angry', 'frustrated', 'upset', 'unacceptable'
       ],
       'gratitude': [
@@ -532,20 +532,16 @@ var Classifier = class Classifier {
     const extractedBody = this._extractMainContent(String(body || ''), { preserveGreetings: true });
     const normalized = `${rawSubject} ${extractedBody}`.toLowerCase();
     // Una descrizione personale dell'assenza non prova un autoresponder.
-    const explicitAutoReply = /\b(?:auto(?:matic)?\s*reply|risposta\s+automatica|out\s+of\s+(?:the\s+)?office)\b/i;
     const isReplySubject = /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+-\s+)/i.test(rawSubject.trim());
-    if (!isReplySubject && explicitAutoReply.test(rawSubject)) return true;
+    const declaresAutoReply = text => /^\s*(?:(?:gentile\s+mittente|dear\s+sender)[,:]?\s*)?(?:auto(?:matic)?\s*reply|risposta\s+automatica|out\s+of\s+(?:the\s+)?office)\b/i.test(text);
+    const subjectWithoutReplyMarkers = rawSubject.trim().replace(/^(?:\s*(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)\s*:)+\s*/i, '');
+    if (!isReplySubject && declaresAutoReply(subjectWithoutReplyMarkers)) return true;
     const textForRequestCheck = isReplySubject ? extractedBody.toLowerCase() : normalized;
     if (/[?？]|\b(?:possiamo|vorrei|potete|chiedo|fissare|appuntamento)\b/i.test(textForRequestCheck)) return false;
-    const oooPatterns = [
-      /\bout\s+of\s+office\b/i,
-      /\bout\s+of\s+the\s+office\b/i,
-      /\bauto(?:matic)?\s*reply\b/i,
-      /\brisposta\s+automatica\b/i,
-      /\b(?:mailbox (?:is )?monitored periodically|casella (?:di posta )?consultata periodicamente)\b/i
-    ];
-
-    return oooPatterns.some(pattern => pattern.test(normalized));
+    if (declaresAutoReply(subjectWithoutReplyMarkers)) return true;
+    // Una citazione dell'autoresponder non equivale a dichiararsi tale.
+    return declaresAutoReply(extractedBody) ||
+      /^\s*(?:mailbox (?:is )?monitored periodically|casella (?:di posta )?consultata periodicamente)\b/i.test(extractedBody);
   }
 
   /**
@@ -707,8 +703,9 @@ var Classifier = class Classifier {
       const implicitCloseRelative = /\b(?:la\s+(?:mamma|madre|nonna|suocera|cognata|nipote)|il\s+(?:papa|padre|nonno|suocero|cognato|nipote|coniuge)|mamma|papa)\b/.test(clause);
       const namedPope = /\bpapa\s+(?:francesco|leone|benedetto|giovanni|paolo|pietro)\b/.test(clause);
       const familyBereavement = /\b(?:lutto\s+in\s+famiglia|un\s+lutto\s+familiare|stiamo\s+vivendo\s+un\s+lutto\s+in\s+famiglia)\b/.test(clause);
-      const event = /\b(?:mort[oaie]|decedut[oaie]|defunt[oaie]|decesso|venut[oaie]\s+a\s+mancare|e\s+mancat[oaie]|mancat[oaie]|scompars[oaie]|funerale|esequie|died|deceased|passed\s+away|funeral)\b/.test(clause);
-      return (personal && (event || /\b(?:(?:ho|abbiamo)\s+perso|i\s+lost)\b/.test(clause))) ||
+      const event = /\b(?:mort[oaie]|decedut[oaie]|defunt[oaie]|decesso|venut[oaie]\s+a\s+mancare|(?:e|era|sono)\s+(?:(?:purtroppo|recentemente|improvvisamente|da\s+poco)\s+)?mancat[oaie]|scompars[oaie]|funerale|esequie|died|deceased|passed\s+away|funeral)\b/.test(clause);
+      const lostRelative = /\b(?:(?:ho|abbiamo)\s+(?:da\s+poco\s+|recentemente\s+)?perso|i\s+(?:have\s+)?lost)\s+(?:(?:il|la|i|le)\s+)?(?:mi[oaie]|nostr[oaie]|my|our)\s+(?:car[oa]\s+)?(?:marito|moglie|padr[ei]|madr[ei]|mamma|papa|nonn[oa]|figli[oa]|fratello|sorella|zi[oa]|cugin[oa]|amic[oa]|compagn[oa]|fidanzat[oa]|suocer[oa]|cognat[oa]|nipot[ei]|coniuge|familiare|parente|husband|wife|father|mother|mum|dad|son|daughter|brother|sister|grandmother|grandfather|friend|partner|relative)\b/.test(clause);
+      return (personal && event) || lostRelative ||
         (!namedPope && implicitCloseRelative && event) || familyBereavement ||
         /\b(?:(?:sono|siamo|sto|stiamo)\s+(?:vivendo\s+un\s+|affrontando\s+un\s+|in\s+)lutto|i\s+am\s+(?:bereaved|in\s+mourning))\b/.test(clause);
     })?.trim() || '';

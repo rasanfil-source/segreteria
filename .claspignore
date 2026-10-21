@@ -17,6 +17,7 @@ docs/**
 node_modules/**
 .github/**
 .agent/**
+.agents/**
 .gemini/**
 package*.json
 scripts/**

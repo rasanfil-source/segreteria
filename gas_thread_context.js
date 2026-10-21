@@ -30,6 +30,7 @@ var ThreadContext = {
     isReplyBySubject, hasPriorOwnMessage, ownConversationAnchor, processingTimestamp, messageDetails
   }) {
     let conversationHistory = '';
+    let userThreadContext = '';
     if (messages.length > 1) {
       const candidateId = candidate.getId();
       const responseContextIdsForHistory = new Set(responseContextMessageIds || []);
@@ -44,6 +45,9 @@ var ThreadContext = {
           myEmail,
           gmailAliases
         );
+        const userBlocks = conversationHistory.matchAll(/^Utente(?:\s+\([^)]*\))?:\s*([\s\S]*?)\s*\n---\s*$/gm);
+        userThreadContext = Array.from(userBlocks, match => match[1].trim().slice(0, 2000))
+          .filter(Boolean).join('\n').slice(-4000);
       }
     }
 
@@ -74,7 +78,7 @@ var ThreadContext = {
       console.log(`   🕐 Ritardo risposta: ${responseDelay.days} giorni`);
     }
 
-    return { conversationHistory, salutationMode, responseDelay };
+    return { conversationHistory, userThreadContext, salutationMode, responseDelay };
   },
   /** territory: ingressi locali espliciti; restituisce i dati della fase. */
   territory(deps, { messageDetails, quickCheck, requestType, bodyForLanguageDetection }) {
@@ -149,7 +153,7 @@ ${addressLines.join('\n\n')}
     routedDoctrine, detectedLanguage, physicalPresenceConstraint, territoryContext, territoryResult, activeConcerns,
     concernSynthesis, continuityCase, responseMode, operationalConstraints, continuityPolicy,
     responseRegister, promptProfile, categoryHintSource, classification, requestTypeName, requestPurpose,
-    conversationHistory, coverageSources
+    conversationHistory, userThreadContext, coverageSources
   }) {
     const baseRuntimeContext = deps._buildRuntimeContext_(
       messageDetails,
@@ -181,7 +185,8 @@ ${addressLines.join('\n\n')}
         category: categoryHintSource || classification.category || null,
         requestType: requestTypeName || null,
         requestPurpose: requestPurpose,
-        conversationHistory: conversationHistory
+        conversationHistory: conversationHistory,
+        ...(String(userThreadContext || '').trim() ? { userThreadContext: userThreadContext } : {})
       }), {
         coverageSources: Object.assign({}, coverageSources || {}, {
           historyTruncated: String(conversationHistory || '').length > 4000

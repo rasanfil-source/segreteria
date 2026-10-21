@@ -563,7 +563,7 @@ var ResponseValidator = class ResponseValidator {
     const acknowledgesPast = String(response || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .split(/[.!?\n]+/).some(clause =>
         (acknowledgment.test(clause) || localizedAcknowledgment.test(clause)) &&
-        !/\b(?:non|not|never|no|nao|nicht|pas|jamais)\b/i.test(clause));
+        !/\b(?:non\s+(?:e\s+)?(?:ancora\s+)?(?:trascors|passat|scadut|superat)|(?:not|never)\s+(?:yet\s+)?(?:passed|expired|past|elapsed)|(?:no|nao)\s+(?:(?:ha|esta|e)\s+)?(?:aun\s+|ainda\s+)?(?:pasad|vencid|transcorrid|ultrapassad)|(?:pas|jamais)\s+(?:encore\s+)?(?:passe|ecoule|depasse)|(?:nicht|noch\s+nicht)\s+(?:abgelaufen|verstrichen|vorbei))/i.test(clause));
     const errors = acknowledgesPast ? [] :
       ['Scadenza sacramentale già trascorsa: riconoscere esplicitamente che il termine originale è passato prima di proporre un percorso.'];
     return { score: errors.length ? 0.5 : 1, errors, checked: true };
@@ -648,7 +648,9 @@ var ResponseValidator = class ResponseValidator {
 
     // === CONTROLLO 5: Allucinazioni ===
     const originalContext = [emailSubject, originalMessage].filter(Boolean).join('\n').trim();
-    const hallucResult = this._checkHallucinations(response, knowledgeBase, originalContext, temporalContext);
+    const grounding = temporalContext && temporalContext.validationContext || {};
+    const hallucResult = this._checkHallucinations(response, knowledgeBase,
+      this._buildHallucinationSourceContext_(originalContext, grounding), temporalContext);
     errors.push(...hallucResult.errors);
     warnings.push(...hallucResult.warnings);
     details.hallucinations = hallucResult;
@@ -1263,6 +1265,9 @@ var ResponseValidator = class ResponseValidator {
         const index = timeMatch.index;
         const prefix = safeText.substring(Math.max(0, index - 20), index).toLowerCase();
         const suffix = safeText.substring(index + timeStr.length, Math.min(safeText.length, index + timeStr.length + 10)).toLowerCase();
+        const [hour, minute] = timeStr.split(/[:.]/).map(Number);
+        if (hour > 23 || minute > 59) continue;
+        if (timeStr.includes('.') && /\b(?:il|del|dal|al|giorno|am|den)\s*$/i.test(prefix)) continue;
 
         // Whitelist: Escludi URL/nomi file (es. "v.10.30"), indirizzi, prezzi, date e versetti biblici.
         if (/[a-z]\.$/i.test(prefix)) continue;
@@ -2026,6 +2031,12 @@ var ResponseValidator = class ResponseValidator {
     };
   }
 
+  _buildHallucinationSourceContext_(originalContext = '', validationContext = {}) {
+    const coverageSources = validationContext && validationContext.coverageSources || {};
+    return [originalContext, validationContext && validationContext.userThreadContext, coverageSources.attachmentText]
+      .filter(Boolean).join('\n');
+  }
+
   _checkPhysicalPresenceConstraint(response, temporalContext = null) {
     const constraint = temporalContext && (
       temporalContext.physicalPresenceConstraint ||
@@ -2068,26 +2079,21 @@ var ResponseValidator = class ResponseValidator {
       /\b(?:falls|wenn)\b[^.\n]{0,80}\b(?:moglich|konnen|in\s+rom)\b/i,
       /\bse\b[^.\n]{0,80}\b(?:possivel|puder|estiver\s+em)\b/i
     ];
-    const sentencePattern = /[^.\n!?]*?(?:segreteria|parrocchia|di\s+persona|trovarci|parish|office|in\s+person|secretaria|parroquia|en\s+persona|secretariat|paroisse|en\s+personne|pfarrburo|pfarrei|personlich|paroquia|pessoalmente)[^.\n!?]*/gi;
     const violations = [];
-    let match;
-
-    while ((match = sentencePattern.exec(source)) !== null) {
-      const sentence = match[0] || '';
-      const hasInvitation = invitationPatterns.some(pattern => pattern.test(sentence));
-      if (!hasInvitation) continue;
-      const isConditional = conditionalPatterns.some(pattern => pattern.test(sentence));
-      if (visitPolicy === 'avoid_invitation' || !isConditional) {
-        violations.push(sentence.trim().substring(0, 220));
+    // La negazione vale per il singolo invito; una seconda proposta resta verificabile.
+    const clauses = source.split(/[.\n!?;]|,\s*(?:ma|pero|but|mais|aber|mas)\b|\b(?:ma|pero|but|mais|aber)\b/);
+    for (const sentence of clauses) {
+      let hasInvitation = false;
+      for (const pattern of invitationPatterns) {
+        const matches = sentence.matchAll(new RegExp(pattern.source.replace(/\{0,(\d+)\}/g, '{0,$1}?'), 'gi'));
+        for (const match of matches) {
+          const prefix = sentence.slice(0, match.index);
+          const negated = /\b(?:non\s+(?:e\s+)?(?:necessari\w*|obbligatori\w*|indispensabil\w*|richiest\w*|occorre|serve|bisogna)|senza(?:\s+dover)?|nessun\s+bisogno\s+di|evit\w+\s+di)\s*$/.test(prefix);
+          if (!negated) hasInvitation = true;
+        }
       }
-    }
-
-    if (violations.length === 0 && invitationPatterns.some(pattern => pattern.test(source))) {
-      const isConditional = conditionalPatterns.some(pattern => pattern.test(source));
-      if (visitPolicy === 'avoid_invitation' || !isConditional) {
-        violations.push(visitPolicy === 'avoid_invitation'
-          ? 'invito alla presenza fisica vietato da policy avoid_invitation'
-          : 'invito diretto alla presenza fisica');
+      if (hasInvitation && (visitPolicy === 'avoid_invitation' || !conditionalPatterns.some(pattern => pattern.test(sentence)))) {
+        violations.push(sentence.trim().substring(0, 220));
       }
     }
 
@@ -2163,8 +2169,15 @@ var ResponseValidator = class ResponseValidator {
       return { errors: [], warnings: [], score: 1.0, active: false, expected: null, violations: [] };
     }
 
-    const text = this._stripDiacritics_(String(response || '').toLowerCase());
+    const rawText = this._stripDiacritics_(String(response || '').toLowerCase());
+    // Le subordinate di verifica non dichiarano un esito territoriale.
+    const text = rawText.replace(/\b(?:per\s+verificare\s+se|verificare\s+se|to\s+(?:check|verify)\s+(?:if|whether)|para\s+(?:verificar|comprobar)\s+si|pour\s+verifier\s+si|para\s+verificar\s+se|um\s+zu\s+prufen,?\s+ob)[^,.;!?\n]*/g, ' ');
     const outsidePatterns = [
+      /\b(?:outside|not\s+(?:within|in|part\s+of))\s+(?:the\s+|our\s+)?parish(?:\s+territory)?\b/,
+      /\b(?:no\s+(?:pertenece|esta)|fuera)\s+(?:a\s+|de\s+|del\s+|en\s+)?(?:la\s+)?(?:parroquia|territorio)\b/,
+      /\b(?:ne\s+fait\s+pas\s+partie\s+de|hors\s+de|en\s+dehors\s+de)\s+(?:la\s+)?paroisse\b/,
+      /\b(?:nicht\s+(?:im|in\s+der)|ausserhalb\s+(?:der|des))\s+(?:pfarrei|pfarrgebiet|pfarrgebiets)\b/,
+      /\b(?:nao\s+pertence\s+a|fora\s+d[ao])\s*(?:a\s+)?(?:paroquia|territorio)\b/,
       /\bnon\s+rientra(?:no)?\b/,
       /\bfuori\s+(?:dal\s+)?territorio\b/,
       /\bnon\s+fa\s+parte\s+(?:del|della)\s+(?:territorio|parrocchia|competenza)/,
@@ -2176,21 +2189,24 @@ var ResponseValidator = class ResponseValidator {
       (value, pattern) => value.replace(new RegExp(pattern.source, 'g'), '.'), text
     );
     const saysInside = [
+      /\b(?:within|in|part\s+of)\s+(?:the\s+|our\s+)?parish(?:\s+territory)?\b/,
+      /\b(?:pertenece\s+a|esta\s+en)\s+(?:la\s+)?(?:parroquia|territorio)\b/,
+      /\b(?:fait\s+partie\s+de|dans)\s+la\s+paroisse\b/,
+      /\b(?:im\s+pfarrgebiet|in\s+der\s+pfarrei)\b/,
+      /\b(?:pertence\s+a|fica\s+na)\s*(?:a\s+)?paroquia\b/,
       /\bsi[,:\s]+[^.\n!?]{0,120}\brientra(?:no)?\b/,
       /\brientra(?:no)?\s+(?:nel|nella|in)\s+(?:territorio|parrocchia|competenza)/,
       /\bfa\s+parte\s+(?:del|della)\s+(?:territorio|parrocchia|competenza)/,
       /\be\s+(?:nel|nella|in)\s+(?:nostro|nostra)\s+(?:territorio|parrocchia|competenza)/
     ].some(pattern => pattern.test(affirmativeText));
     const saysOutside = outsidePatterns.some(pattern => pattern.test(text));
-    const asksCivic = /\b(?:indicare|comunicare|specificare|inviare|serve|necessario|necessita|abbiamo bisogno)[^.\n!?]{0,120}\b(?:civico|numero)\b/.test(text) ||
-      /\b(?:civico|numero)\b[^.\n!?]{0,120}\b(?:necessario|mancante|serve|indicare|comunicare|specificare)\b/.test(text);
 
     const violations = [];
     if (expected === 'outside' && saysInside) {
       violations.push('la risposta afferma che l indirizzo rientra, ma il contesto certificato dice NON RIENTRA');
     } else if (expected === 'inside' && saysOutside) {
       violations.push('la risposta afferma che l indirizzo non rientra, ma il contesto certificato dice RIENTRA');
-    } else if (expected === 'needs_civic' && (saysInside || saysOutside) && !asksCivic) {
+    } else if (expected === 'needs_civic' && (saysInside || saysOutside)) {
       violations.push('la risposta dà un esito territoriale senza chiedere il civico richiesto');
     } else if (expected === 'manual_review' && (saysInside || saysOutside)) {
       violations.push('la risposta dà un esito territoriale definitivo dove serve verifica manuale');
@@ -2237,10 +2253,19 @@ var ResponseValidator = class ResponseValidator {
         let match;
         while ((match = pattern.exec(text)) !== null) mentions.push({ index, start: match.index });
       });
+      // Il cognome abbreviato deve identificare una sola strada certificata.
+      entries.forEach((entry, index) => {
+        if (mentions.some(mention => mention.index === index)) return;
+        const last = entry.street.split(' ').pop();
+        if (!last || last.length <= 3 || entries.filter(other => other.street.split(' ').pop() === last).length !== 1) return;
+        const pattern = new RegExp('\\b' + escape(last) + '\\b', 'g');
+        let match;
+        while ((match = pattern.exec(text)) !== null) mentions.push({ index, start: match.index });
+      });
       mentions.sort((a, b) => a.start - b.start);
       const check = (fragment, entry) => checks.push(this._checkTerritoryConsistency(fragment, { territoryContext: entry.expected }));
       if (!mentions.length) {
-        // Frasi senza attribuzione esplicita devono essere compatibili con tutti.
+        // Una risposta definitiva senza attribuzione può riferirsi a qualunque indirizzo.
         entries.forEach(entry => check(text, entry));
       } else if (mentions.length === 1) {
         check(text, entries[mentions[0].index]);
@@ -3527,18 +3552,15 @@ var ResponseValidator = class ResponseValidator {
 
   _extractTemporalWindow_(text, index, length) {
     const source = String(text || '');
+    // Una proposizione autonoma non qualifica le date della proposizione vicina.
+    const boundary = /[.!?\n;]|,\s*(?=(?:ma|mentre|invece|pero|però|il\s+prossimo|la\s+prossima|pu|potr|oggi|domani))/gi;
     const before = source.substring(0, index);
-    const previousBoundaries = ['.', '!', '?', '\n'].map(token => before.lastIndexOf(token));
-    const previousBoundary = Math.max.apply(null, previousBoundaries);
-    const start = previousBoundary >= 0 ? previousBoundary + 1 : Math.max(0, index - 180);
-
+    let start = Math.max(0, index - 180), match;
+    while ((match = boundary.exec(before)) !== null) start = match.index + match[0].length;
     const afterStart = index + (length || 0);
-    const after = source.substring(afterStart);
-    const nextBoundaries = ['.', '!', '?', '\n']
-      .map(token => after.indexOf(token))
-      .filter(pos => pos >= 0);
-    const nextBoundary = nextBoundaries.length > 0 ? Math.min.apply(null, nextBoundaries) : -1;
-    const end = nextBoundary >= 0 ? afterStart + nextBoundary + 1 : Math.min(source.length, afterStart + 180);
+    boundary.lastIndex = 0;
+    const next = boundary.exec(source.substring(afterStart));
+    const end = next ? afterStart + next.index : Math.min(source.length, afterStart + 180);
 
     return source.substring(start, end);
   }
@@ -3548,8 +3570,9 @@ var ResponseValidator = class ResponseValidator {
     const patterns = [
       /\bsi\s+e\s+(?:gia\s+)?(?:tenut|svolt|celebrat|conclus|terminat|chius)\w*/i,
       /\bsi\s+sono\s+(?:gia\s+)?(?:tenut|svolt|celebrat|conclus|terminat|chius)\w*/i,
-      /\bc[''’]?er(?:a|ano)\b/i,
-      /\b(?:e|sono)\s+(?:gia\s+)?(?:stat[eoia]\s+)?(?:tenut|svolt|celebrat|conclus|terminat)\w*/i,
+      /\bc['’]\s*er(?:a|ano)\b/i,
+      /\b(?:e|sono)\s+(?:gia\s+)?(?:stat[eoia]\s+)?(?:conclus|terminat)\w*/i,
+      /\b(?:e|sono)\s+(?:gia\s+(?:stat[eoia]\s+)?|stat[eoia]\s+)(?:tenut|svolt|celebrat)\w*/i,
       /\b(?:e|risulta|resta)\s+gia\s+(?:conclus|terminat|svolt|tenut|passat)\w*/i,
       /\b(?:ha|hanno)\s+(?:gia\s+)?(?:avuto luogo|concluso|terminato)\b/i,
       /\b(?:was|were)\s+(?:already\s+)?(?:held|celebrated|concluded|completed)\b/i,
