@@ -386,19 +386,27 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   _selectModelUnlocked(taskType, options) {
     options = options || {};
     const forceModel = options.forceModel || null;
+    const requireBackupKey = options.requireBackupKey === true;
+    const allowBackupKey = options.allowBackupKey !== false;
     const estimatedTokens = options.estimatedTokens || 1000;
     const excludedModelKeys = options.excludeModelKeys instanceof Set
       ? options.excludeModelKeys
       : new Set(Array.isArray(options.excludeModelKeys) ? options.excludeModelKeys : []);
 
     if (forceModel && this.models[forceModel] && !excludedModelKeys.has(forceModel)) {
-      return this._validateModelAvailability(forceModel, estimatedTokens);
+      const forcedModelIsBackup = this._modelUsesBackupKey_(forceModel, this.models[forceModel]);
+      if ((!requireBackupKey || forcedModelIsBackup) && (allowBackupKey || !forcedModelIsBackup)) {
+        return this._validateModelAvailability(forceModel, estimatedTokens);
+      }
     }
 
     const candidates = this._getCandidateModels(taskType);
     for (let i = 0; i < candidates.length; i++) {
       const modelKey = candidates[i];
       if (excludedModelKeys.has(modelKey)) continue;
+      const candidateUsesBackupKey = this._modelUsesBackupKey_(modelKey, this.models[modelKey]);
+      if (requireBackupKey && !candidateUsesBackupKey) continue;
+      if (!allowBackupKey && candidateUsesBackupKey) continue;
       const result = this._validateModelAvailability(modelKey, estimatedTokens);
       if (result.available) {
         console.log(`✓ Selezionato: ${modelKey} per ${taskType}`);
@@ -614,12 +622,11 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     options = options || {};
 
     // ═══════════════════════════════════════════════════════════════════
-    // BYPASS PER CHIAVE DI RISERVA
-    // Salta selezione/throttling della chiave principale, ma contabilizza i consumi
-    // sul modello risolto per il backup per mantenere statistiche locali coerenti.
+    // BYPASS ESPLICITO
+    // Mantiene il percorso diretto solo per i chiamanti che lo richiedono.
     // ═══════════════════════════════════════════════════════════════════
     if (options.skipRateLimit) {
-      console.warn('\u23E9 RateLimiter BYPASSED (Chiave di Riserva in uso)');
+      console.warn('\u23E9 RateLimiter bypass esplicito');
       try {
         const startTime = Date.now();
         // Esecuzione diretta senza controlli quota
@@ -672,6 +679,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const estimatedTokens = options.estimatedTokens ?? 1000;
     let maxRetries = options.maxRetries ?? this.defaultMaxRetries ?? 2;
     const forceModel = options.forceModel || null;
+    const requireBackupKey = options.requireBackupKey === true;
+    const allowBackupKey = options.allowBackupKey !== false;
     const excludedModelKeys = new Set();
 
     // 1. Esecuzione con retry (sincrono)
@@ -680,6 +689,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       const selection = this._selectAndReserveModel(taskType, {
         estimatedTokens: estimatedTokens,
         forceModel: forceModel,
+        requireBackupKey: requireBackupKey,
+        allowBackupKey: allowBackupKey,
         excludeModelKeys: excludedModelKeys
       });
 
@@ -1845,6 +1856,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       const selection = this._selectModelUnlocked(taskType, {
         forceModel: forceModel,
         estimatedTokens: estimatedTokens,
+        requireBackupKey: options.requireBackupKey === true,
+        allowBackupKey: options.allowBackupKey !== false,
         excludeModelKeys: excludeModelKeys
       });
 

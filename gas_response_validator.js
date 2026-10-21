@@ -515,6 +515,8 @@ var ResponseValidator = class ResponseValidator {
       warnings: validationResult.warnings,
       details: validationResult.details,
       reasonCode: validationResult.reasonCode || null,
+      // Il chiamante mantiene questo testo insieme al punteggio e agli errori che lo descrivono.
+      validatedResponse: currentResponse,
       fixedResponse: (wasRefined && validationResult.isValid) ? currentResponse : null, // Restituisci testo perfezionato SOLO se valido
       metadata: {
         responseLength: currentResponse.length,
@@ -4028,7 +4030,7 @@ var SemanticValidator = class SemanticValidator {
         ? options.requestPurpose.type
         : (options ? options.requestPurpose : '');
       const cacheMaterial = [
-        'grounding_relevance_coverage_schema_v20',
+        'grounding_relevance_coverage_schema_v21',
         response || '',
         knowledgeBase || '',
         emailContent || '',
@@ -4140,7 +4142,8 @@ var SemanticValidator = class SemanticValidator {
         historyTruncated: source.historyTruncated === true || String(parts.history || '').length > 4000,
         attachmentsTruncated: source.attachmentsTruncated === true || String(parts.attachments || '').length > this.coverageBodyMaxChars,
         attachmentsUnavailable: source.attachmentsUnavailable === true,
-        extractionTruncated: extraction.extractionTruncated === true
+        extractionTruncated: extraction.extractionTruncated === true,
+        extractionIncomplete: extraction.extractionIncomplete === true
       }
     };
   }
@@ -4199,7 +4202,7 @@ Distingui fatti, pertinenza e incertezza: unsupportedClaims riguarda solo fatti 
 
 COMPITO B — PERTINENZA CONTESTUALE${coverageContext ? ' E C — COPERTURA' : ''}:
 Individua obiettivo, domande e vincoli attuali con lo storico: copri l'essenziale. Richieste risolte restano chiuse salvo nuova domanda. Seleziona unità informative separate, non ogni alternativa KB. irrelevantDetails segnala ridondanze e procedure già eseguite, preservando aiuti concreti ai vincoli.
-${coverageContext ? `Riporta ogni openRequest con lo stesso id e need in requests, anche se omessa o condizionale. Per una conditional, not_applicable vale solo se appliesWhen è falsa; quando è falsa assegna not_applicable anche se la risposta non ripete il ripiego, e non segnalarlo come missing. Se appliesWhen è vera, valutala come primaria e usa missing se resta senza risposta. Tieni distinti bisogni autonomi della stessa email: un limite su scadenza o tempi non copre il diverso bisogno di sapere chi può ritirare, come o con quali requisiti. Assegna explicit_limit_info solo alla richiesta del dato mancante; le altre richieste restano da valutare separatamente. Ogni request deve avere reason non vuota e specifica. unsupportedExtractedRequests serve solo per estrazioni senza base nella richiesta attuale. additionalRequests aggiunge esigenze sfuggite. evidence cita l'originale corrente. Cortesia e riscontro non sostituiscono risposte, né costituiscono promesse operative.
+${coverageContext ? `Riporta ogni openRequest con lo stesso id e need in requests, anche se omessa o condizionale. Per una conditional, not_applicable vale solo se appliesWhen è falsa; quando è falsa assegna not_applicable anche se la risposta non ripete il ripiego, e non segnalarlo come missing. Se appliesWhen è vera, valutala come primaria e usa missing se resta senza risposta. Tieni distinti bisogni autonomi della stessa email: un limite su scadenza o tempi non copre il diverso bisogno di sapere chi può ritirare, come o con quali requisiti. Assegna explicit_limit_info solo alla richiesta del dato mancante; le altre richieste restano da valutare separatamente. Ogni request deve avere reason non vuota e specifica. unsupportedExtractedRequests serve solo per estrazioni senza base nella richiesta attuale. additionalRequests aggiunge esigenze sfuggite. evidence cita l'originale corrente. Se gli indizi non contengono openRequest e non emerge alcuna esigenza attuale dopo aver valutato il materiale completo, usa noOpenRequests=true con una motivazione breve; in quel caso requests, additionalRequests e unsupportedExtractedRequests restano vuoti. Se manca materiale necessario, indica undeterminableReason. Cortesia e riscontro non sostituiscono risposte, né costituiscono promesse operative.
 - addressed: risposta concreta o chiarimento indispensabile; mai per una risposta che nega o limita il servizio;
 - not_applicable: ripiego non necessario o richiesta risolta;
 - explicit_limit_info: la risposta dichiara di non poter confermare il dato assente necessario proprio a quel need; non sostituisce una risposta su modalità, delegati o requisiti;
@@ -4217,7 +4220,8 @@ Rispondi SOLO con questo JSON (senza markdown):
 ${coverageContext ? `  "coverage": {
     "evaluated": true, "purpose": "informational|operational|update|mixed", "goal": "",
     "requests": [{"id":"r1","need":"","evidence":"","status":"","reason":"Motivo breve e specifico","sourceRef":"","uncoveredRequest":"","why":""}],
-    "additionalRequests": [], "unsupportedExtractedRequests": [], "undeterminableReason": null
+    "additionalRequests": [], "unsupportedExtractedRequests": [],
+    "noOpenRequests": false, "noOpenRequestsReason": "", "undeterminableReason": null
   },
 ` : ''}
   "isValid": true,
@@ -4504,16 +4508,36 @@ Rispondi SOLO con questo JSON (senza markdown):
     });
     // L'assenza di una voce estratta non dimostra un'omissione nella risposta.
     for (const item of extracted) if (!ids.has(item.id)) fail('richiesta estratta non valutata: ' + item.id);
+    if (payload.noOpenRequests === true &&
+        (requests.length || additionalRequests.length || unsupportedExtractedRequests.length)) {
+      fail('noOpenRequests incompatibile con elenchi di copertura non vuoti');
+    }
+    const noOpenRequestsReason = typeof payload.noOpenRequestsReason === 'string'
+      ? payload.noOpenRequestsReason.trim() : '';
+    const incompleteSourceFlags = [
+      'bodyTruncated', 'subjectTruncated', 'attachmentsTruncated',
+      'attachmentsUnavailable', 'extractionTruncated', 'extractionIncomplete'
+    ];
+    const noOpenRequestsAccepted = Boolean(
+      payload.noOpenRequests === true && noOpenRequestsReason && extracted.length === 0 &&
+      !requests.length && !additionalRequests.length && !unsupportedExtractedRequests.length &&
+      !(typeof payload.undeterminableReason === 'string' && payload.undeterminableReason.trim()) &&
+      !incompleteSourceFlags.some(flag => completeness[flag] === true)
+    );
     if (!requests.length && !additionalRequests.length &&
         !(typeof payload.undeterminableReason === 'string' && payload.undeterminableReason.trim()) &&
-        !completeness.bodyTruncated && !completeness.subjectTruncated && !unsupportedExtractedRequests.length) fail('nessuna richiesta valutata e nessun motivo di contesto insufficiente');
+        !completeness.bodyTruncated && !completeness.subjectTruncated && !unsupportedExtractedRequests.length &&
+        !noOpenRequestsAccepted) fail('nessuna richiesta valutata e nessun motivo di contesto insufficiente');
     let undeterminableReason = typeof payload.undeterminableReason === 'string' && payload.undeterminableReason.trim() || null;
     if (completeness.bodyTruncated || completeness.subjectTruncated) {
       undeterminableReason = 'Messaggio corrente parziale: impossibile certificare la copertura globale.';
     }
     return {
       evaluated: true, purpose: String(payload.purpose || ''), goal: String(payload.goal || ''),
-      requests, additionalRequests, unsupportedExtractedRequests, undeterminableReason, unsupportedClaims
+      requests, additionalRequests, unsupportedExtractedRequests,
+      noOpenRequests: noOpenRequestsAccepted,
+      noOpenRequestsReason: noOpenRequestsAccepted ? noOpenRequestsReason : '',
+      undeterminableReason, unsupportedClaims
     };
   }
 

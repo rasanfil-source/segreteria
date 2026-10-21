@@ -50,9 +50,14 @@ var ThreadValidation = {
         validationRuntimeContext
       );
 
+      if (typeof validation.validatedResponse === 'string') {
+        finalResponse = validation.validatedResponse;
+      }
       if (validation.fixedResponse) {
         console.log('   🩹 Usa risposta corretta automaticamente (Self-Healing)');
-        finalResponse = validation.fixedResponse;
+        if (typeof validation.validatedResponse !== 'string') {
+          finalResponse = validation.fixedResponse;
+        }
       }
       if (handlePendingSemanticReview(validation)) return { terminal: true };
 
@@ -166,11 +171,17 @@ var ThreadValidation = {
           true,
           validationRuntimeContext
         );
+        const retryValidatedResponse = typeof retryValidation.validatedResponse === 'string'
+          ? retryValidation.validatedResponse
+          : (retryValidation.fixedResponse || preparedRetryResponse);
+        if (retryValidation.pendingSemanticReview) {
+          finalResponse = retryValidatedResponse;
+        }
         if (handlePendingSemanticReview(retryValidation)) return { terminal: true };
 
         if (retryValidation.isValid) {
           console.log(`✅ Retry superato (score: ${retryValidation.score.toFixed(2)})`);
-          finalResponse = retryValidation.fixedResponse || preparedRetryResponse;
+          finalResponse = retryValidatedResponse;
           validation = retryValidation;
           break;
         }
@@ -181,7 +192,7 @@ var ThreadValidation = {
         );
         if (retryValidation.score > validation.score) {
           console.log('   → Uso risposta del retry (score più alto, nonostante non valida)');
-          finalResponse = retryValidation.fixedResponse || preparedRetryResponse;
+          finalResponse = retryValidatedResponse;
           validation = retryValidation;
         } else {
           console.warn('   → Retry peggiorativo, mantengo la risposta originale migliore');

@@ -1054,7 +1054,7 @@ console.log('--- Test generation strategies: rispetta configurazione e backup ke
   assert(plan.attemptStrategy.map(item => item.model).join('|') === 'model-b|model-a|model-backup', 'deve rispettare ordine MODEL_STRATEGY.generation');
   assert(plan.attemptStrategy[0].key === 'primary-key' && plan.attemptStrategy[1].key === 'primary-key', 'strategie non-backup devono usare primary key');
   assert(plan.attemptStrategy[2].key === 'backup-key', 'strategie backup devono usare backup key');
-  assert(plan.attemptStrategy[0].skipRateLimit === false && plan.attemptStrategy[2].skipRateLimit === true, 'solo backup deve saltare il RateLimiter');
+  assert(plan.attemptStrategy.every(item => item.skipRateLimit === false), 'anche i tentativi con chiave backup devono passare dal RateLimiter');
 }
 
 console.log('--- Test generation strategies: salta primary esaurita ma mantiene fallback model ---');
@@ -1076,7 +1076,7 @@ console.log('--- Test generation strategies: salta primary esaurita ma mantiene 
   assert(plan.attemptStrategy.length === 1, 'con primary esaurita deve restare solo la strategia backup');
   assert(plan.attemptStrategy[0].name === 'Generation-3-flash-lite-backup-BackupKey', 'deve mantenere indice e nome della strategia originale');
   assert(plan.attemptStrategy[0].model === 'gemini-3.5-flash-lite', 'backup lite deve usare il modello default atteso');
-  assert(plan.attemptStrategy[0].usesBackupKey === true && plan.attemptStrategy[0].skipRateLimit === true, 'backup deve essere segnata come tale');
+  assert(plan.attemptStrategy[0].usesBackupKey === true && plan.attemptStrategy[0].skipRateLimit === false, 'backup deve essere segnata come tale e mantenere il RateLimiter');
 }
 
 console.log('--- Test quickCheck generationConfig: responseMimeType escluso per modelli lite ---');

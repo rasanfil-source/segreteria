@@ -1877,6 +1877,35 @@ function processEmailsMain() {
 }
 
 /**
+ * Distingue le cause più probabili del fallimento del controllo Gmail preliminare.
+ */
+function _classifyGmailAdvancedPreflightError_(errorMessage) {
+  const message = String(errorMessage || '').toLowerCase();
+  if (/\b(401|403)\b|permission|unauthoriz|forbidden|access denied|service disabled|not enabled|not defined|not a function|cannot read propert/.test(message)) {
+    return {
+      category: 'CONFIGURATION_OR_AUTHORIZATION',
+      guidance: 'Verificare il servizio avanzato Gmail nel progetto Apps Script e le autorizzazioni dello script.'
+    };
+  }
+  if (/\b429\b|quota|rate limit|too many requests|service invoked too many times/.test(message)) {
+    return {
+      category: 'QUOTA',
+      guidance: 'Attendere il ripristino della quota Gmail; il trigger successivo riproverà.'
+    };
+  }
+  if (/\b(500|502|503|504)\b|service unavailable|backend error|internal error|timeout|timed out|network|connection/.test(message)) {
+    return {
+      category: 'TRANSIENT_SERVICE_ERROR',
+      guidance: 'Possibile disservizio temporaneo; il trigger successivo riproverà.'
+    };
+  }
+  return {
+    category: 'UNCLASSIFIED',
+    guidance: 'Verificare il dettaglio dell’errore; il trigger successivo riproverà.'
+  };
+}
+
+/**
  * Funzione principale invocata dal trigger temporale (es. ogni 5 min)
  */
 function main() {
@@ -1894,7 +1923,21 @@ function main() {
     Gmail.Users.getProfile('me'); // Probe reale: verifica disponibilità Gmail Advanced Service
   } catch (apiError) {
     const apiErrorMessage = apiError && apiError.message ? apiError.message : String(apiError);
-    console.error(`CRITICO: Gmail Advanced Service non disponibile o non autorizzato. Impossibile procedere. Dettaglio: ${apiErrorMessage}`);
+    const diagnosis = _classifyGmailAdvancedPreflightError_(apiErrorMessage);
+    console.error({
+      timestamp: new Date().toISOString(),
+      level: 'ERROR',
+      context: 'Main:GmailAdvancedServicePreflight',
+      message: 'Controllo preliminare Gmail fallito; pipeline non avviata.',
+      service: 'Gmail Advanced Service',
+      operation: 'Gmail.Users.getProfile',
+      category: diagnosis.category,
+      errorName: apiError && apiError.name ? String(apiError.name) : null,
+      errorCode: apiError && apiError.code !== undefined ? String(apiError.code) : null,
+      errorMessage: apiErrorMessage,
+      guidance: diagnosis.guidance,
+      recovery: 'I messaggi restano invariati; il trigger successivo può riprovare.'
+    });
     return;
   }
 

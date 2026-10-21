@@ -1550,6 +1550,100 @@ function runAllTests() {
     // 6. ResponseValidator
     testGroup('ResponseValidator - Quality', results, () => {
         const validator = new ResponseValidator();
+        const semanticValidator = new SemanticValidator();
+        const emptyCoveragePayload = extra => Object.assign({
+            evaluated: true,
+            purpose: 'update',
+            goal: '',
+            requests: [],
+            additionalRequests: [],
+            unsupportedExtractedRequests: [],
+            undeterminableReason: null
+        }, extra || {});
+        const coverageContext = completeness => ({
+            openRequests: [],
+            sources: { subject: 'Orari', body: 'Grazie, a presto.', attachments: '' },
+            completeness: Object.assign({}, completeness || {})
+        });
+        const normalizeCoverage = (payload, context) => semanticValidator._normalizeSemanticPayload(
+            { isValid: true, confidence: 0.9, coverage: payload },
+            { coverageRequired: true, coverageContext: context, knowledgeBase: '', responseText: 'Grazie.' }
+        );
+        test('Copertura vuota è completa solo con indicatore esplicito e fonti integre', results, () => {
+            const result = normalizeCoverage(
+                emptyCoveragePayload({ noOpenRequests: true, noOpenRequestsReason: 'Messaggio di cortesia senza richieste.' }),
+                coverageContext()
+            );
+            return result.coverageState === 'complete' && result.isValid === true &&
+                result.coverage.noOpenRequests === true;
+        });
+        test('Copertura vuota senza indicatore esplicito resta errore di contratto', results, () => {
+            const result = normalizeCoverage(emptyCoveragePayload(), coverageContext());
+            return result.coverageState === 'contract_error' && result.isValid === false;
+        });
+        test('Indicatore di copertura vuota richiede una motivazione esplicita', results, () => {
+            const result = normalizeCoverage(
+                emptyCoveragePayload({ noOpenRequests: true, noOpenRequestsReason: '   ' }),
+                coverageContext()
+            );
+            return result.coverageState === 'contract_error';
+        });
+        test('Indicatore di copertura vuota non certifica fonti incomplete', results, () => {
+            const flags = [
+                'bodyTruncated', 'subjectTruncated', 'attachmentsTruncated',
+                'attachmentsUnavailable', 'extractionTruncated', 'extractionIncomplete'
+            ];
+            return flags.every(flag => {
+                const completeness = { [flag]: true };
+                const result = normalizeCoverage(
+                    emptyCoveragePayload({ noOpenRequests: true, noOpenRequestsReason: 'Nessuna richiesta rilevata.' }),
+                    coverageContext(completeness)
+                );
+                return result.coverageState !== 'complete';
+            });
+        });
+        test('Indicatore di copertura vuota non annulla un motivo di indeterminabilità', results, () => {
+            const result = normalizeCoverage(
+                emptyCoveragePayload({
+                    noOpenRequests: true,
+                    noOpenRequestsReason: 'Nessuna richiesta rilevata.',
+                    undeterminableReason: 'Allegato necessario non disponibile.'
+                }),
+                coverageContext()
+            );
+            return result.coverageState === 'undeterminable' &&
+                result.coverage.noOpenRequests === false;
+        });
+        test('Indicatore di copertura vuota è incompatibile con richieste estratte', results, () => {
+            const context = coverageContext();
+            context.openRequests = [{ id: 'r1', need: 'conoscere gli orari', evidence: 'Vorrei conoscere gli orari.' }];
+            const result = normalizeCoverage(
+                emptyCoveragePayload({ noOpenRequests: true, noOpenRequestsReason: 'Nessuna richiesta rilevata.' }),
+                context
+            );
+            return result.coverageState === 'contract_error';
+        });
+        test('L’estrazione malformata non può essere scambiata per assenza di richieste', results, () => {
+            const prepared = semanticValidator._prepareCoverageContext_('Grazie, a presto.', {
+                groundingParts: { subject: 'Orari', body: 'Grazie, a presto.' },
+                requestCoverage: { openRequests: [{ id: 'r1', need: 'conoscere gli orari', evidence: '' }] }
+            });
+            const result = normalizeCoverage(
+                emptyCoveragePayload({ noOpenRequests: true, noOpenRequestsReason: 'Nessuna richiesta rilevata.' }),
+                prepared
+            );
+            return prepared.openRequests.length === 0 &&
+                prepared.completeness.extractionIncomplete === true &&
+                result.coverageState === 'contract_error';
+        });
+        test('Il prompt semantico descrive il contratto per l’assenza di richieste', results, () => {
+            const prompt = semanticValidator._buildHallucinationPrompt(
+                'Grazie.', '', 'Grazie.', 'update', null, coverageContext()
+            );
+            return prompt.includes('"noOpenRequests": false') &&
+                prompt.includes('noOpenRequests=true') &&
+                prompt.includes('"noOpenRequestsReason": ""');
+        });
         test('Controlla e censura eventuali inferenze esposte di estrazione del LLM', results, () => {
             const res = validator.validateResponse("Rivedendo la knowledge base, ecco la risposta.", 'it', "...", "...", "...", "full", false);
             return res.details.exposedReasoning.score === 0.0;

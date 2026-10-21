@@ -31,6 +31,15 @@ function parse(s,p,opts=options(),knowledge=kb) {
   return s._parseSemanticResponse(JSON.stringify(p),{coverageRequired:true,
     coverageContext:s._prepareCoverageContext_('',opts),knowledgeBase:knowledge});
 }
+function noOpenPayload(changes = {}) {
+  return {isValid:true,confidence:0.95,hallucinations:{unsupportedClaims:[]},irrelevantDetails:[],
+    coverage:{evaluated:true,purpose:'update',goal:'',requests:[],additionalRequests:[],unsupportedExtractedRequests:[],
+      noOpenRequests:true,noOpenRequestsReason:'Messaggio di cortesia senza richieste.',undeterminableReason:null,...changes}};
+}
+function noOpenOptions(changes = {}) {
+  return options({requestCoverage:{goal:'',openRequests:[]},
+    groundingParts:{subject:'Ringraziamenti',body:'Grazie per la disponibilità.',history:'',attachments:''},...changes});
+}
 for (const status of ['addressed','not_applicable','explicit_limit_info','explicit_limit_service','missing','undeterminable']) {
   test('stato '+status,()=>{
     const {s}=setup(); const out=parse(s,payload(status));
@@ -129,6 +138,57 @@ test('diagnostica contrattuale indica la richiesta non valutata',()=>{
   const out=parse(s,p);assert.equal(out.coverageState,'contract_error');
   assert.ok(out.coverageError.includes('richiesta estratta non valutata: r1'));
 });
+test('nessuna richiesta aperta è completa solo con indicatore e motivo espliciti',()=>{
+  const {s}=setup();
+  const out=parse(s,noOpenPayload(),noOpenOptions());
+  assert.equal(out.isValid,true);assert.equal(out.coverageState,'complete');
+  assert.equal(out.coverage.noOpenRequests,true);
+  assert.equal(out.coverage.noOpenRequestsReason,'Messaggio di cortesia senza richieste.');
+});
+test('copertura vuota senza indicatore o motivo resta errore di contratto',()=>{
+  const {s}=setup();
+  const withoutIndicator=noOpenPayload();
+  delete withoutIndicator.coverage.noOpenRequests;
+  delete withoutIndicator.coverage.noOpenRequestsReason;
+  assert.equal(parse(s,withoutIndicator,noOpenOptions()).coverageState,'contract_error');
+  assert.equal(parse(s,noOpenPayload({noOpenRequestsReason:'   '}),noOpenOptions()).coverageState,'contract_error');
+});
+test('noOpenRequests è incompatibile con richieste valutate o scartate',()=>{
+  const {s}=setup();
+  for (const field of ['requests','additionalRequests']) {
+    const p=noOpenPayload();
+    p.coverage[field]=[{id:'r2',need:'riscontro di cortesia',evidence:'Grazie per la disponibilità.',status:'addressed',reason:''}];
+    assert.equal(parse(s,p,noOpenOptions()).coverageState,'contract_error');
+  }
+  const p=noOpenPayload({unsupportedExtractedRequests:[{id:request.id,reason:'Richiesta già risolta.'}]});
+  const opts=noOpenOptions({requestCoverage:{goal:'documenti',openRequests:[request]}});
+  assert.equal(parse(s,p,opts).coverageState,'contract_error');
+});
+test('corpo o oggetto troncati rendono indeterminabile una copertura vuota',()=>{
+  const {s}=setup();
+  const body=parse(s,noOpenPayload(),noOpenOptions({sourceCompleteness:{bodyTruncated:true}}));
+  const subject=parse(s,noOpenPayload(),noOpenOptions({groundingParts:{subject:'x'.repeat(1001),body:'Grazie per la disponibilità.',history:'',attachments:''}}));
+  for (const out of [body,subject]) {
+    assert.equal(out.coverageState,'undeterminable');
+    assert.equal(out.coverage.noOpenRequests,false);
+    assert.ok(out.coverage.undeterminableReason);
+  }
+});
+test('fonti ausiliarie incomplete richiedono una ragione di indeterminabilità',()=>{
+  const {s}=setup();
+  const incompleteContexts=[
+    noOpenOptions({sourceCompleteness:{attachmentsTruncated:true}}),
+    noOpenOptions({sourceCompleteness:{attachmentsUnavailable:true}}),
+    noOpenOptions({requestCoverage:{goal:'',openRequests:[],extractionTruncated:true}}),
+    noOpenOptions({requestCoverage:{openRequests:[{...request,evidence:''}]}})
+  ];
+  for (const opts of incompleteContexts) {
+    assert.equal(parse(s,noOpenPayload(),opts).coverageState,'contract_error');
+    const underdetermined=parse(s,noOpenPayload({undeterminableReason:'Materiale necessario non disponibile.'}),opts);
+    assert.equal(underdetermined.coverageState,'undeterminable');
+    assert.equal(underdetermined.coverage.noOpenRequests,false);
+  }
+});
 test('domanda aggiuntiva omessa non nascosta dal classificatore',()=>{
   const {s}=setup();const p=payload();p.coverage.additionalRequests=[{id:'r2',need:'orario',evidence:'Quando?',status:'missing',reason:'manca orario'}];
   const out=parse(s,p,options({groundingParts:{body:body+' Quando?'}}));
@@ -210,6 +270,24 @@ for (const mode of ['observe','enforce']) for (const state of ['addressed','miss
     }
   });
 }
+test('pipeline enforce approva la copertura vuota esplicita',()=>{
+  const {v}=setup('enforce');let calls=0;
+  v.semanticValidator._generateSemantic=()=>{calls++;return JSON.stringify(noOpenPayload());};
+  const out=v.validateResponse(reply,'it',kb,'Grazie per la disponibilità.','Ringraziamenti','full',false,
+    {validationContext:{requestCoverage:{goal:'',openRequests:[]}}});
+  assert.equal(calls,1);assert.equal(out.isValid,true);assert.equal(out.pendingSemanticReview,null);
+  assert.equal(out.details.coverage.state,'complete');
+  assert.equal(out.details.coverage.evaluation.noOpenRequests,true);
+});
+test('pipeline enforce manda in verifica la copertura vuota senza indicatore',()=>{
+  const {v}=setup('enforce');const p=noOpenPayload();
+  delete p.coverage.noOpenRequests;delete p.coverage.noOpenRequestsReason;
+  v.semanticValidator._generateSemantic=()=>JSON.stringify(p);
+  const out=v.validateResponse(reply,'it',kb,'Grazie per la disponibilità.','Ringraziamenti','full',false,
+    {validationContext:{requestCoverage:{goal:'',openRequests:[]}}});
+  assert.equal(out.isValid,false);assert.equal(out.pendingSemanticReview,'semantic_contract_error');
+  assert.equal(out.details.coverage.state,'contract_error');
+});
 test('flag spento preserva il salto a punteggio uno',()=>{
   const {v,s}=setup('observe',{completenessAlways:false});
   v.semanticValidator._generateSemantic=()=>{throw new Error('non deve chiamare');};

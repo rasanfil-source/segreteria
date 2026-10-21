@@ -1816,11 +1816,8 @@ console.log('--- Test processThread: fallback default diversifica tier modello -
     `deve diversificare il tier fisico nel fallback default (fatto: ${strategyCalls.map(call => call.modelName).join('|')})`
   );
   assert(
-    strategyCalls[0].skipRateLimit === false &&
-    strategyCalls[1].skipRateLimit === true &&
-    strategyCalls[2].skipRateLimit === false &&
-    strategyCalls[3].skipRateLimit === true,
-    'solo le strategie con chiave di riserva devono bypassare il RateLimiter'
+    strategyCalls.every(call => call.skipRateLimit === false),
+    'anche le strategie con chiave di riserva devono passare dal RateLimiter'
   );
   assert(labeled.has('m-default-tier-diversification'), 'deve marcare il messaggio candidato come processato');
 }
@@ -1864,8 +1861,8 @@ console.log('--- Test processThread: INVALID_API_KEY primaria prova backup key -
     assert(generationCalls.length >= 2, `deve tentare almeno primaria e backup, chiamate=${generationCalls.length}`);
     assert(generationCalls[0].key === 'primary-key', 'il primo tentativo deve usare la primary key');
     assert(
-      generationCalls.some(call => call.key === 'backup-key' && call.skipRateLimit === true),
-      'deve tentare una strategia con backup key e bypass RateLimiter'
+      generationCalls.some(call => call.key === 'backup-key' && call.skipRateLimit === false),
+      'deve tentare una strategia con backup key attraverso il RateLimiter'
     );
   } finally {
     global.ErrorTypes = originalErrorTypes;
@@ -1907,7 +1904,7 @@ console.log('--- Test processThread: primaria esaurita salta fallback su primary
     strategyCalls.map(call => call.modelName).join('|') === 'gemini-3.8-flash|gemini-3.8-flash|gemini-3.5-flash-lite',
     `deve saltare il fallback lite su primary key esaurita (fatto: ${strategyCalls.map(call => call.modelName).join('|')})`
   );
-  assert(strategyCalls[2].skipRateLimit === true, 'il fallback lite residuo deve usare la chiave di riserva');
+  assert(strategyCalls[2].skipRateLimit === false, 'il fallback lite residuo deve usare la chiave di riserva attraverso il RateLimiter');
 }
 
 console.log('--- Test processThread: generazione rispetta CONFIG.MODEL_STRATEGY.generation ---');
@@ -1934,7 +1931,7 @@ console.log('--- Test processThread: generazione rispetta CONFIG.MODEL_STRATEGY.
       strategyCalls.map(call => call.modelName).join('|') === 'model-b|model-a|model-backup',
       `deve rispettare l'ordine MODEL_STRATEGY.generation (fatto: ${strategyCalls.map(call => call.modelName).join('|')})`
     );
-    assert(strategyCalls[0].skipRateLimit === false && strategyCalls[1].skipRateLimit === false && strategyCalls[2].skipRateLimit === true, 'solo la strategia backup deve bypassare il RateLimiter');
+    assert(strategyCalls.every(call => call.skipRateLimit === false), 'tutte le strategie devono passare dal RateLimiter');
   } finally {
     global.CONFIG.GEMINI_MODELS = originalModels;
     global.CONFIG.MODEL_STRATEGY = originalStrategy;

@@ -1579,7 +1579,10 @@ var GeminiService = class GeminiService {
 
   _runConfiguredTask_(taskType, requestFn, options = {}) {
     if (this.useRateLimiter && this.rateLimiter) {
-      const result = this.rateLimiter.executeRequest(taskType, requestFn, options);
+      const allowBackupKey = !!(this.backupKey && this.backupKey !== this.primaryKey) && options.allowBackupKey !== false;
+      const result = this.rateLimiter.executeRequest(taskType, requestFn, Object.assign({}, options, {
+        allowBackupKey: allowBackupKey
+      }));
       if (result && result.success) return result.result;
       throw new Error('Task Gemini rifiutato: ' + ((result && result.reason) || taskType));
     }
@@ -1617,6 +1620,49 @@ var GeminiService = class GeminiService {
       }
       return this._generateWithModel(prompt, modelName, key, options.attachments || []);
     }, {estimatedTokens:this._estimateTokens(prompt, options.attachments || []), maxRetries:options.maxRetries});
+  }
+
+  _resolveRateLimiterModelKey_(modelName, usesBackupKey) {
+    const limiter = this.rateLimiter;
+    let models = limiter && limiter.models;
+    if (!models || !modelName) return null;
+
+    const isBackupModelKey = (key, model) => {
+      if (limiter && typeof limiter._modelUsesBackupKey_ === 'function') {
+        return limiter._modelUsesBackupKey_(key, model);
+      }
+      return /(^|[-_])backup($|[-_])/i.test(String(key || '')) ||
+        !!(model && Array.isArray(model.useCases) && model.useCases.includes('backup'));
+    };
+    const entries = Object.keys(models).map(key => [key, models[key]]);
+    const matchingEntry = entries.find(([key, model]) =>
+      model && model.name === modelName && isBackupModelKey(key, model) === !!usesBackupKey
+    );
+    if (matchingEntry) return matchingEntry[0];
+    if (!usesBackupKey) return null;
+
+    const primaryEntry = entries.find(([key, model]) =>
+      model && model.name === modelName && !isBackupModelKey(key, model)
+    );
+    if (!primaryEntry) return null;
+
+    // Alcuni modelli configurati non hanno un alias backup: ne creiamo uno
+    // con gli stessi limiti locali, così la riserva mantiene accounting distinto.
+    const primaryKey = primaryEntry[0];
+    const primaryModel = primaryEntry[1];
+    let backupModelKey = `${primaryKey}-backup`;
+    let suffix = 2;
+    while (models[backupModelKey] && models[backupModelKey].name !== modelName) {
+      backupModelKey = `${primaryKey}-backup-${suffix++}`;
+    }
+    if (!models[backupModelKey]) {
+      models = Object.assign({}, models);
+      const useCases = Array.isArray(primaryModel.useCases) ? primaryModel.useCases.slice() : [];
+      if (!useCases.includes('backup')) useCases.push('backup');
+      models[backupModelKey] = Object.assign({}, primaryModel, { useCases: useCases });
+      limiter.models = models;
+    }
+    return backupModelKey;
   }
 
   _getDefaultGenerationModelNames_() {
@@ -1674,7 +1720,7 @@ var GeminiService = class GeminiService {
           key: apiKey,
           model: modelName,
           usesBackupKey: usesBackupKey,
-          skipRateLimit: usesBackupKey
+          skipRateLimit: false
         };
       })
       .filter(Boolean);
@@ -2948,11 +2994,8 @@ Testo:
       this.isPrimaryExhausted === true
     );
     const targetKey = startsOnBackupKey ? this.backupKey : requestedKey;
-    const skipRateLimit = !!(
-      options.skipRateLimit ||
-      startsOnBackupKey ||
-      (this.backupKey && targetKey === this.backupKey && targetKey !== this.primaryKey)
-    );
+    const targetUsesBackupKey = !!(this.backupKey && targetKey === this.backupKey && targetKey !== this.primaryKey);
+    const skipRateLimit = options.skipRateLimit === true;
     const attachments = options.attachments || [];
 
     if (startsOnBackupKey) {
@@ -2988,23 +3031,31 @@ Testo:
         return null;
       }
     }).filter(Boolean);
-    const runDirectGeneration = (apiKey, contextLabel) => {
-      const text = this._withRetry(
-        () => {
-          if (this.useRateLimiter && this.rateLimiter) {
-            return this.rateLimiter.executeRequest('generation',
-              (modelName) => this._generateWithModelEnvelope_(prompt, modelName, apiKey, preEncodedAttachments, options.generationConfigOverrides),
-              {
-                skipRateLimit: true,
-                usesBackupKey: !!(this.backupKey && apiKey === this.backupKey && apiKey !== this.primaryKey),
-                modelNameOverride: targetModel,
-                estimatedTokens: this._estimateTokens(prompt, attachments)
-              }).result;
+    const runDirectGeneration = (apiKey, contextLabel, usesBackupKey, bypassRateLimit) => {
+      const execute = () => {
+        if (this.useRateLimiter && this.rateLimiter) {
+          const modelKey = this._resolveRateLimiterModelKey_(targetModel, usesBackupKey);
+          const limitedResult = this.rateLimiter.executeRequest('generation',
+            (modelName) => this._generateWithModelEnvelope_(prompt, modelName, apiKey, preEncodedAttachments, options.generationConfigOverrides),
+            {
+              skipRateLimit: bypassRateLimit === true,
+              forceModel: modelKey,
+              requireBackupKey: usesBackupKey === true,
+              allowBackupKey: !!(this.backupKey && this.backupKey !== this.primaryKey),
+              modelNameOverride: targetModel,
+              estimatedTokens: this._estimateTokens(prompt, attachments)
+            });
+          if (!limitedResult || limitedResult.success !== true) {
+            throw new Error('Rate Limiter ha rifiutato la richiesta diretta: ' +
+              ((limitedResult && limitedResult.reason) || contextLabel));
           }
-          return this._generateWithModel(prompt, targetModel, apiKey, preEncodedAttachments, options.generationConfigOverrides);
-        },
-        contextLabel
-      );
+          return limitedResult.result;
+        }
+        return this._generateWithModel(prompt, targetModel, apiKey, preEncodedAttachments, options.generationConfigOverrides);
+      };
+      const text = this.useRateLimiter && this.rateLimiter && bypassRateLimit !== true
+        ? execute()
+        : this._withRetry(execute, contextLabel);
       return {
         success: !!text,
         text: text,
@@ -3017,12 +3068,10 @@ Testo:
         return null;
       }
       console.warn(`↪️ ${contextLabel}: primaria non utilizzabile, failover immediato su chiave di riserva.`);
-      return runDirectGeneration(this.backupKey, 'Generazione risposta (Failover Chiave di Riserva)');
+      return runDirectGeneration(this.backupKey, 'Generazione risposta (Failover Chiave di Riserva)', true, false);
     };
-    const forceModelKey = this.useRateLimiter && this.rateLimiter && this.rateLimiter.models
-      ? Object.keys(this.rateLimiter.models).find((key) =>
-          key === targetModel || this.rateLimiter.models[key].name === targetModel
-        )
+    const forceModelKey = this.useRateLimiter && this.rateLimiter
+      ? this._resolveRateLimiterModelKey_(targetModel, targetUsesBackupKey)
       : null;
 
     // ====================================================================
@@ -3035,14 +3084,16 @@ Testo:
         const result = this.rateLimiter.executeRequest(
           'generation',
           (modelName, requestContext) => {
-            const selectedApiKey = requestContext && requestContext.usesBackupKey && this.backupKey
-              ? this.backupKey
-              : targetKey;
+            const selectedApiKey = targetUsesBackupKey
+              ? targetKey
+              : (requestContext && requestContext.usesBackupKey && this.backupKey ? this.backupKey : targetKey);
             return this._generateWithModelEnvelope_(prompt, modelName, selectedApiKey, preEncodedAttachments, options.generationConfigOverrides);
           },
           {
             estimatedTokens: estimatedTokens,
             forceModel: forceModelKey,
+            requireBackupKey: targetUsesBackupKey,
+            allowBackupKey: !!(this.backupKey && this.backupKey !== this.primaryKey),
             modelNameOverride: targetModel
           }
         );
@@ -3073,12 +3124,12 @@ Testo:
     }
 
     // ====================================================================
-    // CHIAMATA DIRETTA (quando RateLimiter disabilitato O skippato per backup key)
+    // CHIAMATA DIRETTA quando il limiter è disabilitato o il chiamante ne richiede il bypass.
     // ====================================================================
     if (skipRateLimit) {
       console.log(`⏩ Chiamata diretta (bypass RateLimiter) con ${targetModel}`);
       try {
-        return runDirectGeneration(targetKey, 'Generazione diretta (Chiave di Riserva)');
+        return runDirectGeneration(targetKey, 'Generazione diretta (Chiave di Riserva)', targetUsesBackupKey, true);
       } catch (error) {
         const backupResult = runBackupFailover(error, 'Generazione diretta');
         if (backupResult) {
@@ -3089,7 +3140,7 @@ Testo:
     }
 
     try {
-      return runDirectGeneration(targetKey, 'Generazione risposta');
+      return runDirectGeneration(targetKey, 'Generazione risposta', targetUsesBackupKey, false);
     } catch (error) {
       const backupResult = runBackupFailover(error, 'Generazione risposta');
       if (backupResult) {

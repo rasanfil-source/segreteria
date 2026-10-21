@@ -436,6 +436,28 @@ console.log('--- Test _getCandidateModels: task policy generation vs quick/langu
   assert(limiter._getCandidateModels('newsletter_summary')[0] === 'flash-lite', 'newsletter_summary deve ereditare quick_check');
 }
 
+console.log('--- Test _selectModelUnlocked: mantiene la route della chiave di riserva ---');
+{
+  const limiter = Object.create(GeminiRateLimiter.prototype);
+  limiter.models = {
+    primary: { name: 'gemini-test' },
+    'primary-backup': { name: 'gemini-test', useCases: ['backup'] },
+    lite: { name: 'gemini-lite' },
+    'lite-backup': { name: 'gemini-lite', useCases: ['backup'] }
+  };
+  limiter.strategies = { generation: ['primary', 'primary-backup', 'lite', 'lite-backup'] };
+  limiter._validateModelAvailability = modelKey => ({ available: true, modelKey });
+
+  const primary = limiter._selectModelUnlocked('generation', { forceModel: 'primary' });
+  assert(primary.modelKey === 'primary', 'senza vincolo deve rispettare il modello forzato');
+  const backup = limiter._selectModelUnlocked('generation', { forceModel: 'primary', requireBackupKey: true });
+  assert(backup.modelKey === 'primary-backup', 'con vincolo backup deve ignorare il modelKey primary');
+  const forcedBackup = limiter._selectModelUnlocked('generation', { forceModel: 'primary-backup', requireBackupKey: true });
+  assert(forcedBackup.modelKey === 'primary-backup', 'un modelKey backup forzato deve restare selezionato');
+  const noBackupCredential = limiter._selectModelUnlocked('generation', { forceModel: 'primary-backup', allowBackupKey: false });
+  assert(noBackupCredential.modelKey === 'primary', 'senza credenziale backup deve ignorare modelKey backup');
+}
+
 console.log('--- Test _safeExecuteRequestFn_: preserva isTransient nel wrapping ---');
 {
   const limiter = Object.create(GeminiRateLimiter.prototype);

@@ -25,10 +25,17 @@ function normalizeRequestCoverage_(value) {
   const requests = Array.isArray(input.openRequests) ? input.openRequests : [];
   const seen = new Set();
   const openRequests = [];
+  let extractionIncomplete = Object.prototype.hasOwnProperty.call(input, 'openRequests') && !Array.isArray(input.openRequests);
   for (const item of requests.slice(0, 24)) {
-    if (!item || !text(item.need, 300) || !text(item.evidence, 400)) continue;
+    if (!item || !text(item.need, 300) || !text(item.evidence, 400)) {
+      extractionIncomplete = true;
+      continue;
+    }
     const id = text(item.id, 60) || `r${openRequests.length + 1}`;
-    if (seen.has(id)) continue;
+    if (seen.has(id)) {
+      extractionIncomplete = true;
+      continue;
+    }
     seen.add(id);
     openRequests.push({
       id, need: text(item.need, 300), evidence: text(item.evidence, 400),
@@ -39,7 +46,8 @@ function normalizeRequestCoverage_(value) {
   }
   return {
     goal: text(input.goal, 400), openRequests,
-    extractionTruncated: input.extractionTruncated === true || requests.length > 24
+    extractionTruncated: input.extractionTruncated === true || requests.length > 24,
+    extractionIncomplete
   };
 }
 
