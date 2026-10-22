@@ -234,9 +234,10 @@ var ResponseValidator = class ResponseValidator {
    * @param {string} emailContent - Contenuto email originale
    * @param {string} emailSubject - Oggetto email
    * @param {string} salutationMode - Modalità saluto ('full'|'soft'|'none_or_continuity')
+   * @param {Array<Blob>} semanticAttachments - Allegati originali disponibili per il controllo multimodale
    * @returns {Object} Risultato validazione
    */
-  validateResponse(response, detectedLanguage, knowledgeBase, emailContent, emailSubject, salutationMode = 'full', attemptPerfezionamento = true, temporalContext = null) {
+  validateResponse(response, detectedLanguage, knowledgeBase, emailContent, emailSubject, salutationMode = 'full', attemptPerfezionamento = true, temporalContext = null, semanticAttachments = []) {
     const procedureContext = this._extractResponseValidationContext_(temporalContext);
     if (procedureContext.responseMode === 'sensitive_canonical' &&
         typeof getBaptismAnnotationProcedure_ === 'function') {
@@ -274,7 +275,7 @@ var ResponseValidator = class ResponseValidator {
     console.log(`🔍 Validazione risposta netta (${currentResponse.length} caratteri, lingua=${safeDetectedLanguage})...`);
 
     // --- PRIMO PASSAGGIO DI VALIDAZIONE ---
-    let validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent, emailSubject, temporalContext);
+    let validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent, emailSubject, temporalContext, semanticAttachments);
 
     // --- PERFEZIONAMENTO QUALITATIVO ---
     if (attemptPerfezionamento) {
@@ -289,7 +290,7 @@ var ResponseValidator = class ResponseValidator {
         wasRefined = true;
 
         // Ri-esegui validazione sul testo corretto
-        validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent, emailSubject, temporalContext);
+        validationResult = this._runValidationChecks(currentResponse, safeDetectedLanguage, knowledgeBase, salutationMode, emailContent, emailSubject, temporalContext, semanticAttachments);
 
         if (validationResult.isValid) {
           console.log('   ✅ Elaborazione di raffinamento completata');
@@ -358,6 +359,7 @@ var ResponseValidator = class ResponseValidator {
         {
           forceRelevanceReview: forceKnowledgeRelevanceReview,
           coverageRequired,
+          attachments: Array.isArray(semanticAttachments) ? semanticAttachments : [],
           requestCoverage: procedureContext.requestCoverage || null,
           coverageConstraints: {
             responseMode: procedureContext.responseMode,
@@ -474,6 +476,7 @@ var ResponseValidator = class ResponseValidator {
           mode: coverageEnforced ? 'enforce' : 'observe', state: coverageState,
           additionalCall: !legacyGroundingReview,
           sourceCompleteness: semHalluc.sourceCompleteness || null,
+          visualAttachmentCount: Number(semHalluc.visualAttachmentCount) || 0,
           ...(undeterminableDiagnostics ? { undeterminableDiagnostics } : {}),
           ...(semHalluc.metrics || {})
         }));
@@ -531,7 +534,7 @@ var ResponseValidator = class ResponseValidator {
    * Alias per la firma ad oggetto (supporta chiamata con parametri nominali).
    * Evita rotture quando il chiamante usa validator.validate(response, { ...opts }).
    * @param {string} response
-   * @param {{language?: string, knowledgeBase?: string, emailContent?: string, body?: string, emailSubject?: string, subject?: string, salutationMode?: string, currentDate?: string, currentTime?: string, messageDate?: string, messageTime?: string, temporalContext?: Object, activeConcerns?: Object, concernSynthesis?: Object, continuityCase?: Object, responseRegister?: string, requestPurpose?: Object|string}} opts
+   * @param {{language?: string, knowledgeBase?: string, emailContent?: string, body?: string, emailSubject?: string, subject?: string, salutationMode?: string, currentDate?: string, currentTime?: string, messageDate?: string, messageTime?: string, temporalContext?: Object, activeConcerns?: Object, concernSynthesis?: Object, continuityCase?: Object, responseRegister?: string, requestPurpose?: Object|string, attachments?: Array<Blob>}} opts
    * @returns {Object}
    */
   validate(response, opts) {
@@ -562,7 +565,8 @@ var ResponseValidator = class ResponseValidator {
       safeOpts.emailSubject || safeOpts.subject || '',
       safeOpts.salutationMode || 'full',
       true,
-      temporalContext
+      temporalContext,
+      Array.isArray(safeOpts.attachments) ? safeOpts.attachments : []
     );
   }
 
@@ -626,7 +630,7 @@ var ResponseValidator = class ResponseValidator {
   /**
    * Esegue i ✅ effettivi (estratto per riutilizzo)
    */
-  _runValidationChecks(response, detectedLanguage, knowledgeBase, salutationMode, originalMessage = '', emailSubject = '', temporalContext = null) {
+  _runValidationChecks(response, detectedLanguage, knowledgeBase, salutationMode, originalMessage = '', emailSubject = '', temporalContext = null, semanticAttachments = []) {
     const errors = [];
     const warnings = [];
     const details = {};
@@ -4025,12 +4029,14 @@ var SemanticValidator = class SemanticValidator {
     let generatedCalls = 0;
     let inputTokensEstimate = 0;
     try {
+      const semanticAttachments = Array.isArray(options.attachments) ? options.attachments.filter(Boolean) : [];
+      const visualAttachmentNames = this._getVisualAttachmentNames_(semanticAttachments);
       const coverageContext = coverageRequired ? this._prepareCoverageContext_(emailContent, options) : null;
       const requestPurpose = options && options.requestPurpose && typeof options.requestPurpose === 'object'
         ? options.requestPurpose.type
         : (options ? options.requestPurpose : '');
       const cacheMaterial = [
-        'grounding_relevance_coverage_schema_v21',
+        'grounding_relevance_coverage_schema_v22',
         response || '',
         knowledgeBase || '',
         emailContent || '',
@@ -4039,18 +4045,23 @@ var SemanticValidator = class SemanticValidator {
         JSON.stringify(coverageContext)
       ].join('\n<<SEMANTIC-HALLUCINATION-SCOPE>>\n');
       const cacheKey = this._cacheKey('halluc', cacheMaterial);
-      const cached = this._readCache(cacheKey);
+      const cached = semanticAttachments.length ? null : this._readCache(cacheKey);
       if (cached) return Object.assign({}, cached, {
         metrics: { generatedCalls: 0, cacheHit: true, latencyMs: Date.now() - startedAt, inputTokensEstimate: 0 }
       });
 
-      const prompt = this._buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose, options.groundingParts, coverageContext);
-      inputTokensEstimate = Math.ceil(prompt.length / 3.2);
+      const prompt = this._buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose, options.groundingParts, coverageContext, visualAttachmentNames);
+      inputTokensEstimate = typeof estimateTokenCount === 'function'
+        ? estimateTokenCount(prompt, semanticAttachments)
+        : Math.ceil(prompt.length / 3.2);
       generatedCalls = 1;
-      const apiResponse = this._generateSemantic(prompt);
+      const apiResponse = this._generateSemantic(prompt, { attachments: semanticAttachments });
       const result = this._parseSemanticResponse(apiResponse, { coverageRequired, coverageContext, knowledgeBase, responseText: response || '' });
-      if (coverageContext) result.sourceCompleteness = coverageContext.completeness;
-      if (result.coverageState !== 'contract_error') this._writeCache(cacheKey, result);
+      if (coverageContext) {
+        result.sourceCompleteness = coverageContext.completeness;
+        result.visualAttachmentCount = coverageContext.visualAttachments.length;
+      }
+      if (!semanticAttachments.length && result.coverageState !== 'contract_error') this._writeCache(cacheKey, result);
       return Object.assign({}, result, {
         metrics: { generatedCalls, cacheHit: false, latencyMs: Date.now() - startedAt, inputTokensEstimate }
       });
@@ -4117,6 +4128,17 @@ var SemanticValidator = class SemanticValidator {
   // COSTRUTTORI PROMPT (ottimizzati per brevità)
   // ========================================================================
 
+  _getVisualAttachmentNames_(attachments = []) {
+    return (Array.isArray(attachments) ? attachments : []).slice(0, 10).map((blob, index) => {
+      try {
+        const name = typeof blob.getName === 'function' ? String(blob.getName() || '').trim() : '';
+        return (name || `allegato-visivo-${index + 1}`).slice(0, 160);
+      } catch (_) {
+        return `allegato-visivo-${index + 1}`;
+      }
+    });
+  }
+
   _prepareCoverageContext_(emailContent, options) {
     const parts = options.groundingParts || { body: emailContent };
     const bound = (value, limit) => {
@@ -4127,11 +4149,13 @@ var SemanticValidator = class SemanticValidator {
       return text.slice(0, head) + marker + text.slice(-(limit - marker.length - head));
     };
     const source = options.sourceCompleteness || {};
+    const visualAttachments = this._getVisualAttachmentNames_(options.attachments || []);
     const extraction = typeof normalizeRequestCoverage_ === 'function'
       ? normalizeRequestCoverage_(options.requestCoverage) : (options.requestCoverage || { goal: '', openRequests: [] });
     return {
       goal: extraction.goal || '', openRequests: extraction.openRequests || [],
       constraints: options.coverageConstraints || {},
+      visualAttachments,
       sources: {
         subject: bound(parts.subject, 1000), body: bound(parts.body, this.coverageBodyMaxChars),
         history: bound(parts.history, 4000), attachments: bound(parts.attachments, this.coverageBodyMaxChars)
@@ -4141,14 +4165,15 @@ var SemanticValidator = class SemanticValidator {
         bodyTruncated: source.bodyTruncated === true || String(parts.body || '').length > this.coverageBodyMaxChars,
         historyTruncated: source.historyTruncated === true || String(parts.history || '').length > 4000,
         attachmentsTruncated: source.attachmentsTruncated === true || String(parts.attachments || '').length > this.coverageBodyMaxChars,
-        attachmentsUnavailable: source.attachmentsUnavailable === true,
+        attachmentsUnavailable: source.attachmentsUnavailable === true && visualAttachments.length === 0,
+        attachmentsVisionAvailable: visualAttachments.length > 0,
         extractionTruncated: extraction.extractionTruncated === true,
         extractionIncomplete: extraction.extractionIncomplete === true
       }
     };
   }
 
-  _buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose = '', groundingParts = null, coverageContext = null) {
+  _buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose = '', groundingParts = null, coverageContext = null, visualAttachmentNames = []) {
     const bounded = (value, limit) => {
       const text = String(value || '');
       if (text.length <= limit) return text;
@@ -4187,10 +4212,13 @@ EMAIL ORIGINALE:
 ${emailTruncated || ''}
 """
 
+${visualAttachmentNames.length ? `ALLEGATI VISIVI DISPONIBILI PER L'ANALISI: ${JSON.stringify(visualAttachmentNames)}` : ''}
+
 SCOPO DEL MESSAGGIO (se disponibile): ${String(requestPurpose || 'da inferire dall\'email')}
 ${coverageContext ? '\nINDIZI DA RISCONTRARE:\n' +
   JSON.stringify({ goal: coverageContext.goal, openRequests: coverageContext.openRequests,
-    constraints: coverageContext.constraints, sourceCompleteness: coverageContext.completeness }) : ''}
+    constraints: coverageContext.constraints, sourceCompleteness: coverageContext.completeness,
+    visualAttachments: coverageContext.visualAttachments }) : ''}
 
 RISPOSTA DA VALIDARE:
 """
@@ -4202,7 +4230,7 @@ Distingui fatti, pertinenza e incertezza: unsupportedClaims riguarda solo fatti 
 
 COMPITO B — PERTINENZA CONTESTUALE${coverageContext ? ' E C — COPERTURA' : ''}:
 Individua obiettivo, domande e vincoli attuali con lo storico: copri l'essenziale. Richieste risolte restano chiuse salvo nuova domanda. Seleziona unità informative separate, non ogni alternativa KB. irrelevantDetails segnala ridondanze e procedure già eseguite, preservando aiuti concreti ai vincoli.
-${coverageContext ? `Riporta ogni openRequest con lo stesso id e need in requests, anche se omessa o condizionale. Per una conditional, not_applicable vale solo se appliesWhen è falsa; quando è falsa assegna not_applicable anche se la risposta non ripete il ripiego, e non segnalarlo come missing. Se appliesWhen è vera, valutala come primaria e usa missing se resta senza risposta. Tieni distinti bisogni autonomi della stessa email: un limite su scadenza o tempi non copre il diverso bisogno di sapere chi può ritirare, come o con quali requisiti. Assegna explicit_limit_info solo alla richiesta del dato mancante; le altre richieste restano da valutare separatamente. Ogni request deve avere reason non vuota e specifica. unsupportedExtractedRequests serve solo per estrazioni senza base nella richiesta attuale. additionalRequests aggiunge esigenze sfuggite. evidence cita l'originale corrente. Se gli indizi non contengono openRequest e non emerge alcuna esigenza attuale dopo aver valutato il materiale completo, usa noOpenRequests=true con una motivazione breve; in quel caso requests, additionalRequests e unsupportedExtractedRequests restano vuoti. Se manca materiale necessario, indica undeterminableReason. Cortesia e riscontro non sostituiscono risposte, né costituiscono promesse operative.
+${coverageContext ? `Riporta ogni openRequest con lo stesso id e need in requests, anche se omessa o condizionale. Per una conditional, not_applicable vale solo se appliesWhen è falsa; quando è falsa assegna not_applicable anche se la risposta non ripete il ripiego, e non segnalarlo come missing. Se appliesWhen è vera, valutala come primaria e usa missing se resta senza risposta. Tieni distinti bisogni autonomi della stessa email: un limite su scadenza o tempi non copre il diverso bisogno di sapere chi può ritirare, come o con quali requisiti. Assegna explicit_limit_info solo alla richiesta del dato mancante; le altre richieste restano da valutare separatamente. Ogni request deve avere reason non vuota e specifica. unsupportedExtractedRequests serve solo per estrazioni senza base nella richiesta attuale. additionalRequests aggiunge esigenze sfuggite. evidence cita l'originale corrente. Esamina anche gli allegati visivi disponibili. Per una richiesta fondata su un allegato visivo, riporta in evidence un breve testo leggibile e in sourceRef il nome esatto dell'allegato; se la parte rilevante non è leggibile, usa undeterminable. Se gli indizi non contengono openRequest e non emerge alcuna esigenza attuale dopo aver valutato il materiale completo, usa noOpenRequests=true con una motivazione breve; in quel caso requests, additionalRequests e unsupportedExtractedRequests restano vuoti. Se manca materiale necessario, indica undeterminableReason. Cortesia e riscontro non sostituiscono risposte, né costituiscono promesse operative.
 - addressed: risposta concreta o chiarimento indispensabile; mai per una risposta che nega o limita il servizio;
 - not_applicable: ripiego non necessario o richiesta risolta;
 - explicit_limit_info: la risposta dichiara di non poter confermare il dato assente necessario proprio a quel need; non sostituisce una risposta su modalità, delegati o requisiti;
@@ -4260,7 +4288,7 @@ Rispondi SOLO con questo JSON (senza markdown):
   // PARSING E UTILITY
   // ========================================================================
 
-  _generateSemantic(prompt) {
+  _generateSemantic(prompt, options = {}) {
     if (!this.geminiService) {
       if (typeof GeminiService !== 'function') {
         throw new Error('GeminiService non disponibile per validazione semantica');
@@ -4268,11 +4296,14 @@ Rispondi SOLO con questo JSON (senza markdown):
       this.geminiService = new GeminiService();
     }
 
+    const attachments = Array.isArray(options.attachments) ? options.attachments.filter(Boolean) : [];
     if (typeof this.geminiService.generateForTask === 'function') {
-      return this.geminiService.generateForTask(this.taskType, prompt, {maxRetries:this.maxRetries});
+      return this.geminiService.generateForTask(this.taskType, prompt, {maxRetries:this.maxRetries, attachments});
     }
 
-    const estimatedTokens = (typeof estimateTokenCount === 'function')
+    const estimatedTokens = typeof this.geminiService._estimateTokens === 'function'
+      ? this.geminiService._estimateTokens(prompt, attachments)
+      : (typeof estimateTokenCount === 'function')
       ? estimateTokenCount(prompt)
       : Math.max(1, Math.ceil(String(prompt || '').length / 3.2));
 
@@ -4283,7 +4314,9 @@ Rispondi SOLO con questo JSON (senza markdown):
           const selectedApiKey = requestContext && requestContext.usesBackupKey && this.geminiService.backupKey
             ? this.geminiService.backupKey
             : this.geminiService.primaryKey;
-          return this.geminiService._generateWithModel(prompt, modelName, selectedApiKey);
+          return attachments.length > 0
+            ? this.geminiService._generateWithModel(prompt, modelName, selectedApiKey, attachments)
+            : this.geminiService._generateWithModel(prompt, modelName, selectedApiKey);
         },
         {
           estimatedTokens: estimatedTokens
@@ -4301,7 +4334,9 @@ Rispondi SOLO con questo JSON (senza markdown):
       : (this.geminiService.modelName || 'gemini-3.5-flash-lite');
 
     return this.geminiService._withRetry(
-      () => this.geminiService._generateWithModel(prompt, semanticModelName),
+      () => attachments.length > 0
+        ? this.geminiService._generateWithModel(prompt, semanticModelName, undefined, attachments)
+        : this.geminiService._generateWithModel(prompt, semanticModelName),
       'Semantic validation',
       this.maxRetries
     );
@@ -4456,6 +4491,10 @@ Rispondi SOLO con questo JSON (senza markdown):
     const normalize = value => String(value || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
     const sources = context && context.sources || {};
     const completeness = context && context.completeness || {};
+    const visualAttachmentReferences = new Set(
+      (context && Array.isArray(context.visualAttachments) ? context.visualAttachments : [])
+        .map(normalize).filter(Boolean)
+    );
     const extracted = context && Array.isArray(context.openRequests) ? context.openRequests : [];
     const statuses = ['addressed', 'not_applicable', 'explicit_limit_info', 'explicit_limit_service', 'missing', 'undeterminable'];
     const ids = new Set();
@@ -4478,9 +4517,18 @@ Rispondi SOLO con questo JSON (senza markdown):
       const originalEvidence = original && typeof original.evidence === 'string' ? original.evidence : '';
       const evidence = row.evidence;
       const normalizedSource = normalize(sourceText);
-      const evidenceIsGrounded = Boolean(evidence && normalizedSource.includes(normalize(evidence)));
+      const visualSourceIsGrounded = Boolean(
+        evidence && completeness.attachmentsVisionAvailable === true &&
+        visualAttachmentReferences.has(normalize(row.sourceRef))
+      );
+      const evidenceIsGrounded = Boolean(evidence && (
+        normalizedSource.includes(normalize(evidence)) || visualSourceIsGrounded
+      ));
       const originalEvidenceIsGrounded = !original || Boolean(
-        originalEvidence && normalizedSource.includes(normalize(originalEvidence))
+        originalEvidence && (
+          normalizedSource.includes(normalize(originalEvidence)) ||
+          (original.source === 'attachment' && completeness.attachmentsVisionAvailable === true)
+        )
       );
       if (!evidenceIsGrounded || !originalEvidenceIsGrounded) {
         row.status = 'undeterminable';

@@ -39,7 +39,7 @@ var ThreadValidation = {
         routedAiCore,
         routedDoctrine
       ].filter(Boolean).join('\n\n');
-      validation = deps.validator.validateResponse(
+      const validationArgs = [
         finalResponse,
         detectedLanguage,
         fullValidationKB,
@@ -48,7 +48,11 @@ var ThreadValidation = {
         effectiveSalutationMode,
         true,
         validationRuntimeContext
-      );
+      ];
+      if (Array.isArray(attachmentBlobs) && attachmentBlobs.length > 0) {
+        validationArgs.push(attachmentBlobs);
+      }
+      validation = deps.validator.validateResponse(...validationArgs);
 
       if (typeof validation.validatedResponse === 'string') {
         finalResponse = validation.validatedResponse;
@@ -161,7 +165,7 @@ var ThreadValidation = {
           detectedLanguage
         );
 
-        const retryValidation = deps.validator.validateResponse(
+        const retryValidationArgs = [
           preparedRetryResponse,
           detectedLanguage,
           fullValidationKB,
@@ -170,7 +174,11 @@ var ThreadValidation = {
           effectiveSalutationMode,
           true,
           validationRuntimeContext
-        );
+        ];
+        if (Array.isArray(attachmentBlobs) && attachmentBlobs.length > 0) {
+          retryValidationArgs.push(attachmentBlobs);
+        }
+        const retryValidation = deps.validator.validateResponse(...retryValidationArgs);
         const retryValidatedResponse = typeof retryValidation.validatedResponse === 'string'
           ? retryValidation.validatedResponse
           : (retryValidation.fixedResponse || preparedRetryResponse);
