@@ -1,6 +1,6 @@
 # Operational troubleshooting
 
-Local source reference: 3 October 2026. [Italiano](TROUBLESHOOTING_IT.md)
+[Italiano](TROUBLESHOOTING_IT.md)
 
 ## No replies
 

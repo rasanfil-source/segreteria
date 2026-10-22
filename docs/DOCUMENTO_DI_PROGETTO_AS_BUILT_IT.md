@@ -6,7 +6,7 @@
 |---|---|
 | Tipo di documento | Specifica funzionale e architetturale |
 | Stato | Descrizione del codice locale; deploy remoto non verificato |
-| Data di riferimento | 3 ottobre 2026 |
+| Stato | Descrizione del comportamento e dell'architettura attuali |
 | Revisione software di riferimento | Codice locale e contratti funzionali verificati |
 | Piattaforma | Google Apps Script V8, Gmail, Google Sheets, Google Drive, Gemini API |
 | Destinazioni previste dal deploy | Parrocchia; donRaimondo |
@@ -126,7 +126,7 @@ Il sistema non deve:
 | Segreteria parrocchiale | Mantiene procedure, orari, contatti e modelli informativi nella KB; gestisce i casi in `Verifica` ed `Errore`. |
 | Amministratore del sistema | Configura account, proprietà, trigger, autorizzazioni, quote, deploy e monitoraggio. |
 | Responsabile privacy | Valuta base giuridica, informativa, conservazione, uso del provider AI e accessi ai dati. |
-| Manutentore software | Corregge difetti, mantiene test, documentazione e compatibilità delle API. |
+| Manutentore software | Gestisce le anomalie e mantiene test, documentazione e compatibilità delle API. |
 | Mittente | Riceve la risposta e conserva sempre la possibilità di interagire con una persona. |
 
 ### 4.1 Matrice sintetica RACI
@@ -138,7 +138,7 @@ Il sistema non deve:
 | Gestire `Verifica` ed `Errore` | C | A/R | C | I |
 | Configurare credenziali e trigger | I | C | A/R | C |
 | Pubblicare il codice | I | I | A | R |
-| Correggere regressioni | I | C | C | A/R |
+| Verificare i comportamenti attesi | I | C | C | A/R |
 | Valutare privacy e conservazione | A | C | R | C |
 
 Legenda: R = responsabile operativo; A = responsabile finale; C = consultato; I = informato.
@@ -760,7 +760,7 @@ Un trigger monouso riprende il lavoro dopo il ritardo richiesto. Superato il num
 
 | ID | Requisito |
 |---|---|
-| RNF-020 | Ogni modifica di comportamento deve includere almeno un test di regressione. |
+| RNF-020 | Ogni comportamento verificabile deve includere almeno un test di scenario. |
 | RNF-021 | Le regole di contenuto parrocchiale devono essere preferibilmente aggiunte o affinate nella KB. |
 | RNF-022 | Le policy dichiarative devono produrre decisioni; lock, API e invio restano nella meccanica imperativa. |
 | RNF-023 | Configurazione, codice e segreti devono restare separati. |
@@ -865,7 +865,7 @@ Durante le fasce di presenza della segreteria, il sistema si sospende per evitar
 | Unit test GAS/Node | Funzioni e moduli isolati in ambiente simulato. |
 | Test modulari | 28 file `tests/test_*.js` eseguiti separatamente. |
 | Golden cases | Casi conversazionali di riferimento e snapshot prompt/validator. |
-| Regression test | Riproduzione di email reali anonimizzate che hanno causato difetti. |
+| Test di scenario | Verifica di email rappresentative anonimizzate e dei relativi esiti attesi. |
 | Test manuale in GAS | Trigger, permessi, Gmail reale, Sheet, allegati, invio e label. |
 | Verifica deploy | Clone dei due progetti remoti e confronto dei file critici con la revisione locale. |
 
@@ -913,7 +913,7 @@ Il repository Git costituisce la sorgente autorevole del codice. Il branch di pr
 
 ### 17.2 Ambienti
 
-La stessa versione del prodotto viene distribuita a:
+La stessa configurazione applicativa viene distribuita a:
 
 1. `PARROCCHIA`;
 2. `donRaimondo`.
@@ -958,7 +958,7 @@ Il rollback deve avvenire mediante una revisione Git nota e verificata, seguita 
 Un avviso deve essere letto per fase e orario:
 
 - più notifiche con lo stesso Message ID sono tentativi sullo stesso messaggio, non necessariamente email diverse;
-- la scomparsa di un errore e la comparsa di un altro può indicare che una correzione ha superato la fase precedente;
+- le notifiche e gli esiti vanno letti insieme, perché un messaggio può attraversare più fasi di elaborazione;
 - uno score alto non rende valida una risposta se esiste un errore semantico bloccante;
 - un `503` prima della generazione non dice nulla sulla qualità della KB o della risposta;
 - `Verifica` rappresenta il corretto funzionamento del confine umano quando manca grounding.
@@ -1056,7 +1056,7 @@ Deliverable:
 - modello di consegna documentale;
 - continuità sensibile e vincoli temporali.
 
-Gate: regressioni reali su moduli, certificati, citazioni e follow-up superate.
+Verifica: gli scenari su moduli, certificati, citazioni e follow-up producono gli esiti attesi.
 
 ### Fase 6 — Resilienza e produzione
 
@@ -1076,10 +1076,10 @@ Gate: fault injection su `429`, `503`, timeout, lock e cache corrotta.
 Processo:
 
 1. raccogliere email problematiche anonimizzate;
-2. distinguere lacuna KB, difetto di estrazione, classificazione, prompting o validazione;
+2. distinguere lacune della KB, problemi di estrazione, classificazione, istruzioni o validazione;
 3. preferire l'affinamento della regola esistente;
 4. evitare l'accumulo indiscriminato di eccezioni nel prompt;
-5. aggiungere un test di regressione;
+5. aggiungere un test di scenario;
 6. misurare l'effetto sui casi adiacenti;
 7. rilasciare con verifica remota.
 
@@ -1164,7 +1164,7 @@ Il progetto può essere considerato riuscito quando:
 - l'assenza di informazioni non produce né promesse né negazioni inventate;
 - errori transitori vengono recuperati senza intervento e senza duplicati;
 - i casi non sicuri arrivano alla revisione con una diagnosi comprensibile;
-- le modifiche sono coperte da regressioni e distribuite nello stesso modo sui due ambienti;
+- i comportamenti sono verificati dalle suite e configurati in modo omogeneo nei due ambienti;
 - il responsabile umano conserva sempre controllo, visibilità e possibilità di interrompere il sistema.
 
 ---

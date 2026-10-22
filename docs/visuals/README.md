@@ -1,6 +1,6 @@
 # 📁 Visual Assets
 
-> SVG/PDF files here are earlier static exports and were not regenerated in this revision. The [current Markdown diagrams](../ARCHITECTURE_DIAGRAMS.md) and [language guide](../LANGUAGE_MODES.md) describe source as of 3 October 2026.
+The SVG and PDF files are static diagrams. The [Markdown diagrams](../ARCHITECTURE_DIAGRAMS.md) and [language guide](../LANGUAGE_MODES.md) describe the system architecture and operating behaviour.
 
 [![Italian Version](https://img.shields.io/badge/Italian-Version-green?style=flat-square)](README_IT.md)
 

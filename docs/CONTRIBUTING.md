@@ -29,7 +29,7 @@ On Windows use PowerShell 7:
 pwsh.exe -NoLogo -NoProfile -Command "node scripts/run_ci_test_suite.js"
 ```
 
-The suite includes V8 coverage and mocked services. It does not require scratch files or old logs. Language mode changes must also cover deferred · messages and mode transitions.
+The suite includes V8 coverage and mocked services. It does not require temporary files or local logs. Language mode changes must also cover deferred · messages and mode transitions.
 
 *   **Unit Tests**: Run `node gas_unit_tests.js` locally (requires node setup) or `runAllTests()` in the GAS editor.
 *   **CI-equivalent Node Suite**: Run `node scripts/run_ci_test_suite.js` to execute smoke + unit + modular Node tests (`tests/test_*.js`) with the same orchestration used in GitHub Actions.

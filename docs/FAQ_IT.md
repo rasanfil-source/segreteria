@@ -1,7 +1,5 @@
 # FAQ
 
-Aggiornato al 3 ottobre 2026.
-
 ## Risponde anche in italiano?
 
 Sì, con **Tutte le lingue** in Controllo!F2. Con **Solo straniere** l'italiano riconosciuto viene rinviato con `·`. Il cambio a tutte le lingue rende nuovamente candidati i messaggi ancora non letti e senza altre esclusioni. [Dettagli](LANGUAGE_MODES_IT.md).

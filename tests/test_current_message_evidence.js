@@ -1,4 +1,4 @@
-// Regressioni del percorso testo corrente -> segnali -> contesto -> memoria.
+// Verifica il passaggio dal testo corrente ai segnali, al contesto e alla memoria.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');

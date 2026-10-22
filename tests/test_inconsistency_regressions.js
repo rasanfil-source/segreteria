@@ -1,4 +1,4 @@
-// Regressioni deterministiche, senza servizi Google o invio email.
+// Verifiche deterministiche senza servizi Google o invio di email.
 const fs = require('fs'), vm = require('vm'), path = require('path'), assert = require('assert');
 const ctx = { console, CONFIG: {} };
 vm.createContext(ctx);

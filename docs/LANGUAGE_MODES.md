@@ -1,6 +1,6 @@
 # All languages and foreign-only mode
 
-Checked against local source on 3 October 2026. [Italiano](LANGUAGE_MODES_IT.md)
+[Italiano](LANGUAGE_MODES_IT.md)
 
 ## Setting
 
@@ -37,4 +37,4 @@ The resource loader stores the mode in `GLOBAL_CACHE.languageMode`. The `onEdit`
 
 The master switch, suspension, quotas and batch limits remain independent. Each GAS project reads the spreadsheet selected by its own `SPREADSHEET_ID`; projects sharing a spreadsheet also share F2.
 
-See [configuration](CONFIGURATION.md) and the [offline test runner](validator_testing.md). Regression coverage includes advanced configuration, processor, Gmail, thread-characterisation and unit suites.
+See [configuration](CONFIGURATION.md) and the [offline test runner](validator_testing.md). Scenario coverage includes advanced configuration, processor, Gmail, thread-characterisation and unit suites.

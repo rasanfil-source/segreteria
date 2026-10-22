@@ -1,6 +1,6 @@
 # Configuration
 
-Checked against local source on 3 October 2026. [Italiano](CONFIGURATION_IT.md)
+[Italiano](CONFIGURATION_IT.md)
 
 `gas_config.js` is tracked and supplies runtime settings. `gas_config.example.js` is an excluded deployment template; do not overwrite an existing configuration just to change one setting.
 

@@ -691,7 +691,7 @@ Linee guida per la risposta:
 ---`;
     }
 
-    // Default per mixed o altro
+    // Valore predefinito per lingue miste o altre lingue.
     return `
 🎯 TIPO RICHIESTA RILEVATO: MISTA / DOTTRINALE
 ${sep}

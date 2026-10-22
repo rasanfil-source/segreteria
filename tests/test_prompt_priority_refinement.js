@@ -25,7 +25,7 @@ for (const [kbSize, coreSize] of [[40000, 65000], [55000, 50000]]) {
     emailContent: 'Quali documenti servono? ' + 'Informazioni personali. '.repeat(330) });
   assert(prompt.length <= 120000);
   assert(prompt.prompt.includes('Quali documenti servono?'));
-  // Il reducer legacy può tagliare un modulo: non dichiararlo integralmente caricato.
+  // Se il riduttore omette un modulo, non dichiararlo integralmente caricato.
   assert(!prompt.systemInstruction.includes('aiCore=true'));
 }
 const nominal = engine.buildPrompt({ ...base, requestType: { type: 'pastoral', needsDiscernment: true }, aiCore: 'CORE_SENTINEL ascolto.' });

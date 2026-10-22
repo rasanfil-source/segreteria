@@ -1,7 +1,5 @@
 # FAQ
 
-Updated 3 October 2026.
-
 ## Does it handle Italian?
 
 Yes, with **Tutte le lingue** in Controllo!F2. **Solo straniere** defers identified Italian with `·`. Switching back makes still-unread, otherwise eligible messages candidates again. [Details](LANGUAGE_MODES.md).

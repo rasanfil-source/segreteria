@@ -1,4 +1,4 @@
-// Regressioni locali: nessuna API, email o quota Gemini.
+// Verifiche locali senza API, invii di email o consumo della quota Gemini.
 const fs = require('fs'), vm = require('vm'), path = require('path'), assert = require('assert');
 const root = path.resolve(__dirname, '..');
 const ctx = {console, CONFIG: {}};

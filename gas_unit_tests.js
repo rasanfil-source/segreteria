@@ -284,7 +284,7 @@ function runAllTests() {
     const results = { total: 0, passed: 0, failed: 0 };
     const start = Date.now();
 
-    // 0. Regressioni precedence/configurazione
+    // 0. Verifica delle precedenze e della configurazione.
     testGroup('Regressioni - Precedenza operatori e configurazione', results, () => {
         test('_getScriptProperty memorizza in cache anche con chiave assente inizialmente', results, () => {
             let propertyReads = 0;
@@ -994,7 +994,7 @@ function runAllTests() {
             processor.processThread(thread, 'KB', 'Doctrine', labeledMessageIds, true);
             // Con il mock corretto, il path atteso è: classifyEmail → shouldReply:true →
             // shouldRespondToEmail → shouldRespond:false → _markMessageAsProcessed su tutto il burst
-            // già valutato, evitando replay retrogrado dei messaggi precedenti.
+            // già valutato, evitando di ripercorrere messaggi precedenti.
             return labeledMessageIds.has('msg-1') && labeledMessageIds.has('msg-2') && labeledMessageIds.has('msg-3');
         });
 

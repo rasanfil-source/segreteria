@@ -3,8 +3,8 @@
  * 
  * SINCRONO - Compatibile con Google Apps Script
  * Configurazione modelli centralizzata in gas_config.js
- * Reset quota: ore 9:00 italiane (mezzanotte Pacific)
- * Cache ottimizzata per ridurre letture PropertiesService
+ * Ripristino delle quote: ore 9:00 italiane (mezzanotte del Pacifico)
+ * Cache ottimizzata per ridurre le letture di PropertiesService
  * 
  * FUNZIONALITÀ:
  * - Traccia utilizzo RPM (richieste/minuto), TPM (token/minuto), RPD (richieste/giorno)
@@ -28,8 +28,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     } else {
       // Fallback se CONFIG non disponibile
       console.warn('   \u26A0\uFE0F CONFIG.GEMINI_MODELS non trovato, uso default');
-      // Default conservativo allineato alla policy: 3.8 Flash per generazione,
-      // 3.5 Flash-Lite per task rapidi/ausiliari.
+      // Valori prudenziali secondo la policy: 3.8 Flash per le generazioni,
+      // 3.5 Flash-Lite per i compiti rapidi o ausiliari.
       this.models = {
         'flash-primary': {
           name: 'gemini-3.8-flash',
@@ -81,7 +81,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       'flash-primary';
 
     // ================================================================
-    // CACHE IN-MEMORY (per ridurre PropertiesService reads)
+      // Cache in memoria per ridurre le letture di PropertiesService.
     // ================================================================
 
     this.cache = {
@@ -143,7 +143,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
    */
   _normalizeDeprecatedModelNames(models) {
     const deprecatedMap = {
-      // Mappatura alias lite storici verso il profilo operativo rapido scelto.
+      // Associa gli alias Lite configurati al profilo operativo rapido.
       'gemini-2.5-flash-lite': 'gemini-3.5-flash-lite',
       'gemini-2.5-flash-exp': 'gemini-3.5-flash-lite',
       'gemini-2.0-flash-exp': 'gemini-3.5-flash-lite',
@@ -151,7 +151,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       'gemini-2.0-flash-lite': 'gemini-3.5-flash-lite',
       'gemini-3.1-flash-lite': 'gemini-3.5-flash-lite',
       'gemini-3.1-flash-lite-preview': 'gemini-3.5-flash-lite',
-      // Refuso ricorrente: non esiste un modello testuale 'gemini-3.1-flash'; il full-tier è Gemini 3 Flash Preview.
+      // Il catalogo usa il modello Gemini 3 Flash Preview come modello di fascia completa.
       'gemini-3.1-flash': 'gemini-3-flash-preview',
       'gemini-2.5-flash': 'gemini-3.8-flash',
       'gemini-3.5-flash': 'gemini-3.8-flash',
@@ -222,8 +222,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       }
 
       if (lockAcquired) {
-        // Rileggi sempre le proprietà dopo aver acquisito il lock per evitare race condition
-        // Usa data Pacific per allinearsi al reset reale delle quote Google
+        // Rilegge le proprietà dopo aver acquisito il lock per evitare condizioni di concorrenza.
+        // Usa la data del Pacifico per seguire il ripristino delle quote Google.
         // Il ripristino di Google avviene a mezzanotte del Pacifico = 9:00 AM italiana
         const storedDate = this.props.getProperty('rate_limit_date');
         const pacificDate = this._getPacificDate();
@@ -233,7 +233,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
           console.log(`📅 Giorno Pacific cambiato (${pacificDate}), reset contatori giornalieri`);
           console.log(`   (Ora italiana: ${Utilities.formatDate(new Date(), 'Europe/Rome', 'HH:mm')})`);
           this._resetDailyCounters();
-          // Forza svuotamento cache locale per riflettere subito il reset
+          // Svuota la cache locale per rendere immediato il ripristino.
           this.cache.lastCacheUpdate = 0;
         }
       } else {
@@ -298,9 +298,8 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   }
 
   /**
-   * Ottieni data Pacific (per reset quote Google)
-   * Il reset delle quote Google avviene a mezzanotte Pacific Time.
-   * Mezzanotte Pacific = 9:00 AM italiana (in inverno, 8:00 in estate con DST)
+   * Restituisce la data del Pacifico usata per il ripristino delle quote Google.
+   * La mezzanotte del Pacifico corrisponde alle 9:00 italiane in inverno e alle 8:00 in estate.
    */
   _getPacificDate() {
     const now = new Date();
@@ -610,10 +609,10 @@ var GeminiRateLimiter = class GeminiRateLimiter {
   // ================================================================
 
   /**
-   * Esegue richiesta con rate limiting
-   * VERSIONE SINCRONA per Google Apps Script
+   * Esegue una richiesta tramite il limitatore.
+   * L'esecuzione è sincrona in Google Apps Script.
    * 
-   * @param {string} taskType - Tipo task: 'quick_check', 'generation', etc.
+   * @param {string} taskType - Tipo di attività: 'quick_check', 'generation' e altri valori configurati.
    * @param {Function} requestFn - Funzione che riceve (modelName, requestContext) ed esegue la richiesta
    * @param {Object} options - {estimatedTokens, maxRetries, forceModel, skipRateLimit}
    * @returns {Object} {success, result, modelUsed, quotaUsed}
@@ -960,12 +959,12 @@ var GeminiRateLimiter = class GeminiRateLimiter {
       this._finalizeReservation(modelKey, reservationId, duration, tokensUsed);
     }
 
-    // 1-2. Contatori RPD/Tokens con incremento atomico (evita race condition)
+    // 1-2. Contatori RPD e token con incremento atomico, per evitare condizioni di concorrenza.
     // Le richieste con reservation hanno gia consumato RPD atomicamente prima
     // della chiamata remota; qui contabilizziamo soltanto i token effettivi.
     const counters = this._incrementCountersAtomic(modelKey, tokensUsed, false, !reservationId);
 
-    // 3. Finestra RPM (con cache) - solo per richieste non prenotate
+    // 3. Finestra RPM con cache, solo per richieste non prenotate.
     if (reservationId) {
       console.log(`📊 Tracciato tramite reservation: ${modelKey}`);
       console.log(`   RPD: ${counters.rpd}/${this.models[modelKey].rpd}`);
@@ -1123,7 +1122,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     const notes = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_FREE_TIER_NOTES) ? CONFIG.GEMINI_FREE_TIER_NOTES : {};
     const limit = Number(notes.groundingSharedRpd) > 0 ? Number(notes.groundingSharedRpd) : 1500;
     const lock = alreadyLocked ? null : LockService.getScriptLock();
-    // Timeout ridotto a 10s per evitare hang
+    // Limita a 10 secondi l'attesa del lock.
     const gotLock = alreadyLocked || lock.tryLock(10000);
     if (!gotLock) {
       throw new Error('QUOTA_EXHAUSTED: impossibile acquisire lock per Google Search Grounding');
@@ -1351,7 +1350,7 @@ var GeminiRateLimiter = class GeminiRateLimiter {
     this.props.setProperties({
       rpm_window: JSON.stringify(this._compactWindowForLegacyProperty_(mergedRpm)),
       tpm_window: JSON.stringify(this._compactWindowForLegacyProperty_(mergedTpm)),
-      // Backup durevole per sopravvivere a eventuale eviction cache/flush transitori
+      // Memorizzazione persistente per gestire espulsioni della cache e svuotamenti temporanei.
       rate_limit_rpm_backup: JSON.stringify(mergedRpm.slice(-10)),
       rate_limit_tpm_backup: JSON.stringify(mergedTpm.slice(-10))
     });

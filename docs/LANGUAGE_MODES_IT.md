@@ -1,6 +1,6 @@
 # Modalità “Tutte le lingue” e “Solo straniere”
 
-Verificato sul codice locale il 3 ottobre 2026. [English](LANGUAGE_MODES.md)
+[English](LANGUAGE_MODES.md)
 
 ## Impostazione
 
@@ -45,4 +45,4 @@ La modalità è caricata nelle risorse (`GLOBAL_CACHE.languageMode`). L'handler 
 
 ## Verifica
 
-Le regressioni sono nelle suite `tests/test_advanced_config.js`, `tests/test_email_processor.js`, `tests/test_gmail_service.js`, `tests/test_thread_characterization.js` e `gas_unit_tests.js`. Eseguire il [runner completo](validator_testing.md) per coprire configurazione, selezione e marcature insieme.
+Le verifiche sono nelle suite `tests/test_advanced_config.js`, `tests/test_email_processor.js`, `tests/test_gmail_service.js`, `tests/test_thread_characterization.js` e `gas_unit_tests.js`. Eseguire il [runner completo](validator_testing.md) per coprire configurazione, selezione e marcature insieme.

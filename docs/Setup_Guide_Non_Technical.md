@@ -1,6 +1,6 @@
 # Secretariat setup and operating guide
 
-Updated 3 October 2026. [Italiano](Guida_Setup_Completa_Per_non_tecnici.md)
+[Italiano](Guida_Setup_Completa_Per_non_tecnici.md)
 
 An administrator prepares Gmail, Apps Script, Gemini access and the Google spreadsheet using the [deployment guide](DEPLOYMENT.md). All runtime modules, including the eleven thread components, are required. Keep parish facts in the knowledge sheets; sample contacts and schedules in guides are not production data.
 

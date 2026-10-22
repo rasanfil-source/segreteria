@@ -21,7 +21,7 @@ try {
   report = summarizeCoverage(profiles, root);
   assert.equal(report['gas_fixture.js'].blocks.covered, 2);
   assert.equal(report['gas_fixture.js'].blocks.total, 3);
-  // V8 omits equal-count children: root coverage here covers all union ranges.
+  // V8 omette i blocchi interni con lo stesso conteggio; qui la copertura radice include tutti gli intervalli uniti.
   write('three.json', [range(0, 100, 1)]);
   report = summarizeCoverage(profiles, root);
   assert.equal(report['gas_fixture.js'].blocks.percent, 100);

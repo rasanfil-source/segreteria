@@ -1,4 +1,4 @@
-// GAS loads every root .js file. Mirror that in existing Node VM test loaders.
+// GAS carica tutti i file .js nella cartella principale; il caricatore dei test Node riproduce questo comportamento.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');

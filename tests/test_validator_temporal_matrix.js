@@ -57,7 +57,7 @@ for (const bad of [null, 'bad', new Date(NaN)]) row(`invalid date helpers ${bad}
 });
 for (const policy of ['strict_next_week', 'nearest_future']) for (let anchorDay = 0; anchorDay < 7; anchorDay++) for (let target = 0; target < 7; target++) for (const direction of ['current_week', 'next_week', 'next_week_strict', 'previous_week']) row(`weekday ${policy}/${anchorDay}/${target}/${direction}`, () => {
   context.CONFIG.TEMPORAL_PARSING = { nextWeekdayPolicy: policy };
-  const anchor = new Date(2026, 8, 21 + anchorDay, 12); // Monday through Sunday.
+  const anchor = new Date(2026, 8, 21 + anchorDay, 12); // Dal lunedì alla domenica.
   const result = v._resolveWeekdayDate_(anchor, target, direction);
   assert.equal(result.getDay(), target);
   const delta = Math.round((result - anchor) / 86400000);

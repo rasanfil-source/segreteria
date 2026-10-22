@@ -9,7 +9,7 @@ function setup(files, extra = {}) {
   return { ctx, warnings };
 }
 
-// Public validator: deterministic blockers survive; semantic calls cannot rescue them.
+// I blocchi deterministici persistono anche quando vengono eseguite chiamate semantiche.
 const { ctx } = setup(['gas_response_validator.js'], { CONFIG: { SEMANTIC_VALIDATION: { enabled: false } } });
 const clean = "Gentile signora, grazie per il suo messaggio. Restiamo a disposizione per rispondere alle sue domande. Cordiali saluti, Segreteria Parrocchia Sant'Eugenio";
 for (const suffix of [' XXX', ' Nota interna: verificare il contesto prima di rispondere.']) {

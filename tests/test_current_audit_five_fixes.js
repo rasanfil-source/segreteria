@@ -71,7 +71,7 @@ for (const successAt of [2, 3]) {
   assert(!attempts.at(-1).htmlBody);
 }
 
-// Integration: real extraction + classifier; metadata never supplies MIME parts.
+// Verifica l'estrazione e il classificatore reali; i metadati non contengono le parti MIME.
 const classifier = new ctx.Classifier();
 const metadataService = new ctx.GmailService();
 const reads = [];

@@ -44,7 +44,7 @@ row('multiple independent unsupported facts', () => {
   assert.equal(result.score, 0.0625);
 });
 const replies = ['Rientra nel territorio.', 'Fuori dal territorio.', 'Indicare il numero civico.', 'Grazie per il messaggio.'];
-// Table rows = certified context, columns = inside / outside / civic request / neutral.
+// Le righe rappresentano il contesto certificato; le colonne, gli esiti territoriali e la richiesta del civico.
 for (const [certified, expected, blocked] of [
   ['', null, [false, false, false, false]],
   ['Sconosciuto', null, [false, false, false, false]],

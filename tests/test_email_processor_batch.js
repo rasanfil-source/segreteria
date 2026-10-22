@@ -153,7 +153,7 @@ global.MemoryService = class {};
 global.TerritoryValidator = class {};
 
 global.CONFIG = {
-  VALIDATION_ENABLED: false, // Batch tests use an empty validator stub unless explicitly testing validation.
+  VALIDATION_ENABLED: false, // La suite usa un validatore vuoto, salvo nei casi che verificano la validazione.
   LABEL_NAME: 'IA',
   ERROR_LABEL_NAME: 'Errore',
   VALIDATION_ERROR_LABEL: 'Verifica',

@@ -1,6 +1,6 @@
 # Installation and deployment
 
-Aligned with local source on 3 October 2026. [Italiano](DEPLOYMENT_IT.md)
+[Italiano](DEPLOYMENT_IT.md)
 
 ## Setup
 
@@ -37,7 +37,7 @@ This command changes both remote projects. It restores the local clasp configura
 
 After authorisation and configuration checks, `setupAllTriggers()` installs `main` every 5 minutes, `weeklyMemoryCleanup` on Sunday at hour 3 and `exportMetricsToSheet` daily at hour 23.
 
-`setupTrigger()` aliases full setup; `setupProductionTrigger()` installs only the main trigger. `setupMainTrigger(minutes)` selects a supported interval from 1, 5, 10, 15 and 30. Legacy `setupWeeklyMemoryCleanupTrigger()` is a deprecated no-op.
+`setupTrigger()` runs full setup; `setupProductionTrigger()` installs only the main trigger. `setupMainTrigger(minutes)` selects a supported interval from 1, 5, 10, 15 and 30. `setupWeeklyMemoryCleanupTrigger()` does not create triggers; configure the weekly cleanup with `setupWeeklyCleanupTrigger()` in `gas_main.js`.
 
 `healthCheck()`, `testConfiguration()` and execution logs help inspect configuration; they do not prove delivery. Running `main()` can send mail when enabled and dry-run is false.
 

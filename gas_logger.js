@@ -155,7 +155,7 @@ Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
         ? CacheService.getScriptCache()
         : null;
       const errorClass = logEntry && logEntry.data && logEntry.data.errorClass ? String(logEntry.data.errorClass) : 'General';
-      // One alert per context/class/hour, regardless of changing thread IDs or error details.
+      // Invia un solo avviso per contesto, classe e ora, anche se cambiano gli ID dei thread o i dettagli dell'errore.
       const signature = `${logEntry.context}|${errorClass}`;
       const hash = (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.computeDigest === 'function')
         ? Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, signature)).substring(0, 16)
@@ -250,7 +250,7 @@ Script ID: ${this.config.SCRIPT_ID || 'Unknown'}
 }
 
 /**
- * Factory function per creare logger
+ * Crea un logger.
  */
 function createLogger(context, runId, baseMeta = {}) {
   const safeMeta = (baseMeta && typeof baseMeta === 'object') ? baseMeta : {};

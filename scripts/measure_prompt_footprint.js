@@ -1,4 +1,4 @@
-// Esegue solo test locali; cattura i payload renderizzati, senza chiamate API.
+// Esegue verifiche locali e raccoglie i payload composti, senza chiamate API.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');

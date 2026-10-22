@@ -1,6 +1,6 @@
 # Architettura del sistema
 
-Riferimento: codice locale al 3 ottobre 2026. [English](ARCHITECTURE.md)
+[English](ARCHITECTURE.md)
 
 ## Runtime e risorse
 

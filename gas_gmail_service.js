@@ -1,12 +1,12 @@
 /**
- * GmailService.gs - Gestione operazioni Gmail
+ * GmailService.gs - Gestione delle operazioni Gmail
  * 
  * FUNZIONALITÀ:
- * - Label cache per performance
- * - Supporto header Reply-To per form web
+ * - Cache delle etichette per ridurre le letture
+ * - Supporto dell'intestazione Reply-To per i moduli web
  * - Costruttore cronologia conversazione
  * - Rimozione citazioni/firme
- * - Threading corretto (In-Reply-To, References)
+ * - Gestione dei thread con In-Reply-To e References
  * - Conversione da Markdown a HTML
  */
 
@@ -14,7 +14,7 @@ var GmailService = class GmailService {
     constructor() {
         console.log('📧 Inizializzazione GmailService...');
 
-        // Cache etichette: in-memory (stessa esecuzione) + CacheService (cross-esecuzione)
+        // Cache delle etichette: memoria locale per l'esecuzione e CacheService tra esecuzioni.
         this._labelCache = new Map();
         this._cacheTTL = (typeof CONFIG !== 'undefined' && CONFIG.GMAIL_LABEL_CACHE_TTL) ? CONFIG.GMAIL_LABEL_CACHE_TTL : 3600000;
         // Limita il TTL entro i vincoli tecnici di CacheService.
@@ -225,7 +225,7 @@ var GmailService = class GmailService {
         }
 
         if (!hash) {
-            // Fallback deterministico per test locali/runtime degradati senza Utilities digest.
+            // Percorso deterministico per ambienti locali o degradati senza Utilities.computeDigest.
             // Mantiene la chiave sotto il limite CacheService (250 caratteri) senza usare la
             // label intera; l'hash FNV-1a riduce il rischio di collisione rispetto ai soli slice.
             let fnv = 2166136261;
@@ -489,7 +489,7 @@ var GmailService = class GmailService {
                 typeof gmailApp.getUserLabelByName === 'function')) {
                 this.getOrCreateLabel(labelName);
             } else {
-                // Riutilizza cache Map e contatore API; non spaccia un oggetto API per GmailLabel.
+                // Riutilizza la cache Map e il contatore API senza trattare un oggetto API come GmailLabel.
                 return this._getOptionalLabelIdByName(labelName);
             }
         } catch (e) {
@@ -499,8 +499,8 @@ var GmailService = class GmailService {
     }
 
     /**
-   * Aggiunge una label a più messaggi in una singola chiamata API (batch).
-   * Riduce il consumo quota rispetto al loop su messages.modify.
+   * Aggiunge un'etichetta a più messaggi con una sola chiamata API in blocco.
+   * Riduce il consumo di quota rispetto a un ciclo di chiamate messages.modify.
    */
   batchAddLabelToMessages(messageIds, labelName) {
     if (!Array.isArray(messageIds) || messageIds.length === 0) return;
@@ -773,11 +773,11 @@ var GmailService = class GmailService {
      * Recupera i thread con almeno un messaggio non letto e non ancora etichettato.
      *
      * Modalità supportate:
-     * - 'metadata': default operativo, message-level (list INBOX/UNREAD + blacklist ID in RAM,
-     *               con get minimal solo come fallback se la blacklist non è stata fornita)
-     * - 'query'   : compatibilità compatibile basata su GmailApp.search a livello thread
+     * - 'metadata': modalità predefinita a livello messaggio (elenco INBOX/UNREAD e ID esclusi in memoria,
+     *               con lettura minima solo se l'elenco non è stato fornito)
+     * - 'query'   : ricerca GmailApp.search a livello thread
      *
-     * @param {string} labelName            - Label applicata ai messaggi già elaborati (es. 'IA')
+     * @param {string} labelName            - Etichetta applicata ai messaggi già elaborati (es. 'IA')
      * @param {string} errorLabel           - Label dei thread in errore (es. 'Errore')
      * @param {string} validationLabel      - Label dei thread in attesa di verifica (es. 'Verifica')
      * @param {number} [messageBuffer=150]  - Numero massimo di messaggi da esaminare per pagina
@@ -916,7 +916,7 @@ var GmailService = class GmailService {
                 // q mantiene la semantica thread-level di Gmail search; labelIds resta message-level
                 // per restituire solo i singoli messaggi non letti dentro thread ancora in inbox.
                 // Una pagina piccola (15) fa avanzare il cursore persistente di pochi id
-                // per run, e i non-letti gia' etichettati IA (che restano UNREAD per
+                // per esecuzione, e i non letti già etichettati IA (che restano UNREAD per
                 // design) "affamano" le email nuove in cima alla lista.
                 const params = { q: 'in:inbox', labelIds: ['UNREAD'], maxResults: Math.max(safeMessageBuffer, 200) };
                 if (pageToken) params.pageToken = pageToken;
@@ -1368,14 +1368,14 @@ var GmailService = class GmailService {
 
         // Fallback robusto: in ambienti dove Gmail.Users non è disponibile (es. test locali
         // o deployment senza servizio avanzato), usiamo GmailApp per verificare l'esistenza
-        // della label e cache-iamo in memoria solo per questa modalità senza ID Advanced API.
+        // dell'etichetta e la memorizziamo solo per questa modalità, priva di ID dell'API avanzata.
         if (!hasGmailUsersList) {
             try {
                 // GmailApp.getUserLabelByName restituisce un GmailLabel utilizzabile con GmailApp,
                 // ma non espone l'ID interno richiesto dalle Gmail Advanced API
                 // (Gmail.Users.Messages.* vuole valori come "Label_123", non il display name).
-                // Verifichiamo quindi solo l'esistenza per cache-are il lookup ed evitiamo di usare
-                // getName() come falso ID: null forza i fallback GmailApp/thread-level sicuri.
+                // Verifica quindi solo l'esistenza e memorizza il risultato, senza usare
+                // getName() come ID: null attiva il percorso sicuro GmailApp a livello di thread.
                 const nativeLabel = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getUserLabelByName === 'function')
                     ? GmailApp.getUserLabelByName(raw)
                     : null;
@@ -1690,8 +1690,8 @@ var GmailService = class GmailService {
 
     /**
      * Estrae testo dagli allegati per contesto prompt.
-     * Supporta PDF/immagini (via OCR), Word, Excel e PowerPoint (via conversione nativa).
-     * Richiede Drive Advanced Service abilitato.
+     * Supporta PDF e immagini tramite OCR, Word, Excel e PowerPoint tramite conversione nativa.
+     * Richiede il servizio avanzato Drive.
      * @param {GmailMessage} message
      * @param {object} options
      * @returns {{text: string, items: Array, skipped: Array}}
@@ -2193,7 +2193,7 @@ var GmailService = class GmailService {
     }
 
     /**
-     * Converte un file Office in PDF usando Drive Advanced Service.
+     * Converte un file Office in PDF usando il servizio avanzato Drive.
      * Crea un file temporaneo, lo esporta in PDF e lo cancella sempre.
      * @param {Blob} attachmentBlob
      * @returns {Blob}
@@ -2214,7 +2214,7 @@ var GmailService = class GmailService {
                 throw new Error('Budget temporale esaurito prima della conversione Office');
             }
             // getContentType() può includere parametri (es. "; charset=UTF-8"):
-            // per la lookup in _officeMimeMap usiamo il mime base normalizzato.
+            // per la ricerca in _officeMimeMap usa il tipo MIME di base normalizzato.
             const originalMimeFull = correctedMimeType || attachmentBlob.getContentType() || '';
             const originalMime = originalMimeFull.split(';')[0].trim().toLowerCase();
             let googleMime = (this._officeMimeMap && this._officeMimeMap[originalMime]) ? this._officeMimeMap[originalMime] : null;
@@ -3060,8 +3060,8 @@ var GmailService = class GmailService {
     }
 
     /**
-     * Estrazione leggera dettagli messaggio (senza fetch metadata API).
-     * Usata per la sola costruzione della history conversazionale.
+     * Estrazione leggera dei dettagli del messaggio senza leggere i metadati tramite API.
+     * Usata solo per costruire la cronologia conversazionale.
      */
     _extractMessageDetailsLite(message) {
         if (message && typeof message === 'object' && 'senderEmail' in message && 'body' in message) {
@@ -3586,7 +3586,7 @@ var GmailService = class GmailService {
         }
 
         // Alternativa: metodo tradizionale
-        // Nel fallback nativo prediligiamo il cast esplicito a GmailMessage (se disponibile)
+        // Nel percorso nativo preferisce la conversione esplicita a GmailMessage, se disponibile.
         // affinché la libreria interna mantenga al meglio il riferimento al messaggio specifico
         const isMessage = resource && typeof resource.reply === 'function' && typeof resource.getThread === 'function';
         let mailEntity = null;
@@ -3883,7 +3883,7 @@ var GmailService = class GmailService {
         let currentPart = '';
         let currentBytes = 0;
 
-        // Segmenta per grapheme quando disponibile, con fallback compatibile Apps Script.
+        // Segmenta per grafemi quando disponibile; altrimenti usa una procedura compatibile con Apps Script.
         const chars = (typeof Intl !== 'undefined' && Intl && typeof Intl.Segmenter === 'function')
             ? Array.from(new Intl.Segmenter('it', { granularity: 'grapheme' }).segment(safeSubject)).map(s => s.segment)
             : Array.from(safeSubject);
@@ -4620,7 +4620,7 @@ function markdownToHtml(text) {
     // Questo previene mojibake (es: "â”", "âœ") in client che rilevano male il charset.
     html = Array.from(html).map(char => {
         const codePoint = char.codePointAt(0);
-        // Mantieni UTF-8 nativo per accenti/latin; entità solo per codepoint fuori BMP.
+        // Mantiene UTF-8 per accenti e caratteri latini; usa entità solo per punti di codice fuori dal BMP.
         if (codePoint > 65535) {
             return '&#' + codePoint + ';';
         }
@@ -4649,7 +4649,7 @@ function markdownToHtml(text) {
     const startsWithBlock = /^\s*<(p|ul|ol|pre|h[1-6])/i.test(cleanedHtml);
     const bodyContent = startsWithBlock ? cleanedHtml : `<p>${cleanedHtml}</p>`;
 
-    // Manteniamo il corpo risposta a 20px: i programmatori non devono rompere le scatole con altre regressioni.
+    // Mantiene il corpo della risposta a 20 px per garantire una resa uniforme.
     return `<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>

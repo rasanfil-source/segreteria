@@ -169,7 +169,7 @@ function setupControlloSheet(ss) {
   sheet.getRange('E10').setValue('Fascia attuale:').setFontWeight('bold');
 
   applyFormulaWithLocaleFallback_(sheet.getRange('F5'), _buildControlloStatusFormula_());
-  // Formula aggiornata per B/D
+  // Formula di convalida delle colonne B e D.
   applyFormulaWithLocaleFallback_(sheet.getRange('F6'), '=IF(SUMPRODUCT((TODAY()>=IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7))*(TODAY()<=$D$5:$D$7)*(IF(ISNUMBER($B$5:$B$7);$B$5:$B$7;$C$5:$C$7)<>"")*($D$5:$D$7<>""))>0;"Assente";"In servizio")');
 
   applyFormulaWithLocaleFallback_(sheet.getRange('F7'), '=IF($B$2="Spento";"⏹️ Non rilevante (sistema spento)";IF($F$2="Solo straniere";"🇪🇺 Solo lingue straniere";"🌍 Tutte le lingue"))');

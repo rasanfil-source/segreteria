@@ -1,4 +1,4 @@
-// Deterministic decision tables: every row has an oracle independent of validator output.
+// Ogni riga della matrice ha un esito atteso indipendente dal risultato del validatore.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -156,7 +156,7 @@ for (const available of bools) for (const required of bools) for (const fallback
   s.runtimeSemanticAvailable = available;
   s.fallbackOnError = fallback;
   s._generateSemantic = () => { throw new Error('simulated outage'); };
-  // Errors force hallucination review even at score=1; thinking uses its threshold.
+  // Gli errori richiedono la verifica delle allucinazioni anche con punteggio 1; il ragionamento usa la propria soglia.
   const call = () => s.validateHallucinations('Response', 'KB', { score, errors: ['review'] }, 'Email', { forceRelevanceReview: required });
   if (available && !fallback) assert.throws(call, /simulated outage/);
   else assert.equal(call().isValid, !required && score >= 0.6);

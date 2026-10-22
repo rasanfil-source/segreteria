@@ -20,7 +20,7 @@ for (const error of ['Forbidden 403: permission denied', 'Unauthorized 401',
     assert(out.restored, 'restore loggers after failure');
   }
 }
-// A working backup still responds; permanent errors in the request remain terminal.
+// Il modello di riserva può rispondere; gli errori permanenti della richiesta restano terminali.
 const backup = runScenario(root, {firstGenerationError: 'Forbidden 403'});
 assert.equal(backup.result.status, 'replied');
 for (const scenario of [{generationError: 'Bad request 400'}, {retry: true, retryError: 'Bad request 400'}]) {

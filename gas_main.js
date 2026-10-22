@@ -207,9 +207,9 @@ function _formatBusinessDateKey_(parts) {
 
 /**
  * Stima il numero di token per un testo ed eventuali allegati.
- * Algoritmo centralizzato (DRY): unica sorgente di verità per tutte le stime token.
- * Formula testo: max(parole * 1.25 + 10% overhead, caratteri / 3.2)
- * Allegati: stima MIME-aware (image=258, pdf=1032, default=1032) configurabile via CONFIG.
+ * Algoritmo centralizzato: unica sorgente di verità per tutte le stime token.
+ * Formula per il testo: massimo tra parole * 1,25 con margine del 10% e caratteri / 3,2.
+ * Allegati: stima in base al tipo MIME (immagine=258, PDF=1032, predefinito=1032), configurabile in CONFIG.
  * 
  * @param {string} text - Testo da stimare
  * @param {Array} attachments - Array di allegati (Blob GAS o parti Gemini inlineData/fileData)
@@ -496,7 +496,7 @@ function scanStaleUnreadThreads_(maxAgeHours, searchLimit, maxLookbackDays, stat
       const messageId = (message && typeof message.getId === 'function') ? message.getId() : '';
       if (!messageId) return false;
       const ids = getTerminalLabelIds();
-      if (ids.length === 0 && terminalLabelNames.length > 0) return false; // fail-open: detector backlog, non path di invio
+      if (ids.length === 0 && terminalLabelNames.length > 0) return false; // Consente il percorso di invio se il rilevatore è in ritardo.
       if (!staleMetadataService || typeof staleMetadataService._getMessageMetadataWithResilience !== 'function') {
         scanUnknown = true;
         return false;
@@ -635,7 +635,7 @@ function withSheetsRetry(fn, context = 'Operazione Sheets') {
 
 function loadResources(acquireLock = true, hasExternalLock = false) {
   // ⚠️ Invariante blindante: niente reload senza lock.
-  // Questo evita race condition in cui due trigger sovrascrivono la cache a metà serializzazione.
+  // Evita che due trigger sovrascrivano la cache durante la serializzazione.
   if (!acquireLock && !hasExternalLock) {
     throw new Error('loadResources richiede un lock preventivo.');
   }
@@ -644,7 +644,7 @@ function loadResources(acquireLock = true, hasExternalLock = false) {
     throw new Error('GLOBAL_CACHE non inizializzata: impossibile caricare risorse in sicurezza.');
   }
   // Nota: da qui in avanti GLOBAL_CACHE è garantita; evitiamo fallback silenziosi
-  // perché maschererebbero regressioni d'inizializzazione del runtime.
+  // perché nasconderebbero errori di inizializzazione del runtime.
 
   const now = Date.now();
   const forceReload = typeof CONFIG !== 'undefined' && CONFIG.FORCE_RELOAD === true;
@@ -1200,8 +1200,8 @@ function _readResourceCachePayload(cache) {
     return v2Inline;
   }
 
-  // Lettura cache con supporto chiave precedente per continuità operativa.
-  // Manteniamo questo ramo solo come fallback, così V2 prevale se presente.
+  // Se la chiave principale non contiene dati, prova la chiave alternativa.
+  // Quando sono presenti entrambe, il valore principale ha la precedenza.
   const v1Payload = cache.get(RESOURCE_CACHE_KEY_V1);
   if (v1Payload) {
     return v1Payload;
@@ -1318,8 +1318,8 @@ function _invalidateResourceCacheStorage(cache) {
 }
 
 /**
- * Svuota manualmente la cache globale (knowledge/config) per forzare reload.
- * Utile come comando da eseguire a mano dall'editor Apps Script.
+ * Svuota manualmente la cache globale della base di conoscenza e della configurazione.
+ * Può essere eseguito dall'editor Apps Script.
  */
 function clearKnowledgeCache() {
   // ⚠️ Comando operativo ufficiale: resetta RAM + ScriptCache in modo coerente.
@@ -1355,7 +1355,7 @@ function clearKnowledgeCache() {
   console.log('🗑️ Cache conoscenza/config svuotata manualmente (RAM + ScriptCache)');
 }
 
-// Alias per invocazione manuale o da trigger precedenti.
+// Funzione disponibile per l'invocazione manuale e dai trigger.
 function clearCache() {
   clearKnowledgeCache();
 }
@@ -1561,7 +1561,7 @@ function _loadAdvancedConfig(ss) {
     if (String(status).toUpperCase().includes('SPENTO')) config.systemEnabled = false;
 
     // Modalità lingua (F2): "Tutte le lingue" | "Solo straniere"
-    // Fallback difensivo su "all" per retrocompatibilità.
+  // Usa "all" come valore alternativo di sicurezza.
     let languageModeRaw = '';
     try {
       const languageModeCell = sheet.getRange('F2');
@@ -1869,8 +1869,8 @@ function setupWeeklyCleanupTrigger() {
 }
 
 /**
- * Entrypoint alternativo per trigger e script preesistenti.
- * Delega direttamente a main().
+ * Punto d'ingresso per i trigger del sistema.
+ * Delega a main().
  */
 function processEmailsMain() {
   return main();
@@ -1920,7 +1920,7 @@ function main() {
 
   // 0. Controllo Preventivo Gmail Advanced Service
   try {
-    Gmail.Users.getProfile('me'); // Probe reale: verifica disponibilità Gmail Advanced Service
+    Gmail.Users.getProfile('me'); // Verifica la disponibilità del servizio avanzato Gmail.
   } catch (apiError) {
     const apiErrorMessage = apiError && apiError.message ? apiError.message : String(apiError);
     const diagnosis = _classifyGmailAdvancedPreflightError_(apiErrorMessage);
@@ -2323,9 +2323,9 @@ function _formatDateForKnowledgeText(date) {
     const tz = resolveScriptTz();
 
     // Rileviamo se Utilities supporta davvero i token orari richiesti.
-    // Nei test Node il mock può restituire stringhe complete (es. "2026-05-10")
-    // anche per pattern come 'H'/'m'/'s': in quel caso facciamo fallback ai parts
-    // per evitare di classificare erroneamente una data-only come data+ora.
+    // Nei test Node la simulazione può restituire stringhe complete (es. "2026-05-10")
+    // anche per schemi come 'H'/'m'/'s': in quel caso usa i singoli componenti
+    // per non classificare una data senza orario come data e ora.
     const hStr = Utilities.formatDate(date, tz, 'H');
     const mStr = Utilities.formatDate(date, tz, 'm');
     const sStr = Utilities.formatDate(date, tz, 's');
@@ -2333,7 +2333,7 @@ function _formatDateForKnowledgeText(date) {
 
     if (utilitySupportsTimeTokens) {
       // Nota edge-case: in Google Sheets una data/ora esattamente alle 00:00
-      // è indistinguibile da una "data-only" guardando solo i componenti temporali.
+      // è indistinguibile da una data senza orario osservando solo i componenti temporali.
       // In quel caso questa serializzazione produrrà yyyy-MM-dd.
       const hasTime = parseInt(hStr, 10) !== 0 || parseInt(mStr, 10) !== 0 || parseInt(sStr, 10) !== 0;
       const pattern = hasTime ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd';
@@ -2341,7 +2341,7 @@ function _formatDateForKnowledgeText(date) {
     }
   }
 
-  // Fallback Node/tests: prova a rispettare lo stesso fuso orario dello script.
+  // Negli ambienti Node prova a rispettare lo stesso fuso orario dello script.
   const tz = resolveScriptTz();
   const parts = _extractDatePartsForTimeZone(date, tz);
   const hasTime = parts.hour !== '00' || parts.minute !== '00' || parts.second !== '00';

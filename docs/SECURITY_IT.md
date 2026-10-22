@@ -1,6 +1,6 @@
 # 🔐 Sicurezza e Conformità GDPR
 
-> Nota tecnica al 3 ottobre 2026: dry-run può ancora chiamare servizi e produrre log; Tutte le lingue / Solo straniere controlla l'ammissibilità, non è una garanzia che un dato non venga elaborato. Vedi [modalità lingua](LANGUAGE_MODES_IT.md) e [configurazione](CONFIGURATION_IT.md). Questa nota descrive il codice, senza aggiornare o certificare le valutazioni legali e i termini esterni citati sotto.
+> Nota tecnica: la prova a secco può ancora chiamare servizi e produrre log; Tutte le lingue / Solo straniere controlla l'ammissibilità, non garantisce che un dato non venga elaborato. Vedi [modalità lingua](LANGUAGE_MODES_IT.md) e [configurazione](CONFIGURATION_IT.md). Questa nota descrive il codice, senza aggiornare o certificare le valutazioni legali e i termini esterni citati sotto.
 
 [![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](SECURITY.md)
 

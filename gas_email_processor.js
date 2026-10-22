@@ -1,7 +1,7 @@
 /**
- * EmailProcessor.js - Orchestratore Pipeline Email
+ * EmailProcessor.js - Orchestratore del flusso email
  * 
- * PIPELINE ELABORAZIONE:
+ * FLUSSO DI ELABORAZIONE:
  * 1. FILTRA: Dobbiamo processare questa email?
  * 2. CLASSIFICA: Che tipo di richiesta è?
  * 3. GENERA: Crea risposta AI
@@ -9,11 +9,11 @@
  * 5. INVIA: Rispondi all'email
  * 
  * FUNZIONALITÀ AVANZATE:
- * - Lock a livello thread (anti race condition)
- * - Anti-loop detection
- * - Salutation mode (full/soft/none_or_continuity/session)
- * - KB enrichment condizionale
- * - Memory tracking
+ * - Blocco a livello thread per coordinare le esecuzioni concorrenti
+ * - Rilevamento dei cicli di risposta
+ * - Modalità di saluto configurabile
+ * - Arricchimento condizionale con la base di conoscenza
+ * - Tracciamento della memoria conversazionale
  */
 
 var TECHNICAL_CONTEXT_ROUTING_CATEGORIES = new Set(['technical', 'appointment', 'quotation', 'information', 'document_submission', 'document_request']);
@@ -2055,7 +2055,7 @@ var EmailProcessor = class EmailProcessor {
       return true;
     }
 
-    // Match username ristretto a pattern bot/notifica espliciti per evitare falsi positivi
+    // Il nome utente deve corrispondere a modelli espliciti di bot o notifica.
     // su username legittimi (es. marketing@..., info@...).
     if (BOT_USERNAMES.has(localPart)) {
       console.log(`🚫 Ignorato: username di sistema/bot rilevato (${email})`);
@@ -2114,10 +2114,10 @@ var EmailProcessor = class EmailProcessor {
   }
 
   /**
-   * Normalizza indirizzo email per confronti robusti (anti-loop/filtri):
-   * - lowercase + trim
-   * - rimozione display name eventuale (se presente)
-   * - per Gmail/Googlemail: rimozione alias "+tag" nel local-part
+   * Normalizza l'indirizzo email per confronti e prevenzione dei cicli:
+   * - converte il testo in minuscolo e rimuove gli spazi esterni;
+   * - elimina l'eventuale nome visualizzato;
+   * - per Gmail e Googlemail rimuove il suffisso "+tag" dalla parte locale.
    */
   _normalizeEmailAddress_(rawEmail) {
     if (!rawEmail) return '';
@@ -2550,7 +2550,7 @@ var EmailProcessor = class EmailProcessor {
       }
     }
 
-    // Fallback soltanto per runtime senza Utilities (test locali). Quattro FNV-1a
+    // Percorso alternativo per ambienti senza Utilities. Quattro impronte FNV-1a
     // indipendenti mantengono la chiave compatta; in GAS viene sempre usato SHA-256.
     const seeds = [0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35];
     return seeds.map((seed, seedIndex) => {
@@ -2572,8 +2572,8 @@ var EmailProcessor = class EmailProcessor {
   _buildDuplicateReplyFingerprintContext_(message, messageDetails = {}) {
     if (!this.config.duplicateReplyGuardEnabled || this.config.duplicateReplyWindowSeconds <= 0) return null;
 
-    // La v1 non confronta messaggi con allegati: lo stesso testo può accompagnare
-    // documenti diversi. In caso di errore di lettura si procede (fail-open).
+    // Il confronto non usa il contenuto degli allegati: lo stesso testo può accompagnare
+    // documenti diversi. Se la lettura non riesce, l'elaborazione prosegue.
     if (!message) return null;
     // Esclude il marcatore testuale prima della ricerca, per mantenere visibili i file referenziati.
     if (this._hasPastAttachmentReference_(messageDetails.body)) return null;
@@ -3921,7 +3921,7 @@ var EmailProcessor = class EmailProcessor {
     if (!String(this.config.skipLabelName || '').trim()) return false;
 
     const skipLabelId = this.gmailService._getOptionalLabelIdByName(this.config.skipLabelName);
-    // Distingue una label realmente assente da un lookup Advanced API fallito.
+    // Distingue un'etichetta assente da una ricerca non riuscita tramite l'API avanzata.
     if (!skipLabelId) {
       try {
         const nativeLabel = (typeof GmailApp !== 'undefined' && GmailApp && typeof GmailApp.getUserLabelByName === 'function')
@@ -3937,8 +3937,8 @@ var EmailProcessor = class EmailProcessor {
     try {
       const metadata = this.gmailService._getMessageMetadataWithResilience(messageId, { format: 'minimal' }, 1);
 
-      // Fail-closed: in caso di errore/risposta non valida preserviamo lo stato skip.
-      // Evita promozioni accidentali a IA dovute a guasti transitori Gmail API.
+      // In caso di errore o risposta non valida, conserva lo stato di esclusione.
+      // Così un guasto temporaneo di Gmail non assegna per errore l'etichetta IA.
       if (!metadata || !Array.isArray(metadata.labelIds)) return true;
 
       return metadata.labelIds.includes(skipLabelId);
@@ -6645,7 +6645,7 @@ Usa currentDate per stabilire se gli eventi sono trascorsi e messageDate per int
     // Protezione contro input nulli o non validi
     if (!text || typeof text !== 'string') return false;
     text = this._normalizeRelativeDateText_(text, language);
-    // Reuse date validation rather than treating arbitrary numeric pairs as dates.
+    // Riutilizza la validazione delle date per non interpretare coppie numeriche arbitrarie come date.
     if (this._extractExplicitDateFromText_(text, new Date().getFullYear())) return true;
     const lang = this._normalizeLanguageCode_(language, 'it');
     if (lang === 'en' && /(?<![\p{L}\p{N}_])(?:may\s+(?:\d{1,2}(?:st|nd|rd|th)?|\d{4})(?!\d)|(?:\d{1,2}(?:st|nd|rd|th)?|in|of|on|by|until|since|from|during|early|late|mid|next|last|this)\s+may)(?![\p{L}\p{N}_])/iu.test(text)) return true;
@@ -6789,23 +6789,22 @@ Usa currentDate per stabilire se gli eventi sono trascorsi e messageDate per int
   }
 
   /**
-   * Validazione semantica "zero-shot" della coerenza tra il testo dell'email
+   * Valutazione semantica senza esempi preliminari della coerenza tra il testo dell'email
    * e il contenuto effettivo dell'allegato (via OCR), usando una chiamata
    * leggera a Gemini.
    *
    * Complementa _evaluateDocumentConsistency_, che si basa su una tassonomia
    * locale fissa (certificati di battesimo/cresima, idoneità padrino/madrina,
    * moduli catechesi, sbattezzo, pellegrinaggio, documento d'identità...).
-   * Quella tassonomia non ha alcuna opinione su allegati generici - video,
+   * Quella tassonomia non valuta allegati generici: video,
    * locandine, programmi, documentazione comunitaria - quindi "expected"
    * risulta sempre 'unknown' e un'incoerenza reale non può mai emergere.
-   * Questo controllo chiude esattamente quel gap, chiedendo direttamente a
+   * Questo controllo completa l'analisi chiedendo direttamente a
    * Gemini se l'allegato ricevuto è tematicamente coerente con quanto
    * l'utente descrive nell'email.
    *
-   * Fail-open per design: se la chiamata fallisce, va in timeout o la
-   * risposta non è interpretabile, ritorna null (nessuna opinione), senza
-   * bloccare la pipeline né forzare un avviso non giustificato.
+   * Se la chiamata fallisce, scade o restituisce una risposta non interpretabile,
+   * restituisce null, senza bloccare il flusso né generare un avviso ingiustificato.
    *
    * @param {Object} params
    * @param {string} params.subject
@@ -6815,7 +6814,7 @@ Usa currentDate per stabilire se gli eventi sono trascorsi e messageDate per int
    * @param {Array} [params.attachmentBlobs] - PDF/immagini da leggere direttamente.
    * @param {boolean} [params.analyzeRequest] - interpreta anche ruolo e richiesta prima del routing.
    * @param {string} [params.expectedAttachmentDescription] - descrizione attesa
-   *   emersa dal quick check Gemini.
+   *   emersa dal controllo preliminare di Gemini.
    * @returns {{consistent: boolean, reason: string, source: string}|null}
    */
   _documentEvidenceText_(text) {
@@ -6885,7 +6884,7 @@ Usa currentDate per stabilire se gli eventi sono trascorsi e messageDate per int
         : (text, options) => this.geminiService.generateResponse(text, options);
       const rawResult = generateSemantic(prompt, {
         attachments: attachmentBlobs,
-        // Modello leggero per un controllo ausiliario a bassa latenza/costo:
+        // Modello leggero per un controllo ausiliario a latenza e costo contenuti:
         // stesso fallback usato altrove in questo file per chiamate non critiche.
         modelName: this._resolveConfiguredModelNameForTask_('semantic')
       });

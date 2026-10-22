@@ -3,11 +3,11 @@
  * Gestisce tutte le chiamate all'API Generativa di Google
  * 
  * FUNZIONALITÀ:
- * - Retry con exponential backoff
+ * - Nuovi tentativi con attesa progressiva
  * - Rilevamento lingua centralizzato
  * - Controllo rapido per decisione risposta
- * - Saluto adattivo (ora + calendario liturgico)
- * - Rate Limiter integrato con gestione quota
+ * - Saluto adattivo in base all'ora e al calendario liturgico
+ * - Limitatore di richieste integrato con gestione delle quote
  */
 
 var GEMINI_DEFAULT_SAFETY_SETTINGS = [
@@ -249,7 +249,7 @@ var GeminiContentClient = class GeminiContentClient {
         apiErrorMsg = parsedObj.error.message;
       }
     } catch (e) {
-      // Manteniamo fallback al body raw troncato.
+      // Usa il testo grezzo troncato come percorso alternativo.
     }
     return apiErrorMsg;
   }
@@ -1795,7 +1795,7 @@ var GeminiService = class GeminiService {
    * Genera risposta con modello specifico
    * @param {string|Object} prompt - Prompt completo oppure {systemInstruction, prompt}
    * @param {string} modelName - Nome modello API (es. 'gemini-3.8-flash')
-   * @param {string} apiKeyOverride - Chiave API opzionale (per strategia multi-key)
+ * @param {string} apiKeyOverride - Chiave API opzionale per la strategia multi-chiave
    * @param {Array<Blob>} attachments - Array di Blob (immagini/PDF) da inviare
    * @returns {string|null} Testo generato
    */
@@ -1913,7 +1913,7 @@ var GeminiService = class GeminiService {
 
     console.log(`🔍 Controllo rapido via ${modelName}...`);
 
-    // Gestione con tentativo su chiave primaria e fallback singolo su chiave secondaria.
+    // Prova la chiave primaria e, se necessario, una sola volta la chiave secondaria.
     let activeKey = apiKeyOverride || this.primaryKey;
     let response;
     let responseCode;
@@ -1965,7 +1965,7 @@ var GeminiService = class GeminiService {
     }
 
     // Evita di moltiplicare retry cross-key su errori infrastrutturali Google/rete:
-    // la backup key aiuta solo per autorizzazione o quota della chiave primaria.
+    // La chiave secondaria è utile solo per problemi di autorizzazione o quota della chiave primaria.
     if (shouldTryBackupKey) {
       console.warn(`⚠️ Chiave primaria non utilizzabile (HTTP ${responseCode}). Tentativo con chiave di riserva...`);
       if (activeKey === this.primaryKey) {
@@ -1990,7 +1990,7 @@ var GeminiService = class GeminiService {
       throw new Error('Errore API: responseCode indefinito (possibile interruzione di rete pre-connessione)');
     }
 
-    // responseCode è già valorizzato dal path primario o dal fallback backup key.
+    // responseCode è già valorizzato dal percorso principale o dalla chiave di riserva.
 
     if (responseCode === 429) {
       throw new Error('QUOTA_EXHAUSTED_ALL_KEYS: Limite quota raggiunto su tutte le chiavi disponibili (429)');
@@ -2032,7 +2032,7 @@ var GeminiService = class GeminiService {
       try {
         const result = fn();
         // Le risposte vuote sono considerate non transienti.
-        // Le segnaliamo come errore non-retryable per evitare spreco quota API.
+        // Le segnala come errori non ritentabili per non consumare quota API.
         if (result === undefined || result === null || result === '') {
           const emptyError = new Error(`Risposta vuota o undefined da ${context}`);
           emptyError._nonRetryable = true;
@@ -2118,7 +2118,7 @@ var GeminiService = class GeminiService {
   }
 
   /**
-   * Categorizza l'errore internamente al GeminiService per la logica di retry.
+   * Categorizza l'errore internamente al GeminiService per la logica dei nuovi tentativi.
    * @param {Error} error 
    * @returns {{type: string, retryable: boolean}}
    */
@@ -2146,7 +2146,7 @@ var GeminiService = class GeminiService {
     const FATAL_ERRORS = ['unauthorized', 'forbidden', 'permission denied', 'unauthenticated'];
 
     // 401/403 sono tipicamente problemi di credenziali o permessi: ritentare non li risolve.
-    // PRIMARY_QUOTA_EXHAUSTED deve saltare i retry locali per passare subito al backup.
+    // PRIMARY_QUOTA_EXHAUSTED salta i nuovi tentativi locali e passa subito alla chiave di riserva.
     for (const kw of FATAL_ERRORS) {
       if (msg.includes(kw)) {
         return { type: 'FATAL', retryable: false };
@@ -2199,7 +2199,7 @@ var GeminiService = class GeminiService {
     safeContent = safeContent.replace(/(?:^|\n)-{3,}.*(Original Message|Messaggio originale).*[\s\S]*/gi, '');
     safeContent = safeContent.substring(0, 15000);
 
-    // Trunca a 3000 char per evitare CPU Timeout sull'elaborazione lingua
+    // Limita il testo a 3000 caratteri per contenere il tempo di elaborazione della lingua.
     const text = ` ${safeSubject} ${safeContent} `.substring(0, 3000).toLowerCase();
     const originalText = ` ${safeSubject} ${safeContent} `.substring(0, 3000);
 
@@ -2222,7 +2222,7 @@ var GeminiService = class GeminiService {
       console.log(`   Trovati ${itIstituzionaleMatches} termini istituzionali italiani (+${itIstituzionaleScore} punti IT)`);
     }
 
-    // 2. Score basato su indicatori frequenti (fallback)
+    // 2. Punteggio basato su indicatori frequenti come percorso alternativo.
     const indicators = {
       'it': ['buon', 'grazie', 'messaggio', 'cortesi', 'saluti', 'gentile', 'lei', 'perché', 'come', 'quando', 'vorrei'],
       'en': ['thank', 'regards', 'dear', 'parish', 'mass', 'church', 'would', 'could'],
@@ -2393,7 +2393,7 @@ var GeminiService = class GeminiService {
 
     const safetyGrade = this._computeSafetyGrade(detectedLang, maxScore, scores);
     
-    // Se il grado di sicurezza è basso (< 3), tentiamo un rilevamento AI come fallback.
+    // Se il grado di sicurezza è basso (< 3), tentiamo il rilevamento tramite AI come percorso alternativo.
     // Questo è cruciale per messaggi molto brevi o ambigui in qualsiasi lingua.
     if (safetyGrade < 3 && typeof this.detectLanguageAI === 'function') {
       try {
@@ -2418,7 +2418,7 @@ var GeminiService = class GeminiService {
   }
 
   /**
-   * Rilevamento lingua tramite AI (fallback).
+   * Rileva la lingua tramite AI come percorso alternativo.
    */
   detectLanguageAI(text) {
     const prompt = `Analizza questo testo e identifica la lingua prevalente.
@@ -2489,7 +2489,7 @@ Testo:
     }
 
     // 3. Lingua principale: Se il locale è MOLTO sicuro (grado >= 4), 
-    // prevale sulla detection API (che a volte si confonde con nomi propri o citazioni).
+    // prevale sul rilevamento tramite API, che può confondersi con nomi propri o citazioni.
     if (localSafetyGrade >= 4) {
       console.log(`   🌍 Lingua: ${normalizedLocal.toUpperCase()} (Locale vince per grado sicurezza ${localSafetyGrade})`);
       return normalizedLocal;
@@ -2849,13 +2849,13 @@ Testo:
    * Ottieni la data della Domenica della Sacra Famiglia
    * (Domenica tra 25 Dic e 1 Gen, o 30 Dic se nessuna domenica).
    * Nota: se il 25 dicembre cade di domenica, nel range 26-31 non c'è
-   * alcuna domenica; in quel caso il fallback al 30 dicembre è intenzionale
+   * alcuna domenica; in quel caso si usa intenzionalmente il 30 dicembre
    * (prassi liturgica del rito romano).
    */
   _getHolyFamilySunday(year) {
     // Il range 26-31 è intenzionale: cerchiamo la domenica *dopo* Natale.
     // Se il 25 è domenica, non esiste altra domenica nell'ottava e il
-    // calendario romano prevede il fallback al 30 dicembre.
+    // calendario romano prevede il 30 dicembre.
     for (let day = 26; day <= 31; day++) {
       const date = new Date(Date.UTC(year, 11, day, 12, 0, 0));
       if (this._getRomeWeekday_(date) === 0) {
@@ -2912,15 +2912,15 @@ Testo:
         throw new Error(`Rate Limiter ha rifiutato il quick check: ${rejectReason}`);
       } catch (error) {
         if (error.message && error.message.includes('QUOTA_EXHAUSTED')) {
-          // L'eccezione non viene gestita con un fallback diretto per allineamento a generateResponse.
-          // Il fallback diretto bypasserebbe il quota tracking del RateLimiter,
+          // L'eccezione segue lo stesso percorso di generateResponse.
+          // Un percorso diretto aggirerebbe il conteggio delle quote del RateLimiter,
           // causando consumo API non tracciato. Il Processor gestirà l'eccezione
           // come skip del thread (comportamento coerente e sicuro).
           console.warn('⚠️ Quick check: QUOTA_EXHAUSTED — rilancio per gestione corretta nel Processor.');
           throw error;
         }
-        // NON bypassare il RateLimiter su errori transienti/non-quota:
-        // executeRequest include già retry+backoff e il fallback diretto
+        // Non aggirare il RateLimiter in caso di errori temporanei o diversi dalla quota:
+        // executeRequest include già nuovi tentativi con attesa progressiva e il percorso diretto
         // causerebbe consumo API non tracciato.
         const msg = (error && error.message) ? error.message : String(error);
         if (msg.includes('Errore API: 404') || msg.includes('404')) {
@@ -2960,14 +2960,14 @@ Testo:
   // ========================================================================
 
   /**
-   * Genera risposta AI con retry
+   * Genera una risposta AI con nuovi tentativi controllati.
    * Supporta il limitatore e il percorso di chiamata diretta
    * 
    * @param {string} prompt - Prompt completo
-   * @param {Object} options - Opzioni per strategia Cross-Key Quality First
+   * @param {Object} options - Opzioni per la strategia multi-chiave con priorità alla qualità
    * @param {string} options.apiKey - Chiave API specifica (opzionale)
    * @param {string} options.modelName - Nome modello specifico (opzionale)
-   * @param {boolean} options.skipRateLimit - Se true, bypassa Rate Limiter locale
+   * @param {boolean} options.skipRateLimit - Se impostato a true, esclude il limitatore locale
    * @param {Array<Blob>} options.attachments - Array di Blob (immagini/PDF)
    * @returns {Object} { success: boolean, text: string, error?: string, modelUsed?: string }
    */
@@ -3115,7 +3115,7 @@ Testo:
           console.warn('⚠️ Quota primaria esaurita (intercettato da RateLimiter)');
           throw error; // Rilancia per gestione strategia nel Processor
         }
-        // NON effettuare fallback diretto: i retry sono già gestiti nel RateLimiter
+        // Non usare il percorso diretto: i nuovi tentativi sono già gestiti dal RateLimiter
         // e una seconda esecuzione fuori limiter falserebbe i contatori quota.
         const errorMessage = (error && error.message) ? error.message : String(error);
         console.warn(`⚠️ Rate Limiter generazione fallito: ${errorMessage}. Interruzione per evitare bypass quota.`);
@@ -3366,8 +3366,8 @@ function _tryBalanceJsonBraces(text) {
 }
 
 /**
- * Motore di ricostruzione euristica per l'estrazione dati in scenari architetturali complessi.
- * Impiega pattern matching per mappare reply_needed, language, category, topic, confidence.
+ * Motore euristico per estrarre dati in scenari complessi.
+ * Usa la corrispondenza di schemi per ricavare reply_needed, language, category, topic e confidence.
  */
 function _extractQuickCheckFieldsFromPartialJson(text) {
   if (!text) return null;

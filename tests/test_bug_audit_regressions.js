@@ -116,7 +116,7 @@ const report = {};
   assert.equal(v._checkTerritoryConsistency('Sì, confermiamo: non rientra nel territorio.', context).score, 1);
 }
 
-// 3. Malformed semantic objects pass a mandatory relevance review.
+// 3. Gli oggetti semantici non validi richiedono una verifica obbligatoria della pertinenza.
 {
   const ctx = validatorContext(false);
   const v = new ctx.ResponseValidator();
@@ -144,7 +144,7 @@ const report = {};
   }
 }
 
-// 4. Exercise real GmailService -> ThreadDelivery -> real transaction methods.
+// 4. Verifica GmailService, ThreadDelivery e i metodi transazionali effettivi.
 function deliveryCase(stage, failure = 'Unexpected error', reconciled = false) {
   const cache = storage();
   const propValues = new Map();

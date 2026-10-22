@@ -68,7 +68,7 @@ assert.equal(promptOf(formal).category, 'formal', 'visual request changes routin
 const program = scenario({attachmentAnalysis: analysis({documents: [{index: 0, role: 'request', request: 'Inviate il programma del corso.'}]})});
 assert(!promptOf(program).systemDirectives.some(text => text.includes('CERTIFICAT')), 'a general document request is not a sacramental certificate request');
 
-// Strict parsing: malformed, incomplete or invented file inventories remain unknown.
+// Un inventario non attendibile, incompleto o non interpretabile resta sconosciuto.
 const ctx = vm.createContext({console: {log(){},warn(){},error(){}}, CONFIG:{}});
 for (const file of ['gas_email_processor.js', 'gas_prompt_engine.js']) vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), ctx);
 const p = Object.create(ctx.EmailProcessor.prototype);

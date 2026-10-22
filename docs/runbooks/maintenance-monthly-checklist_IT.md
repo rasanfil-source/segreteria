@@ -1,6 +1,6 @@
 # Manutenzione periodica
 
-Checklist operativa al 3 ottobre 2026.
+Checklist operativa.
 
 - [ ] Controllare Esecuzioni, trigger main, pulizia settimanale e metriche giornaliere.
 - [ ] Verificare B2, F2, orari, assenze, mittenti esclusi e destinatari alert per ogni ambiente.

@@ -40,7 +40,7 @@ check('an oversized latest entry retains its qualification and final correction'
 });
 check('the real validation pipeline retains historical evidence with a long current message', () => {
   const validator = new ctx.ResponseValidator();
-  // Isolate the deterministic score; exercise actual semantic forwarding and rendering.
+  // Isola il punteggio deterministico e verifica l'inoltro e la composizione semantici effettivi.
   validator._runValidationChecks = () => ({ isValid: true, score: 0.7, errors: [], warnings: [],
     details: { hallucinations: { score: 0.7, errors: [] } } });
   const semantic = ctx.createSemanticValidator();

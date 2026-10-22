@@ -1,6 +1,6 @@
 # Installazione e deploy
 
-Allineato al codice locale il 3 ottobre 2026. [English](DEPLOYMENT.md)
+[English](DEPLOYMENT.md)
 
 ## Preparazione
 

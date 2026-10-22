@@ -25,7 +25,7 @@ const realReader = `vm.runInContext(fs.readFileSync(path.join(root, 'gas_gmail_s
   const processor = new context.EmailProcessor(services);`;
 const processorHook = 'const processor = new context.EmailProcessor(services);';
 for (const [error, expected] of [['Network error', 'NETWORK'], ['Service invoked too many times', 'QUOTA_EXCEEDED'], ['Forbidden 403', 'SYSTEM_ERROR'], ['Attachment unavailable', null]]) {
-  // Fail at pre-check, or only after the inventory succeeds (real Gmail reader).
+  // Verifica l'errore nel controllo iniziale o dopo la lettura dell'inventario Gmail.
   for (const late of [false, true]) {
     const out = run([
       [processorHook, realReader],
@@ -40,7 +40,7 @@ for (const [error, expected] of [['Network error', 'NETWORK'], ['Service invoked
   assertUnconsumed(crashed);
   assert.equal(crashed.result.status, expected ? 'error' : 'dilata');
 }
-// Service errors returned in skipped entries are still classified.
+// Classifica anche gli errori dei servizi presenti nelle voci escluse.
 for (const reason of ['read_error', 'text_extract_error', 'conversion_error']) {
   const out = run([], { attachment: true, attachmentSkipped: [{ reason, error: 'Network error' }] });
   assertUnconsumed(out);

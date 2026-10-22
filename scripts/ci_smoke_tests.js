@@ -15,8 +15,8 @@ global.LockService = {
 
 
 /**
- * Smoke tests eseguibili in CI Node.js
- * - Carica file GAS in VM Node per verifiche di regressione pure-JS
+ * Verifiche di avvio eseguibili in CI con Node.js.
+ * - Carica file GAS in una VM Node per controlli JavaScript senza servizi esterni.
  * - NON tocca servizi Google (PropertiesService, UrlFetchApp, ...)
  *
  * SOGLIA MINIMA: se il numero di test scende sotto MIN_EXPECTED_TESTS
@@ -3493,7 +3493,7 @@ function testPortugueseDetectionRefinement() {
     console.log('--- Test: Portuguese Detection Refinement ---');
     loadScript('gas_gemini_service.js');
 
-    // Usa l'helper mock per evitare errori di configurazione API Key
+            // Usa la funzione di simulazione per non richiedere una chiave API.
     const gemini = createMockGeminiService(() => ({}));
 
     // Test con keyword "não" (prima confusa con "non" italiano) e punteggiatura portoghese
@@ -3889,7 +3889,7 @@ function testGmailCounterFallbackUsesPacificTimezone() {
 
     // La funzione usa: new Date(Date.now()) → passata a Intl.DateTimeFormat.formatToParts().
     // Anziché sovrascrivere Date (che rompe il costruttore nel sandbox vm),
-    // mocchiamo direttamente Intl.DateTimeFormat nel context per restituire
+    // Simuliamo Intl.DateTimeFormat nel contesto per restituire
     // il giorno Pacifico atteso per 2026-05-07T06:30:00Z (= 2026-05-06 a LA, UTC-7).
     context.Intl = {
         DateTimeFormat: function (_locale, _opts) {

@@ -455,7 +455,7 @@ var ThreadDocuments = {
     let injectedMissingDocumentDirective = null;
     let injectedMismatchDirective = null;
     if (hasExpectedDocumentMissing) {
-      // A fixed feminine referent avoids guessing gender/number of arbitrary descriptions.
+      // Usa un riferimento femminile stabile per non dover dedurre il genere o il numero delle descrizioni.
       const expectedDocumentLabel = String(
         (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
         (quickAttachmentIntent && quickAttachmentIntent.expected_attachment_description) ||

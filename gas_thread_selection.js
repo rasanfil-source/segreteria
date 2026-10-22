@@ -264,7 +264,7 @@ var ThreadSelection = {
     // Se non ci sono messaggi da esterni → skip
     if (messageState.externalUnread.length === 0) {
       threadLogger.info('Saltato: nessun nuovo messaggio esterno non letto');
-      // In modalità stale-only i messaggi recenti devono restare eleggibili per il ciclo normale.
+      // Nella modalità limitata ai thread non aggiornati (stale-only), i messaggi recenti restano eleggibili per il ciclo normale.
       const isStaleOnlyRun = Number.isFinite(staleOnlyMs);
       if (!isStaleOnlyRun) {
         // Messaggi interni (nostri/alias): sono già gestiti, ma non sono rinvii per lingua.

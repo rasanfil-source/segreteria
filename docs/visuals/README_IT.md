@@ -1,6 +1,6 @@
 # 📁 Asset Visivi
 
-> Gli SVG e il PDF in questa cartella sono esportazioni statiche precedenti; non sono stati rigenerati con questa revisione. I [diagrammi Markdown correnti](../ARCHITECTURE_DIAGRAMS_IT.md) e la [guida lingua](../LANGUAGE_MODES_IT.md) descrivono il codice al 3 ottobre 2026.
+I file SVG e PDF sono esportazioni statiche dei diagrammi del sistema. I [diagrammi Markdown](../ARCHITECTURE_DIAGRAMS_IT.md) e la [guida lingua](../LANGUAGE_MODES_IT.md) descrivono l'architettura e il comportamento operativo.
 
 [![English Version](https://img.shields.io/badge/English-Version-blue?style=flat-square)](README.md)
 
@@ -8,7 +8,7 @@
 
 ---
 
-## 📋 Asset Pianificati
+## 📋 Asset visivi
 
 | `architecture-overview.svg` | Diagramma C4 architettura (inglese) | ✅ Creato |
 | `architecture-overview_IT.svg` | Diagramma C4 architettura (italiano) | ✅ Creato |

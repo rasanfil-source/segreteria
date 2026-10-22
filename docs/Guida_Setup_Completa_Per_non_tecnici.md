@@ -1,6 +1,6 @@
 # Guida per la segreteria
 
-Aggiornata al 3 ottobre 2026. [English](Setup_Guide_Non_Technical.md)
+[English](Setup_Guide_Non_Technical.md)
 
 ## Prima attivazione
 

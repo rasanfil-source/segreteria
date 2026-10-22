@@ -1,7 +1,5 @@
 # Diagnosi rapida
 
-Aggiornato al 3 October 2026.
-
 ```mermaid
 flowchart TD
  A[Nessuna risposta] --> B{Sistema e trigger attivi?}

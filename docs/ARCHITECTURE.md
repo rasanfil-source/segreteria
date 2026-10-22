@@ -1,6 +1,6 @@
 # System architecture
 
-Local source reference: 3 October 2026. [Italiano](ARCHITECTURE_IT.md)
+[Italiano](ARCHITECTURE_IT.md)
 
 ## Runtime
 

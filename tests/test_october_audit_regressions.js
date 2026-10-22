@@ -54,7 +54,7 @@ for(const code of ['TRUNCATED_OUTPUT','NETWORK']) {
 }
 
 for(const file of ['gas_thread_lifecycle.js','gas_thread_delivery.js']) vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx,{filename:file});
-// Test ThreadLifecycle.handleError con string error
+// Verifica ThreadLifecycle.handleError con un errore rappresentato da stringa.
 const lifecycleResult = ctx.ThreadLifecycle.handleError({_classifyError:ctx.classifyError}, {
   threadLogger: { error(){}, warn(){} },
   error: '403 Forbidden',

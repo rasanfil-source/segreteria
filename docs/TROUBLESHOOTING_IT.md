@@ -1,6 +1,6 @@
 # Diagnosi operativa
 
-Riferimento al codice locale: 3 ottobre 2026. [English](TROUBLESHOOTING.md)
+[English](TROUBLESHOOTING.md)
 
 ## Nessuna risposta
 

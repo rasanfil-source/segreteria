@@ -114,7 +114,7 @@ cache.clear();
 run(`GmailApp.search=()=>{throw new Error('offline')}`);
 assert.strictEqual(run('hasStaleUnreadThreads()'), null);
 
-// Full processor pipeline: normal send, accepted timeout, unresolved timeout, cache loss.
+// Flusso completo del processore: invio normale, timeout accettato o incerto e perdita della cache.
 ctx.recordLabel = (id,label) => labels.push({id,label});
 run(`var sendCalls=0, reconcileCalls=0, outcome='normal', capturedPrompt;
  var thread={getId:()=> 'audit-thread',getLabels:()=>[],getMessages:()=>[message]};

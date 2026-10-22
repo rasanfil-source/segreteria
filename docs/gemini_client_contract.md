@@ -1,6 +1,6 @@
 # Contratto del client Gemini
 
-Allineamento al 3 ottobre 2026.
+Contratto del client Gemini.
 
 ## Implementazione presente
 

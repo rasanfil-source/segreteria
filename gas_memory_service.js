@@ -19,10 +19,10 @@
  * alla propria retention indipendente.
  * 
  * FUNZIONALITÀ:
- * - Cache locale per performance
+ * - Cache locale per ridurre le letture
  * - Lock granulare (per thread) con CacheService
  * - Controllo concorrenza ottimistico con versione
- * - Topic tracking (anti-ripetizione)
+ * - Tracciamento degli argomenti per limitare le ripetizioni
  * - Operazioni atomiche
  */
 // Nessuna data inventata in lettura; date oltre cinque minuti nel futuro non
@@ -55,7 +55,7 @@ var MemoryService = class MemoryService {
       (CONFIG.SENSITIVE_MEMORY_SHEET_NAME || 'SensitiveContextMemory') :
       'SensitiveContextMemory';
 
-    // Cache per performance (evita lookup ripetuti)
+    // Cache per evitare ricerche ripetute.
     this._cache = {};
     this._heldShardLocks = {};
     this._cacheExpiry = 5 * 60 * 1000; // 5 minuti
@@ -263,12 +263,12 @@ var MemoryService = class MemoryService {
   }
 
   /**
-   * Alias storico per getMemory.
-   * getMemory gestisce gia cache locale/CacheService e fallback su Sheets.
+   * Funzione pubblica che delega a getMemory.
+   * getMemory gestisce già la cache locale, CacheService e il recupero dal foglio.
    */
   getMemoryRobust(threadId) {
-    // getMemory implementa già il multi-livello (RAM locale + CacheService).
-    // Duplicare qui la cache con prefisso alternativo introdurrebbe stato incoerente.
+    // getMemory implementa già la cache locale e CacheService.
+    // Un ulteriore prefisso di cache introdurrebbe stato incoerente.
     return this.getMemory(threadId);
   }
  
@@ -326,7 +326,7 @@ var MemoryService = class MemoryService {
     // Sharding basato su hash del threadId per ridurre la contention
     const lockKey = this._getShardedLockKey(normalizedThreadId);
 
-    // OCC con retry: se la versione attesa è stale, rilegge la memoria fresca
+    // In caso di conflitto di concorrenza, rilegge la memoria più recente.
     // e tenta un nuovo merge prima di arrendersi.
     let expectedVersion = newData._expectedVersion;
 
@@ -511,7 +511,7 @@ var MemoryService = class MemoryService {
 
   /**
    * Scrive su entrambi i livelli (Sheets e Cache).
-   * Aggiornato per utilizzare updateMemory che è transazionale e gestisce già inv. cache e lock.
+   * Usa updateMemory, che gestisce la transazione, l'invalidazione della cache e il lock.
    */
   updateMemoryRobust(threadId, data) {
     if (!threadId || !data || typeof data !== 'object') {
@@ -793,8 +793,8 @@ var MemoryService = class MemoryService {
           }
         }
     }
-    // Protezione best-effort: non distruggere il batch fallendo.
-    // Invece di throw, logghiamo l'errore e ritorniamo false per permettere all'email_processor di finire il job (labeling).
+    // Mantiene attivo il batch anche se l'aggiornamento non riesce.
+    // Registra l'errore e restituisce false, così email_processor può completare l'elaborazione e applicare l'etichetta.
     const failureCause = (lastAtomicError && lastAtomicError.message === 'VERSION_MISMATCH')
       ? 'VERSION_MISMATCH'
       : 'WRITE_ERROR';
@@ -1424,11 +1424,11 @@ var MemoryService = class MemoryService {
   }
 
   /**
-   * Aggiorna la reazione dell'utente a un topic specifico
+   * Aggiorna la reazione dell'utente a un argomento specifico.
    * @param {string} threadId 
    * @param {string} topic 
    * @param {string} reaction 'acknowledged' | 'questioned' | 'needs_expansion'
-   * @param {object} context (Optional) info extra su scippet/match
+   * @param {object} context (opzionale) dati aggiuntivi sul frammento o sulla corrispondenza
    */
   updateReaction(threadId, topic, reaction, context = null) {
     if (!this._initialized || !threadId || !topic) return;
@@ -2788,19 +2788,17 @@ function cleanupOldMemory() {
 }
 
 /**
- * @deprecated Usa setupWeeklyCleanupTrigger() in gas_main.js.
- * Questa funzione è mantenuta per retrocompatibilità ma NON deve essere
- * richiamata insieme a setupWeeklyCleanupTrigger() per evitare trigger duplicati.
- * Configura trigger settimanale per pulizia automatica memoria.
+ * Punto d'ingresso senza operazioni: la configurazione del trigger settimanale
+ * è affidata a setupWeeklyCleanupTrigger() in gas_main.js. Non richiamare
+ * insieme le due procedure, per evitare trigger duplicati.
  */
 function setupWeeklyMemoryCleanupTrigger() {
-  console.warn('⚠️ [DEPRECATED] setupWeeklyMemoryCleanupTrigger(): usa setupWeeklyCleanupTrigger() in gas_main.js. Funzione legacy no-op.');
-  console.log('ℹ️ setupWeeklyMemoryCleanupTrigger deprecata: non crea né rimuove trigger. Usa setupWeeklyCleanupTrigger() in gas_main.js.');
+  console.warn('⚠️ setupWeeklyMemoryCleanupTrigger() non configura trigger. Usa setupWeeklyCleanupTrigger() in gas_main.js.');
+  console.log('ℹ️ Questa funzione non crea né rimuove trigger.');
 }
 
 /**
- * Alias per compatibilità: alcuni trigger storici puntano a weeklyMemoryCleanup.
- * Wrapper mantenuto per retrocompatibilità con chiamate compatibile.
+ * Funzione compatibile con il nome del gestore weeklyMemoryCleanup.
  */
 function weeklyMemoryCleanup() {
   return cleanupOldMemory();

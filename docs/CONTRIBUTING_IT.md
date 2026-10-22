@@ -18,7 +18,7 @@ Grazie per il tuo interesse nel contribuire a SPA! Accogliamo contributi da svil
 *   Usiamo JavaScript standard (ES6+ supportato da GAS V8 runtime).
 *   **JSDoc** è obbligatorio per tutte le funzioni pubbliche e classi.
 *   I nomi variabili devono essere descrittivi (camelCase).
-*   I commenti sono in italiano e descrivono responsabilità, condizioni e risultati. Identificatori API, tag JSDoc ed esempi multilingua conservano la forma tecnica richiesta. Le guide documentano il comportamento operativo senza riferimenti a patch o difetti precedenti.
+*   I commenti sono in italiano e descrivono responsabilità, condizioni e risultati. Identificatori API, tag JSDoc ed esempi multilingua conservano la forma tecnica richiesta. Le guide descrivono il comportamento operativo corrente.
 
 La verifica editoriale si esegue con `node --expose-internals maintenance/verify_source_docs.cjs`: analizza i commenti JavaScript separatamente da stringhe e prompt, segnala indicatori lessicali da rivedere e controlla i collegamenti locali. La revisione della lingua resta necessaria per i termini non coperti dal controllo automatico.
 
@@ -30,7 +30,7 @@ Su Windows usare PowerShell 7:
 pwsh.exe -NoLogo -NoProfile -Command "node scripts/run_ci_test_suite.js"
 ```
 
-La suite comprende copertura V8 e servizi simulati. Non richiede scratch o vecchi log. Una modifica alla modalità lingua va verificata anche sui messaggi con · e sul cambio modalità.
+La suite comprende copertura V8 e servizi simulati. Non richiede file temporanei o log locali. Una modifica alla modalità lingua va verificata anche sui messaggi con · e sul cambio modalità.
 
 *   **Unit Tests**: Esegui `node gas_unit_tests.js` localmente o `runAllTests()` nell'editor GAS.
 *   **Suite Node equivalente CI**: Esegui `node scripts/run_ci_test_suite.js` per lanciare smoke + unit + test modulari Node (`tests/test_*.js`) con la stessa orchestrazione usata in GitHub Actions.

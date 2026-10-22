@@ -10,7 +10,7 @@ for (const file of ['gas_gmail_service.js', 'gas_thread_documents.js', 'gas_prom
   vm.runInContext(fs.readFileSync(path.join(root, file), 'utf8'), ctx, {filename: file});
 }
 
-// An invalid cached ID must recover via the advanced API with no native app.
+// Un ID memorizzato non valido viene recuperato tramite l'API avanzata anche senza l'app nativa.
 for (const nativeApp of [undefined, {}]) {
   ctx.GmailApp = nativeApp;
   const service = new ctx.GmailService();
@@ -57,7 +57,7 @@ assert(!later.includes('ORARI'));
 assert(later.includes('Contatti | telefono 123456'));
 assert.equal(engine._truncateKbSemantically(long, 0), '');
 
-// Partial configuration uses actual default names for both reads and diagnostics.
+// La configurazione parziale usa i nomi predefiniti effettivi per letture e diagnostica.
 ctx._loadAdvancedConfig = () => ({});
 const names = [];
 ctx.SpreadsheetApp = {openById: () => ({getSheetByName: name => {

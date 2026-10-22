@@ -37,7 +37,7 @@ global.CONFIG = {
     SEARCH_PAGE_SIZE: 50
 };
 
-// Load dependencies
+// Carica le dipendenze.
 const scriptsToLoad = [
     'gas_error_types.js',
     'gas_response_strategy.js',

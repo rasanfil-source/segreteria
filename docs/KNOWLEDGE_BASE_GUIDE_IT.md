@@ -375,4 +375,4 @@ Valutare esempi concreti e motivi di revisione. IA include messaggi filtrati sen
 
 ## Risorse disponibili
 
-Il repository conserva una copia Excel locale in `outputs/link-email-2026-09-13/Base di Conoscenza AI.xlsx`. È un artefatto di lavoro: il runtime legge il Google Sheet selezionato da SPREADSHEET_ID, non quel file locale. I precedenti segnaposto di download non erano collegamenti a template distribuiti.
+Il repository può contenere una copia Excel di riferimento, che non viene letta dal runtime. Il sistema usa il Google Sheet selezionato da `SPREADSHEET_ID`; i file locali non sostituiscono la base di conoscenza configurata nel progetto.

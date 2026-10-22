@@ -1,6 +1,6 @@
 # Checklist di verifica
 
-Riferimento: 3 ottobre 2026.
+Checklist operativa.
 
 - [ ] Eseguire `node scripts/run_ci_test_suite.js`: smoke, unitari, suite modulari e soglie di copertura.
 - [ ] Verificare caricamento di tutti gli undici `gas_thread_*.js`.

@@ -1,7 +1,5 @@
 # Quick diagnosis
 
-Updated 3 October 2026.
-
 ```mermaid
 flowchart TD
  A[No reply] --> B{Enabled and scheduled?}

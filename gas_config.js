@@ -7,7 +7,7 @@ var _SCRIPT_PROPERTIES = null;
 var _CACHED_PROPS = {};
 var _ALL_PROPS_CACHE_TS = 0;
 // Cache solo intra-esecuzione: riduce letture ripetute a PropertiesService
-// durante la stessa run GAS; non e' pensata come persistenza fra trigger.
+// durante la stessa esecuzione GAS; non conserva valori tra trigger.
 var _SCRIPT_PROPERTY_CACHE_TTL_MS = 60 * 1000;
 function _refreshScriptPropertyCache_(requestedKey, now) {
   requestedKey = typeof requestedKey === 'string' ? requestedKey.trim() : '';
@@ -174,7 +174,7 @@ var CONFIG = {
   INTELLIGENT_RETRY: {
     enabled: true,           // Abilita retry LLM su errori strutturali
     maxRetries: 1,           // Limite di esecuzione per sessione GAS
-    minScoreToTrigger: 0.6,  // Soglia minima score per considerare retry non critici
+    minScoreToTrigger: 0.6,  // Punteggio minimo per avviare nuovi tentativi non critici
     onlyForErrors: [         // Tipi di errore che giustificano una chiamata LLM
       'thinking_leak',
       'hallucination',
@@ -212,10 +212,10 @@ var CONFIG = {
   // fingerprint; 15 minuti non coprivano le ritrasmissioni manuali tardive.
   DUPLICATE_REPLY_WINDOW_SECONDS: 86400, // 24 ore dall'invio confermato
   DUPLICATE_REPLY_MAX_ENTRIES: 200,    // Limite marker persistenti per contenere ScriptProperties
-  // === DISCOVERY MODE ======================================================================
+  // === MODALITÀ DI INDIVIDUAZIONE ===========================================================
   // Modalità di scoperta messaggi non letti da elaborare.
-  // - 'metadata': default message-level (list INBOX/UNREAD + get(minimal) per labelIds)
-  // - 'query'   : compatibile GmailApp.search a livello thread
+  // - 'metadata': modalità predefinita a livello messaggio (elenco INBOX/UNREAD e lettura minima delle etichette)
+  // - 'query'   : ricerca GmailApp.search a livello thread
   MESSAGE_DISCOVERY_MODE: 'metadata',
   // =========================================================================================
   MAX_EXECUTION_TIME_MS: 280000,    // Tempo massimo stimato per singola esecuzione GAS
@@ -225,24 +225,24 @@ var CONFIG = {
     enabled: true,                   // Includi testo allegati (PDF, immagini, Word, Excel, PowerPoint) nel prompt
     maxFiles: 3,                     // Numero massimo di allegati da processare
     maxBytesPerFile: 3 * 1024 * 1024,// 3 MB per file
-    maxMessageBytesForAttachmentDownload: 25 * 1024 * 1024, // Pre-check: non scaricare allegati se il messaggio supera 25 MB
+    maxMessageBytesForAttachmentDownload: 25 * 1024 * 1024, // Pre-controllo: non scaricare allegati oltre 25 MB
     maxCharsPerFile: 3000,           // Limite testo per singolo allegato
     maxTotalChars: 9000,             // Limite totale testo allegati
-    ocrLanguage: 'it',               // Lingua OCR (Drive Advanced API)
+    ocrLanguage: 'it',               // Lingua OCR tramite il servizio avanzato Drive
     ocrConfidenceWarningThreshold: 0.8, // Soglia warning leggibilità OCR in risposta
     pdfMaxPages: 2,                  // Limite pagine PDF (stima via OCR)
     pdfCharsPerPage: 1800,           // Stima caratteri per pagina PDF
-    ocrTriggerKeywords: [            // Compatibilità helper compatibile; non filtra i documenti nel percorso visivo
+    ocrTriggerKeywords: [            // Supporto per gli helper; non filtra i documenti nel percorso visivo
       'iban', 'bonifico', 'ricevuta', 'documento',
       'allego', 'in allegato', 'coordinate', 'modulo'
     ],
     ibanFocusEnabled: true,          // Focus OCR se viene trovato un IBAN
-    ibanContextChars: 300,           // Finestra +/- per testo attorno all'IBAN
+    ibanContextChars: 300,           // Caratteri da includere prima e dopo l'IBAN
     maxCharsWhenKbTruncated: 1500    // Riduzione allegati se KB è troncata
   },
   OCR_CLEANUP_MAX_RUNTIME_MS: 8000,   // File di pulizia con durata limitata OCR orfani
 
-  // === Token per tipo allegato (stima multimodale per budget prompt) ===
+  // === Stima dei token per tipo di allegato ================================================
   ATTACHMENT_TOKEN_ESTIMATE: {
     image: 258,          // Token stimati per immagine (Gemini Vision)
     pdf: 1032,           // Token stimati per PDF
@@ -250,16 +250,16 @@ var CONFIG = {
   },
 
   // === Cache e Lock ===
-  CACHE_MAX_BYTES: 90 * 1024,          // Margine sotto 100KB/entry CacheService per ridurre quota exceeded
+  CACHE_MAX_BYTES: 90 * 1024,          // Margine sotto 100 KB per voce CacheService
   CACHE_LOCK_TTL: 310,                 // Secondi (>= MAX_EXECUTION_TIME_MS/1000 con margine)
   GMAIL_DAILY_CALL_LIMIT: 18000,       // Soft limit locale anti-burst prima del limite Gmail reale
-  GMAIL_METADATA_FALLBACK_MAX_PER_THREAD: 25, // Max messages.get recenti per thread quando GmailApp.isUnread è incoerente
+  GMAIL_METADATA_FALLBACK_MAX_PER_THREAD: 25, // Numero massimo di messaggi recenti letti quando GmailApp.isUnread è incoerente
   GMAIL_METADATA_DISCOVERY_MAX_GETS: 120, // Numero massimo di chiamate messages.get per ricerca alternativa dei messaggi.
-  GMAIL_LIST_MAX_PAGES: 20,            // Limite pagine Gmail list per bootstrap label cache
-  GMAIL_LIST_MAX_MESSAGES: 2000,       // Limite messaggi Gmail list per bootstrap label cache
-  GMAIL_LIST_MAX_RUNTIME_MS: 50000,     // Budget tempo bootstrap label cache per evitare timeout GAS
+  GMAIL_LIST_MAX_PAGES: 20,            // Pagine massime consultate per inizializzare la cache delle etichette
+  GMAIL_LIST_MAX_MESSAGES: 2000,       // Messaggi massimi consultati per inizializzare la cache delle etichette
+  GMAIL_LIST_MAX_RUNTIME_MS: 50000,     // Tempo massimo per inizializzare la cache delle etichette
   GMAIL_LABEL_LOOKBACK_DAYS: 0,         // 0 = nessuna finestra temporale nel pre-caricamento label
-  BATCH_CHECKPOINT_TTL_MS: 10 * 60 * 1000, // Scadenza checkpoint resume (10 minuti)
+  BATCH_CHECKPOINT_TTL_MS: 10 * 60 * 1000, // Scadenza del checkpoint di ripresa (10 minuti)
   BATCH_CHECKPOINT_MAX_RETRIES: 3,      // Riprese rapide sullo stesso set; poi torna al trigger periodico
   BATCH_CHECKPOINT_MAX_THREADS: 150,    // Limite thread salvati nel checkpoint per restare sotto quota Properties
 
@@ -267,7 +267,7 @@ var CONFIG = {
   get BOT_EMAIL() { return _getScriptProperty('BOT_EMAIL'); },
   get KNOWN_ALIASES() { return _getScriptPropertyStringArray('KNOWN_ALIASES', []); },
 
-  // === Knowledge Base ===
+  // === Base di conoscenza ===================================================================
   get SPREADSHEET_ID() { return _getScriptProperty('SPREADSHEET_ID'); },
   get SCRIPT_ID() {
     try {
@@ -295,32 +295,32 @@ var CONFIG = {
   MEMORY_LOCK_CACHE_VERIFY_DELAY_MS: 0, // 0 evita sleep nel guard lock; usare >0 solo se CacheService mostra propagazione lenta
   SHEET_WRITE_LOCK_TIMEOUT_MS: 10000,  // Timeout attesa ScriptLock prima di scrivere su Sheet
 
-  // === Riprova con i fogli API ===
+  // === Nuovi tentativi per le operazioni sui fogli ==========================================
   SHEETS_RETRY_MAX: 3,                 // Tentativi massimi
   SHEETS_RETRY_BACKOFF_MS: 1000,       // Backoff iniziale (raddoppia ad ogni tentativo)
 
   // === Modalità ===
-  DRY_RUN: false,                      // True per test senza invio email
+  DRY_RUN: false,                      // true esegue una prova senza inviare email
   FORCE_RELOAD: false,                 // Forza ricaricamento cache KB
   USE_RATE_LIMITER: true,              // Limitatore di velocità intelligente abilitato
 
-  // === Limiti Token (Prompt Engine) ===
-  CONTEXT_WINDOW_TOKENS: 1048576,      // Hard cap operativo condiviso dai modelli Flash configurati
+  // === Limiti dei token del motore dei prompt ===============================================
+  CONTEXT_WINDOW_TOKENS: 1048576,      // Tetto operativo condiviso dai modelli Flash configurati
   MAX_SAFE_TOKENS: 120000,             // Budget locale; non rappresenta una quota Google garantita.
   MAX_SAFE_PROMPT_CHARS: 120000,       // Limite caratteri prompt prima del troncamento.
   KB_TOKEN_BUDGET_RATIO: 0.5,          // Budget percentuale KB rispetto a un token massimo
-  KB_HALLUCINATION_RISK_THRESHOLD: 8000, // Soglia chars KB oltre cui scatta hallucination_risk
+  KB_HALLUCINATION_RISK_THRESHOLD: 8000, // Soglia di caratteri della KB per attivare il rischio di informazioni infondate
   LONGITUDINAL_TONE_ONLY_MAX_CHARS: 500, // Parametro compatibile ignorato: la continuità del tono dipende dai segnali
   MAX_PROVIDED_INFO_JSON_CHARS: 45000, // Limite serializzazione memoria providedInfo per riga Sheet
   PROMPT_ENGINE: {
-    OVERHEAD_TOKENS: 15000,            // Riserva token per istruzioni/fixed context fuori KB
+    OVERHEAD_TOKENS: 15000,            // Riserva token per istruzioni e contesto fisso esterni alla KB
     MEMORY_CONTEXT_MAX_CHARS: 10000,   // Budget massimo per memoria sintetica nel prompt
     CONVERSATION_HISTORY_MAX_CHARS: 16000, // Budget massimo per cronologia thread nel prompt
     RESPONSE_FOCUS_MIN_CONFIDENCE: 0.65, // Confidenza minima per riusare focus conversazionale
     RESPONSE_FOCUS_MAX_AGE_DAYS: 45    // Finestra massima continuità focus thread
   },
 
-  // Fattore prudenziale per allineare il tracciamento TPM ai token output reali (thinking invisibile Gemini 3.5).
+  // Fattore prudenziale che include nel conteggio TPM anche i token di ragionamento non mostrati.
   TOKEN_ACCOUNTING: {
     enabled: true,
     outputMultiplier: 1.25
@@ -343,10 +343,9 @@ var CONFIG = {
   METRICS_SHEET_NAME: 'DailyMetrics',
 
   // === Modelli Gemini (configurazione centralizzata) ===
-  // Aggiornato: Ottobre 2026
   // Policy operativa:
-  // - Risposta finale: modello primario configurabile, generazioni precedenti e alias latest
-  // - Task rapidi/ausiliari: Gemini 3.5 Flash-Lite (categoria, lingua AI, semantica, scarti)
+  // - Risposta finale: modello primario configurabile e modelli di riserva, inclusi gli alias dinamici
+  // - Compiti rapidi o ausiliari: Gemini Flash-Lite (categoria, lingua, semantica, esclusioni)
   // Fonte quote operative: verificare i limiti effettivi nel progetto AI Studio.
   // Le quote effettive possono variare per progetto: se AI Studio mostra limiti inferiori,
   // ridurre questi valori senza aumentare MAX_EMAILS_PER_RUN.
@@ -354,7 +353,7 @@ var CONFIG = {
   // - RPM: 10-15
   // - TPM: 250.000
   // - RPD: 1.000-1.500
-  // - Grounding Google Search: tenere disabilitato in Free Tier salvo disponibilità esplicita in AI Studio
+  // - Ricerca Google come fonte: disabilitata nel livello gratuito salvo disponibilità esplicita in AI Studio
   // - Vietato usare /countTokens: il conteggio resta locale e stimato.
   GEMINI_FREE_TIER_NOTES: {
     contextWindowTokens: 1048576,
@@ -377,7 +376,7 @@ var CONFIG = {
   },
 
   // Limiti operativi locali: verificare le quote del progetto in AI Studio.
-  // Gli alias latest possono cambiare versione e non garantiscono il Free Tier.
+  // Gli alias dinamici possono riferirsi a modelli diversi nel tempo e non garantiscono l'accesso al livello gratuito.
   GEMINI_MODELS: {
     'flash-primary': {
       get name() { return CONFIG.MODEL_NAME; },
@@ -494,7 +493,7 @@ var LANGUAGE_MARKERS = {
 
 /**
  * Valida la configurazione all'avvio con schema rigoroso
- * Previene silent failures da typo o tipi errati
+ * Interrompe l'avvio in presenza di nomi o tipi errati.
  * @returns {Object} Risultato validazione {valid: boolean, errors: string[]}
  */
 var _lastConfigWarningSignature = null;
@@ -646,7 +645,7 @@ function validateConfig() {
     checkType('INTELLIGENT_RETRY.enabled', CONFIG.INTELLIGENT_RETRY.enabled, 'boolean');
   }
 
-  // Arrays
+  // Elenchi
   if (!Array.isArray(CONFIG.IGNORE_DOMAINS)) errors.push("Errore Config: 'IGNORE_DOMAINS' deve essere un array");
   if (!Array.isArray(CONFIG.IGNORE_KEYWORDS)) errors.push("Errore Config: 'IGNORE_KEYWORDS' deve essere un array");
 
@@ -699,7 +698,7 @@ function validateConfig() {
 
 
 /**
- * Versione fail-fast della validazione configurazione da usare negli entrypoint.
+ * Controlla la configurazione e interrompe l'avvio quando i valori non sono validi.
  * Gli score possono essere espressi come 0.6 oppure 60: la normalizzazione runtime
  * avviene tramite normalizeValidationScore().
  */
@@ -720,7 +719,7 @@ function getConfig() {
 }
 
 /**
- * Healthcheck del sistema
+ * Controllo dello stato del sistema
  * @returns {Object} Stato dei componenti
  */
 function healthCheck() {

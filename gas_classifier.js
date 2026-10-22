@@ -2,14 +2,13 @@
  * Classifier.gs - Classificazione email semplificata
  * 
  * FILOSOFIA:
- * - Filtra SOLO acknowledgment ultra-semplici (≤3 parole)
- * - Filtra SOLO saluti standalone
- * - TUTTO IL RESTO va a Gemini per analisi intelligente
- * - Zero falsi negativi: in caso di dubbio, Gemini decide
+ * - Filtra solo riscontri essenziali e saluti isolati
+ * - Invia a Gemini tutti gli altri messaggi per l'analisi
+ * - Nei casi incerti, affida la decisione a Gemini
  * 
  * FUNZIONALITÀ:
- * - Rilevamento sub-intent per sfumature emotive
- * - Categorizzazione suggerimento per Gemini
+ * - Rilevamento delle intenzioni secondarie e delle sfumature emotive
+ * - Classificazione che orienta l'analisi di Gemini
  * - Estrazione contenuto principale (rimuove citazioni/firme)
  */
 var Classifier = class Classifier {
@@ -270,7 +269,7 @@ var Classifier = class Classifier {
       };
     }
 
-    // TUTTO IL RESTO: Passa a Gemini
+    // Gli altri messaggi vengono analizzati da Gemini.
     const category = this._categorizeContent(fullText);
     const subIntents = contextualSubIntents;
 
@@ -317,7 +316,7 @@ var Classifier = class Classifier {
 
   /**
    * Estrae contenuto principale, rimuovendo citazioni e firme.
-   * Input atteso: plain-text (body email).
+   * Riceve il testo semplice del corpo email.
    */
   _extractMainContent(body, options = {}) {
     let processedBody = typeof body === 'string' ? body : '';
@@ -513,7 +512,7 @@ var Classifier = class Classifier {
     const hasOperationalInfo = /(?:^|\s)(?:oggi|domani|dopodomani|stamattina|stasera|mattina|pomeriggio|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica|alle|ore|appuntamento|vengo|veniamo|venite|vado|arrivo|passo|porto|document[oi]|pagato|bonifico)(?=$|\s)|\d/.test(normalized);
     if (hasOperationalInfo || /\b(non|no|not|never|mai|niente|nulla|nessun[oa]?|neanche|nemmeno)\b/.test(normalized)) return false;
 
-    // STRICT: max 3 parole
+    // Il riscontro essenziale non supera tre parole.
     if (wordCount > 3) return false;
 
     // Deve contenere parola di ringraziamento/ricevuto

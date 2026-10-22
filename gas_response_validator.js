@@ -13,8 +13,8 @@
  */
 
 /**
- * Normalizza qualsiasi score di validazione sul dominio canonico 0.0-1.0.
- * Accetta per compatibilità sia valori normalizzati (0.6) sia percentuali (60).
+ * Normalizza qualsiasi punteggio di validazione nell'intervallo 0.0-1.0.
+ * Accetta valori normalizzati (0.6) e percentuali (60).
  */
 function normalizeValidationScore(score) {
   if (score === null || typeof score === 'undefined') return 0;
@@ -51,7 +51,7 @@ var ResponseValidator = class ResponseValidator {
   constructor() {
     console.log('🔍 Inizializzazione ResponseValidator...');
 
-    // Ottieni config - fallback a default se CONFIG non definito
+    // Usa i valori predefiniti se CONFIG non è definito.
     // Soglia minima accettabile
     const configuredMinScore = typeof CONFIG !== 'undefined' && CONFIG
       ? (CONFIG.VALIDATION_MIN_SCORE ?? 0.6)
@@ -986,8 +986,8 @@ var ResponseValidator = class ResponseValidator {
     for (const lang in this.languageMarkers) {
       markerScores[lang] = this.languageMarkers[lang].reduce((count, marker) => {
         const escapedMarker = String(marker).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // Confini accent-aware senza lookbehind/property escapes: Apps Script V8 può
-        // variare per versione, mentre questo intervallo copre i marker latini supportati.
+        // Riconosce i confini delle parole con accenti senza lookbehind o property escapes.
+        // L'intervallo esplicito copre i marcatori latini supportati da Apps Script V8.
         // (es. "paróquia", "grüße", "querría"). \b è limitato ad ASCII e fallisce con diacritici.
         const regex = new RegExp(`(?:^|[^\\wÀ-ÿ])${escapedMarker}(?=[^\\wÀ-ÿ]|$)`, 'i');
         return count + (regex.test(responseLower) ? 1 : 0);
@@ -1222,7 +1222,7 @@ var ResponseValidator = class ResponseValidator {
       score = 0;
     }
 
-    // Helper normalizzazione orari
+    // Funzione di normalizzazione degli orari
     const normalizeTime = (t) => {
       t = String(t ?? '');
 
@@ -1254,7 +1254,7 @@ var ResponseValidator = class ResponseValidator {
       return t;
     };
 
-    // Helper normalizzazione telefono
+    // Funzione di normalizzazione dei numeri di telefono
     const normalizePhone = (p) => {
       const digits = p.replace(/\D/g, '');
       // Rimuovi solo il prefisso italiano davanti a un numero nazionale plausibile.
@@ -1265,7 +1265,7 @@ var ResponseValidator = class ResponseValidator {
 
     // === Controllo orari ===
     // Compatibilità GAS: evita lookbehind a lunghezza variabile, che in alcuni runtime V8
-    // può fallire in fase di parsing. Il filtro di contesto replica le esclusioni precedenti.
+    // può fallire in fase di analisi. Il filtro di contesto applica le stesse esclusioni.
     const timePattern = /\b\d{1,2}[:.]\d{2}\b(?![\/.]\d{2,4})(?!-\d{4}\b)(?!\.[a-z])/gi;
     const contextualHourPattern = /\b(?:alle|ore)\s+(\d{1,2})(?:[:,.](\d{2}))?\b/gi;
     const collectStandaloneTimes = (text) => {
@@ -2159,7 +2159,7 @@ var ResponseValidator = class ResponseValidator {
     if (Array.isArray(structuredAddresses) && structuredAddresses.length > 0) {
       return this._checkTerritoryAddresses_(response, structuredAddresses);
     }
-    // Compatibilità con contesti serializzati precedenti, senza collassare
+    // Legge i contesti serializzati nel formato supportato senza accorpare
     // più indirizzi in un unico esito globale.
     const legacyAddresses = [];
     const blockPattern = /Indirizzo:\s*([^\n]+)\nRisultato:\s*([^\n]+)/gi;
@@ -3958,8 +3958,8 @@ function createResponseValidator() {
  *
  * FILOSOFIA:
  * - Usato SOLO quando regex non è sicura (score < soglia)
- * - Chiamate API leggere
- * - Fallback automatico a regex se API fallisce
+ * - Chiamate API con payload ridotti
+ * - Usa le espressioni regolari se la chiamata API non riesce
  * - Cache risultati (stesso thread)
  */
 var SemanticValidator = class SemanticValidator {
@@ -4164,7 +4164,7 @@ var SemanticValidator = class SemanticValidator {
       : null;
     const kbTruncated = kbLimit ? bounded(knowledgeBase, kbLimit) : knowledgeBase;
     // Budget indipendenti: un corpo lungo non deve eliminare lo storico.
-    // Mantieni il contratto testuale per i chiamanti legacy senza parti esplicite.
+    // Mantiene il formato testuale per i chiamanti che non specificano le singole parti.
     const emailTruncated = coverageContext ? JSON.stringify(coverageContext.sources) : groundingParts && typeof groundingParts === 'object'
       ? [
         `OGGETTO DEL MESSAGGIO CORRENTE:\n${bounded(groundingParts.subject, 1000)}`,

@@ -57,8 +57,6 @@ console.log('--- Test _tryBalanceJsonBraces: parentesi in stringa non alterano l
   assert(parsed.note.includes('] e }'), 'caratteri strutturali in stringa non devono essere interpretati');
 }
 
-// Test rimosso perché la funzionalità di context caching è stata eliminata
-
 console.log('--- Test _quoteUnquotedJsonKeysSafely: non corrompe virgole e pseudo-chiavi nelle stringhe ---');
 {
   const raw = '{reply_needed:true, topic: "Richiesta, info: sbattezzo", category:"TECHNICAL"}';
@@ -998,8 +996,6 @@ console.log('--- Test generateResponse: 429 primaria fa failover sincrono su bac
   assert(urls[0].includes('primary-key') && urls[1].includes('backup-key'), 'ordine chiavi atteso primary -> backup');
   assert(service.isPrimaryExhausted === true, 'la primary deve restare marcata esaurita dopo il failover');
 }
-
-// Test rimossi perché la funzionalità di context caching è stata eliminata
 
 console.log('--- Test model policy: quick_check non rate-limited usa lite, non MODEL_NAME qualita ---');
 {

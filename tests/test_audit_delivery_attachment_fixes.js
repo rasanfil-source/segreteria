@@ -7,8 +7,8 @@ const quiet = { log(){}, warn(){}, error(){} };
 const ctx = vm.createContext({ console: quiet });
 vm.runInContext(fs.readFileSync(path.join(root, 'gas_classifier.js'), 'utf8'), ctx);
 const realClassifier = new ctx.Classifier();
-// Keep the established pipeline harness, but use the real local classifier and
-// attachment metadata as returned by Gmail. Do not modify baseline fixtures.
+// Usa il flusso completo, il classificatore locale e i metadati degli allegati restituiti da Gmail.
+// Le fixture di riferimento restano invariate durante la verifica.
 const helperPath = path.join(root, 'tests/helpers/thread_scenario.js');
 let source = fs.readFileSync(helperPath, 'utf8');
 source = source.replace('const processor = new context.EmailProcessor(services);', `

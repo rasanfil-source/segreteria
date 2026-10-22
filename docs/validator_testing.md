@@ -42,7 +42,7 @@ righe di inizio degli intervalli non eseguiti. I profili grezzi sono raccolti in
 una directory `outputs/coverage/v8-*` nuova a ogni esecuzione, così una precedente
 esecuzione non può migliorare artificialmente il risultato.
 
-La policy versionata `tests/validator_coverage_policy.json` impone soglie globali
+La policy `tests/validator_coverage_policy.json` impone soglie globali
 per i due validatori e soglie dedicate ai controlli fondamentali. Le altre
 componenti `gas_*.js` attribuibili compaiono nel rapporto a scopo diagnostico.
 Una modifica alla policy deve essere motivata; aggiungendo condizioni occorre
@@ -64,12 +64,12 @@ Il filtro dei versetti usa confini di parola per distinguere `Re`, `2Re`, `Gv` e
 `Gen.` dalle espressioni orarie come `Ore 10:00`. La matrice verifica sia gli
 orari presenti nelle fonti sia quelli privi di riscontro.
 
-## Verifica del 3 ottobre 2026
+## Verifiche automatiche
 
-Il runner comprende smoke test, test unitari e 81 suite modulari con servizi esterni simulati. La copertura di riferimento è 97.83% delle funzioni e 81.65% dei blocchi V8 per il validatore delle risposte, 100% e 87.39% per quello territoriale. Gli esiti attestano il codice locale; disponibilità dei servizi e distribuzione richiedono verifiche nell'ambiente operativo.
+Il runner esegue smoke test, test unitari e suite modulari con servizi esterni simulati. Gli esiti attestano il comportamento locale; disponibilità dei servizi e distribuzione richiedono verifiche nell'ambiente operativo.
 
-Il runner ricrea outputs/coverage dopo la pulizia; i profili sono artefatti generati e non prerequisiti. Le fixture versionate restano in tests/fixtures. Il confronto opzionale `node tests/test_thread_characterization.js --compare-workspace-baseline` richiede la copia locale conservata in outputs/process-thread-baseline; la suite ordinaria non la richiede.
+Il runner ricrea `outputs/coverage`; i profili sono artefatti generati e non prerequisiti. Le fixture di riferimento restano in `tests/fixtures`. Il confronto opzionale `node tests/test_thread_characterization.js --compare-workspace-baseline` richiede la copia locale in `outputs/process-thread-baseline`; la suite ordinaria non la richiede.
 
-Le modalità lingua sono coperte da configurazione avanzata, processor, Gmail, caratterizzazione e unitari: italiano/estero/unknown, oggetto italiano con corpo estero, etichetta ·, mantenimento non letto e cambio modalità. Vedi [contratto operativo](LANGUAGE_MODES_IT.md).
+Le modalità lingua sono verificate con configurazione avanzata, processore, Gmail, caratterizzazione e test unitari: italiano/estero/unknown, oggetto italiano con corpo estero, etichetta ·, mantenimento non letto e cambio modalità. Vedi [contratto operativo](LANGUAGE_MODES_IT.md).
 
-La suite `test_audit_helper_contracts.js` verifica liste allegati con elementi nulli, normalizzazione del corpo per i vincoli di presenza, prefissi concatenati nell'oggetto e formattazione della notifica. `test_micro_edge_regressions.js` verifica i confini di riga dei contatti, le valute, gli apostrofi, le negazioni personali e gli intervalli estivi. `test_seven_report_regressions.js` copre lock, invii, conservazione dei marcatori e soglie dei checkpoint. I nomi dei file identificano suite permanenti dei [contratti funzionali](CONTRATTI_FUNZIONALI_IT.md).
+Le suite di supporto verificano liste allegati con elementi nulli, normalizzazione del corpo per i vincoli di presenza, prefissi concatenati nell'oggetto, formattazione delle notifiche, confini di riga dei contatti, valute, apostrofi, negazioni personali, intervalli estivi, lock, invii, conservazione dei marcatori e soglie dei checkpoint. Questi controlli sono descritti nei [contratti funzionali](CONTRATTI_FUNZIONALI_IT.md).

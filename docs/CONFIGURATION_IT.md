@@ -1,6 +1,6 @@
 # Configurazione
 
-Codice locale verificato il 3 ottobre 2026. [English](CONFIGURATION.md)
+[English](CONFIGURATION.md)
 
 ## Dove configurare
 

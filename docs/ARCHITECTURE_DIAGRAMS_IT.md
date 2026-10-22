@@ -1,6 +1,6 @@
 # Diagrammi del funzionamento attuale
 
-Allineati al codice locale il 3 ottobre 2026.
+Panoramica architetturale.
 
 ## Componenti
 
