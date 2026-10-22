@@ -134,7 +134,8 @@ var ThreadDocuments = {
         (Array.isArray(attachmentSkipped) && attachmentSkipped.some(item =>
           !['micro_image_ignored', 'no_attachments'].includes(item.reason))) ||
         Boolean(attachmentAnalysis && attachmentAnalysis.partial)),
-      attachmentsUnavailable: physicalAttachmentsDetected && !readableAttachmentText
+      attachmentsUnavailable: physicalAttachmentsDetected && !readableAttachmentText,
+      expectedDocumentMissing: hasExpectedDocumentMissing
     };
     console.log(`   Scopo richiesta: ${requestPurpose.type}, confidence=${requestPurpose.confidence}, source=${requestPurpose.source}`);
 

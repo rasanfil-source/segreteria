@@ -185,6 +185,8 @@ ${addressLines.join('\n\n')}
         category: categoryHintSource || classification.category || null,
         requestType: requestTypeName || null,
         requestPurpose: requestPurpose,
+        senderName: messageDetails.senderName,
+        senderEmail: messageDetails.senderEmail,
         conversationHistory: conversationHistory,
         ...(String(userThreadContext || '').trim() ? { userThreadContext: userThreadContext } : {})
       }), {

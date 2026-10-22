@@ -379,6 +379,9 @@ var ResponseValidator = class ResponseValidator {
             subject: emailSubject || '',
             body: procedureContext.coverageSources && typeof procedureContext.coverageSources.currentBody === 'string'
               ? procedureContext.coverageSources.currentBody : emailContent || '',
+            sender: this._buildSenderGroundingContext_(
+              temporalContext && temporalContext.validationContext || {}
+            ),
             history: temporalContext && temporalContext.validationContext
               ? temporalContext.validationContext.explicitThreadContext || '' : '',
             attachments: procedureContext.coverageSources && procedureContext.coverageSources.attachmentText || ''
@@ -587,6 +590,22 @@ var ResponseValidator = class ResponseValidator {
     return { score: errors.length ? 0.5 : 1, errors, checked: true };
   }
 
+  _buildSenderGroundingContext_(validationContext = {}) {
+    const normalizeHeaderValue = (value, limit) => String(value || '')
+      .replace(/[\u0000-\u001f\u007f]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, limit);
+    const sender = {};
+    const name = normalizeHeaderValue(validationContext.senderName, 120);
+    const email = normalizeHeaderValue(validationContext.senderEmail, 254);
+    if (name) sender.nome = name;
+    if (email) sender.email = email;
+    return Object.keys(sender).length
+      ? `INTESTAZIONE DA DEL MESSAGGIO CORRENTE (identità del mittente):\n${JSON.stringify(sender)}`
+      : '';
+  }
+
   _buildSemanticGroundingContext_(emailSubject, emailContent, temporalContext = null) {
     const validationContext = temporalContext &&
       temporalContext.validationContext &&
@@ -598,6 +617,8 @@ var ResponseValidator = class ResponseValidator {
       `OGGETTO DEL MESSAGGIO CORRENTE:\n${String(emailSubject || '').trim()}`,
       `CORPO DEL MESSAGGIO CORRENTE:\n${String(emailContent || '').trim()}`
     ];
+    const senderContext = this._buildSenderGroundingContext_(validationContext);
+    if (senderContext) sections.push(senderContext);
     if (threadContext) {
       sections.push(`STORICO ESPLICITO DEL THREAD:\n${threadContext}`);
     }
@@ -4158,6 +4179,7 @@ var SemanticValidator = class SemanticValidator {
       visualAttachments,
       sources: {
         subject: bound(parts.subject, 1000), body: bound(parts.body, this.coverageBodyMaxChars),
+        sender: bound(parts.sender, 500),
         history: bound(parts.history, 4000), attachments: bound(parts.attachments, this.coverageBodyMaxChars)
       },
       completeness: {
@@ -4166,6 +4188,7 @@ var SemanticValidator = class SemanticValidator {
         historyTruncated: source.historyTruncated === true || String(parts.history || '').length > 4000,
         attachmentsTruncated: source.attachmentsTruncated === true || String(parts.attachments || '').length > this.coverageBodyMaxChars,
         attachmentsUnavailable: source.attachmentsUnavailable === true && visualAttachments.length === 0,
+        expectedDocumentMissing: source.expectedDocumentMissing === true,
         attachmentsVisionAvailable: visualAttachments.length > 0,
         extractionTruncated: extraction.extractionTruncated === true,
         extractionIncomplete: extraction.extractionIncomplete === true
@@ -4194,6 +4217,7 @@ var SemanticValidator = class SemanticValidator {
       ? [
         `OGGETTO DEL MESSAGGIO CORRENTE:\n${bounded(groundingParts.subject, 1000)}`,
         `CORPO DEL MESSAGGIO CORRENTE:\n${bounded(groundingParts.body, 2000)}`,
+        ...(groundingParts.sender ? [bounded(groundingParts.sender, 500)] : []),
         ...(groundingParts.history ? [`STORICO ESPLICITO DEL THREAD:\n${bounded(groundingParts.history, 4000)}`] : [])
       ].join('\n\n')
       : emailContent && emailContent.length > 2000
@@ -4226,14 +4250,14 @@ ${response}
 """
 
 COMPITO A — RADICAMENTO:
-Distingui fatti, pertinenza e incertezza: unsupportedClaims riguarda solo fatti senza riscontro o contrari alle fonti, mai il semplice fatto che non siano richiesti; un fatto documentato ma superfluo va solo in irrelevantDetails. Scomponi le frasi composte: se ogni proposizione è attestata nelle fonti, segnala l'eventuale superfluità solo in irrelevantDetails. Se una frase composta è tutta supportata, mantienila solo in irrelevantDetails anche quando descrive più fatti; non suddividerne le clausole tra unsupportedClaims e irrelevantDetails. Non duplicare la stessa proposizione nei due campi senza indicare quale contenuto specifico sia infondato. Se la KB non riporta un dato richiesto, dichiarare «non posso confermare» quel dato (per esempio se il certificato sarà pronto entro venerdì) è explicit_limit_info, non un fatto infondato: non inserirlo in unsupportedClaims e non richiedere una frase della KB che autorizzi l'incertezza. Vicinanza pastorale e firma generica della segreteria sono formule relazionali/di chiusura: non inserirle in unsupportedClaims o irrelevantDetails, salvo che la firma attribuisca un impegno o un ruolo concreto. Un limite del servizio vale solo se la KB nega esplicitamente proprio quel servizio o canale; orari parziali e silenzio non bastano a provare una chiusura o un divieto: riferisci come non specificato ciò che la KB non conferma. Richieste, possibilità e impegni restano distinti; le promesse richiedono procedura autorizzante o accordo applicabile. Oggetto, corpo, allegati e storico autorizzano dati personali, date e vincoli dichiarati, non conferme di appuntamenti. Un nome non prova il ruolo; lo storico non autorizza procedure, requisiti o capacità istituzionali.
+Distingui fatti, pertinenza e incertezza: unsupportedClaims riguarda solo fatti senza riscontro o contrari alle fonti, mai il semplice fatto che non siano richiesti; un fatto documentato ma superfluo va solo in irrelevantDetails. Scomponi le frasi composte: se ogni proposizione è attestata nelle fonti, segnala l'eventuale superfluità solo in irrelevantDetails. Se una frase composta è tutta supportata, mantienila solo in irrelevantDetails anche quando descrive più fatti; non suddividerne le clausole tra unsupportedClaims e irrelevantDetails. Non duplicare la stessa proposizione nei due campi senza indicare quale contenuto specifico sia infondato. Se la KB non riporta un dato richiesto, dichiarare «non posso confermare» quel dato (per esempio se il certificato sarà pronto entro venerdì) è explicit_limit_info, non un fatto infondato: non inserirlo in unsupportedClaims e non richiedere una frase della KB che autorizzi l'incertezza. Vicinanza pastorale e firma generica della segreteria sono formule relazionali/di chiusura: non inserirle in unsupportedClaims o irrelevantDetails, salvo che la firma attribuisca un impegno o un ruolo concreto. Un limite del servizio vale solo se la KB nega esplicitamente proprio quel servizio o canale; orari parziali e silenzio non bastano a provare una chiusura o un divieto: riferisci come non specificato ciò che la KB non conferma. Richieste, possibilità e impegni restano distinti; le promesse richiedono procedura autorizzante o accordo applicabile. Oggetto, corpo, allegati e storico autorizzano dati personali, date e vincoli dichiarati, non conferme di appuntamenti; l'intestazione Da autorizza nome e recapito del mittente, ma non ruolo o altri fatti. Lo storico non autorizza procedure, requisiti o capacità istituzionali.
 
 COMPITO B — PERTINENZA CONTESTUALE${coverageContext ? ' E C — COPERTURA' : ''}:
 Individua obiettivo, domande e vincoli attuali con lo storico: copri l'essenziale. Richieste risolte restano chiuse salvo nuova domanda. Seleziona unità informative separate, non ogni alternativa KB. irrelevantDetails segnala ridondanze e procedure già eseguite, preservando aiuti concreti ai vincoli.
-${coverageContext ? `Riporta ogni openRequest con lo stesso id e need in requests, anche se omessa o condizionale. Per una conditional, not_applicable vale solo se appliesWhen è falsa; quando è falsa assegna not_applicable anche se la risposta non ripete il ripiego, e non segnalarlo come missing. Se appliesWhen è vera, valutala come primaria e usa missing se resta senza risposta. Tieni distinti bisogni autonomi della stessa email: un limite su scadenza o tempi non copre il diverso bisogno di sapere chi può ritirare, come o con quali requisiti. Assegna explicit_limit_info solo alla richiesta del dato mancante; le altre richieste restano da valutare separatamente. Ogni request deve avere reason non vuota e specifica. unsupportedExtractedRequests serve solo per estrazioni senza base nella richiesta attuale. additionalRequests aggiunge esigenze sfuggite. evidence cita l'originale corrente. Esamina anche gli allegati visivi disponibili. Per una richiesta fondata su un allegato visivo, riporta in evidence un breve testo leggibile e in sourceRef il nome esatto dell'allegato; se la parte rilevante non è leggibile, usa undeterminable. Se gli indizi non contengono openRequest e non emerge alcuna esigenza attuale dopo aver valutato il materiale completo, usa noOpenRequests=true con una motivazione breve; in quel caso requests, additionalRequests e unsupportedExtractedRequests restano vuoti. Se manca materiale necessario, indica undeterminableReason. Cortesia e riscontro non sostituiscono risposte, né costituiscono promesse operative.
+${coverageContext ? `Riporta ogni openRequest con lo stesso id e need in requests, anche se omessa o condizionale. Per una conditional, not_applicable vale solo se appliesWhen è falsa; quando è falsa assegna not_applicable anche se la risposta non ripete il ripiego, e non segnalarlo come missing. Se appliesWhen è vera, valutala come primaria e usa missing se resta senza risposta. Tieni distinti bisogni autonomi della stessa email: un limite su scadenza o tempi non copre il diverso bisogno di sapere chi può ritirare, come o con quali requisiti. Assegna explicit_limit_info solo alla richiesta del dato mancante; le altre richieste restano da valutare separatamente. Ogni request deve avere reason non vuota e specifica. unsupportedExtractedRequests serve solo per estrazioni senza base nella richiesta attuale. additionalRequests aggiunge esigenze sfuggite. evidence riporta una citazione letterale breve dall'originale corrente. Esamina anche gli allegati visivi disponibili. Per una richiesta fondata su un allegato visivo, riporta in evidence un breve testo leggibile e in sourceRef il nome esatto dell'allegato; se la parte rilevante non è leggibile, usa undeterminable. Se gli indizi non contengono openRequest e non emerge alcuna esigenza attuale dopo aver valutato il materiale completo, usa noOpenRequests=true con una motivazione breve; in quel caso requests, additionalRequests e unsupportedExtractedRequests restano vuoti. Se manca materiale necessario, indica undeterminableReason. Cortesia e riscontro non sostituiscono risposte, né costituiscono promesse operative.
 - addressed: risposta concreta o chiarimento indispensabile; mai per una risposta che nega o limita il servizio;
 - not_applicable: ripiego non necessario o richiesta risolta;
-- explicit_limit_info: la risposta dichiara di non poter confermare il dato assente necessario proprio a quel need; non sostituisce una risposta su modalità, delegati o requisiti;
+- explicit_limit_info: la risposta dichiara il dato mancante proprio per quel need; include la verifica di un allegato quando sourceCompleteness.expectedDocumentMissing=true e segnala l'assenza chiedendone il reinvio; non copre altri need;
 - explicit_limit_service: la risposta nega il servizio e la KB nega esplicitamente lo stesso servizio; cita la prova in sourceRef;
 - missing: esigenza essenziale non trattata; un divieto non sostenuto dalla KB è missing e va anche in unsupportedClaims;
 - undeterminable: materiale necessario assente, indicandolo.
@@ -4517,6 +4541,9 @@ Rispondi SOLO con questo JSON (senza markdown):
       const originalEvidence = original && typeof original.evidence === 'string' ? original.evidence : '';
       const evidence = row.evidence;
       const normalizedSource = normalize(sourceText);
+      const originalEvidenceIsGroundedInText = Boolean(
+        originalEvidence && normalizedSource.includes(normalize(originalEvidence))
+      );
       const visualSourceIsGrounded = Boolean(
         evidence && completeness.attachmentsVisionAvailable === true &&
         visualAttachmentReferences.has(normalize(row.sourceRef))
@@ -4530,7 +4557,11 @@ Rispondi SOLO con questo JSON (senza markdown):
           (original.source === 'attachment' && completeness.attachmentsVisionAvailable === true)
         )
       );
-      if (!evidenceIsGrounded || !originalEvidenceIsGrounded) {
+      // Riusa l'estratto originale già riscontrato quando il validatore lo parafrasa.
+      if (!evidenceIsGrounded && originalEvidenceIsGroundedInText) {
+        row.evidence = originalEvidence;
+      }
+      if ((!evidenceIsGrounded && !originalEvidenceIsGroundedInText) || !originalEvidenceIsGrounded) {
         row.status = 'undeterminable';
         row.reason = 'Evidenza della richiesta non riscontrabile nelle fonti correnti disponibili.';
       } else if (row.status === 'explicit_limit_service' &&

@@ -212,8 +212,7 @@ var TerritoryValidator = class TerritoryValidator {
     }
 
     /**
-     * Cerca corrispondenza nel database territorio con fuzzy matching
-     * Richiede almeno una coppia consecutiva di parole per evitare falsi positivi
+     * Cerca una via nel database e accetta nomi abbreviati solo se identificano una corrispondenza unica.
      */
     findTerritoryMatch(inputStreet) {
         if (!inputStreet || typeof inputStreet !== 'string') {
@@ -251,7 +250,7 @@ var TerritoryValidator = class TerritoryValidator {
             }
         }
 
-        // Abbreviations may omit name tokens, never substitute or add distinctive words.
+        // Un cognome finale può identificare una via abbreviata se resta un solo candidato.
         const inputTokens = inputStripped.split(" ");
         const inputNames = inputTokens.slice(1);
         const candidates = [];
@@ -268,7 +267,7 @@ var TerritoryValidator = class TerritoryValidator {
                 position = index + 1;
                 return true;
             });
-            if (orderedSubset && (inputNames.length === dbNames.length || inputNames.length >= 2)) {
+            if (orderedSubset && inputNames.length > 0) {
                 candidates.push({ key: dbKey, rules: dbRules });
             }
         }

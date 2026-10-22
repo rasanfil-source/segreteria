@@ -2237,15 +2237,13 @@ var EmailProcessor = class EmailProcessor {
     };
 
     if (explicit && typeof explicit === 'object') {
-      const expectedDescription = String(explicit.expected_document_description || '').trim().slice(0, 240);
+      const expectedDocument = this._normalizeQuickAttachmentBoolean_(explicit.expected_document);
+      const expectedDescription = expectedDocument
+        ? String(explicit.expected_document_description || '').trim().slice(0, 240)
+        : '';
       const bodyContainsFilled = this._normalizeQuickAttachmentBoolean_(explicit.body_contains_filled_document);
-      const requiresFileAttachment = this._normalizeQuickAttachmentBoolean_(explicit.requires_file_attachment);
-      const missingIfNoAttachment = this._normalizeQuickAttachmentBoolean_(explicit.missing_document_if_no_attachment);
-      const expectedDocument = this._normalizeQuickAttachmentBoolean_(explicit.expected_document) ||
-        expectedDescription.length > 0 ||
-        bodyContainsFilled ||
-        requiresFileAttachment ||
-        missingIfNoAttachment;
+      const requiresFileAttachment = expectedDocument && this._normalizeQuickAttachmentBoolean_(explicit.requires_file_attachment);
+      const missingIfNoAttachment = expectedDocument && this._normalizeQuickAttachmentBoolean_(explicit.missing_document_if_no_attachment);
       return {
         expected_document: expectedDocument,
         expected_document_description: expectedDescription,
@@ -2258,50 +2256,14 @@ var EmailProcessor = class EmailProcessor {
       };
     }
 
-    const responseStrategy = String(safeQuickCheck.response_strategy || '').trim().toLowerCase();
-    const responseFocusHint = String(safeQuickCheck.response_focus_hint || '').trim().toLowerCase();
-    const newInformation = Array.isArray(safeQuickCheck.new_information_provided)
-      ? safeQuickCheck.new_information_provided.map((item) => String(item || '').trim()).filter(Boolean)
-      : [];
-    const topic = String(
-      (safeQuickCheck.classification && safeQuickCheck.classification.topic) ||
-      safeQuickCheck.topic ||
-      ''
-    ).trim();
-    const reason = String(safeQuickCheck.reason || '').trim();
-    const text = `${topic} ${reason} ${newInformation.join(' ')}`;
-    const documentPattern = /\b(document\w*|scheda|sched[ae]|modul\w*|allegat\w*|iscrizion\w*|certificat\w*|attestat\w*|file|dati\s+compilat\w*)\b/i;
-    const attachmentChannelPattern = /\b(allegat\w*|file|pdf|scansion\w*)\b/i;
-    const deliveryPattern = /\b(?:alleg\w*|invi(?:o|amo|a)\b|trasmett(?:o|iamo)\b|consegn\w*|mand(?:o|iamo)\b|inoltr(?:o|iamo)\b|ecco|riport(?:o|iamo)\b|compilat[oaie])\b/i;
-    const newInfoDocument = newInformation.find((item) => documentPattern.test(item)) || '';
-    const topicReasonText = `${topic} ${reason}`;
-    const hasTopicReasonDelivery = documentPattern.test(topicReasonText) && deliveryPattern.test(topicReasonText);
-    const expectedDocument = !!newInfoDocument ||
-      hasTopicReasonDelivery ||
-      responseStrategy === 'confirm_receipt' ||
-      responseFocusHint === 'acknowledge_document_without_reopening_procedure';
-    const expectedDescription = (
-      newInfoDocument ||
-      (hasTopicReasonDelivery && documentPattern.test(topic) ? topic : '') ||
-      (hasTopicReasonDelivery && documentPattern.test(reason) ? reason : '')
-    ).slice(0, 240);
-    const requiresFileAttachment = expectedDocument && attachmentChannelPattern.test(text);
-
     return {
-      expected_document: expectedDocument,
-      expected_document_description: expectedDescription,
-      delivery_channel: requiresFileAttachment ? 'attachment' : 'unclear',
+      expected_document: false,
+      expected_document_description: '',
+      delivery_channel: 'unclear',
       body_contains_filled_document: false,
-      requires_file_attachment: requiresFileAttachment,
-      missing_document_if_no_attachment: requiresFileAttachment && expectedDocument,
-      reason: expectedDocument
-        ? `fallback quick-check: ${[
-          responseStrategy === 'confirm_receipt' ? 'response_strategy=confirm_receipt' : '',
-          responseFocusHint === 'acknowledge_document_without_reopening_procedure' ? 'response_focus_hint=document_ack' : '',
-          expectedDescription ? 'document_description' : '',
-          requiresFileAttachment ? 'attachment_channel' : ''
-        ].filter(Boolean).join(', ')}`
-        : '',
+      requires_file_attachment: false,
+      missing_document_if_no_attachment: false,
+      reason: 'document_delivery non disponibile nel quick-check',
       source: 'quick_check_fallback'
     };
   }
@@ -2316,36 +2278,19 @@ var EmailProcessor = class EmailProcessor {
     textFromAttachments,
     attachmentSkipped = []
   } = {}) {
-    const bodyContainsUsableDocumentContent = Boolean(
-      (quickDocumentDelivery && quickDocumentDelivery.body_contains_filled_document === true) ||
-      this._bodyLooksLikeFilledDocument_(body)
+    const quickExpectsDocument = Boolean(
+      quickDocumentDelivery && quickDocumentDelivery.expected_document === true
     );
-    const announcedByBody = this._bodyAnnouncesDocumentDelivery_(body, subject);
+    const bodyContainsUsableDocumentContent = Boolean(
+      this._bodyLooksLikeFilledDocument_(body) ||
+      (quickExpectsDocument && quickDocumentDelivery.body_contains_filled_document === true)
+    );
     const hasPhysicalAttachment = Boolean(
       physicalAttachmentsDetected ||
       (Array.isArray(attachmentItems) && attachmentItems.length > 0)
     );
-    const quickExpectsDocument = Boolean(
-      quickDocumentDelivery && (
-        quickDocumentDelivery.expected_document === true ||
-        quickDocumentDelivery.missing_document_if_no_attachment === true
-      )
-    );
-    const bodyRefersToPendingDocument = /\b(?:sono|siamo)\s+in\s+attesa\s+di\s+(?:ricever|ottener)|\bnon\s+(?:ho|abbiamo)\s+ancora\s+(?:ricevut|ottenut)|\bappena\s+(?:lo|la|li|le)\s+(?:ricever|otterr)/i.test(String(body || ''));
-    // Il quick-check è probabilistico: può confermare una consegna solo quando
-    // il testo locale la annuncia (o contiene già i dati compilati). La mera
-    // presenza di un file non basta quando il testo precisa che il documento
-    // citato è ancora atteso: in quel caso l'allegato presente è autonomo.
-    const groundedQuickExpectation = quickExpectsDocument && Boolean(
-      announcedByBody ||
-      bodyContainsUsableDocumentContent ||
-      (hasPhysicalAttachment && !bodyRefersToPendingDocument)
-    );
-    const expectsDocument = Boolean(
-      bodyContainsUsableDocumentContent ||
-      announcedByBody ||
-      groundedQuickExpectation
-    );
+    // La direzione della consegna viene dal quick-check; il codice verifica solo la presenza effettiva di dati o file.
+    const expectsDocument = bodyContainsUsableDocumentContent || quickExpectsDocument;
     const normalizedAttachmentText = String(textFromAttachments || '').trim();
     const hasAttachmentAnalyzedContent = Boolean(normalizedAttachmentText);
     const hasUsableAttachmentText = Boolean(
@@ -2357,11 +2302,13 @@ var EmailProcessor = class EmailProcessor {
     const hasUsableAttachmentContent = hasUsableAttachmentText;
     const hasAttachmentContent = hasUsableAttachmentContent;
     const hasDocumentContentAvailable = Boolean(hasUsableAttachmentContent || bodyContainsUsableDocumentContent);
-    const expectedDescription = String(
-      (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
-      (quickAttachmentIntent && quickAttachmentIntent.expected_attachment_description) ||
-      ''
-    ).trim();
+    const expectedDescription = quickExpectsDocument
+      ? String(
+        (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
+        (quickAttachmentIntent && quickAttachmentIntent.expected_attachment_description) ||
+        ''
+      ).trim()
+      : '';
     const expectedLabel = this._formatExpectedDocumentLabel_(expectedDescription);
 
     let status = 'none';
@@ -2400,7 +2347,7 @@ var EmailProcessor = class EmailProcessor {
     return {
       expectedDocumentDescription: expectedDescription,
       expectedDocumentLabel: expectedLabel,
-      announcedByBody: announcedByBody,
+      announcedByBody: quickExpectsDocument,
       expectsDocument: expectsDocument,
       bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent,
       hasPhysicalAttachment: hasPhysicalAttachment,
@@ -2449,17 +2396,6 @@ var EmailProcessor = class EmailProcessor {
     const hasEventOrAddress = Boolean(matched.birth_date || matched.birth_place || matched.address || matched.parish || matched.wedding_date);
 
     return count >= 4 || (count >= 3 && hasIdentity && (hasContact || hasEventOrAddress));
-  }
-
-  _bodyAnnouncesDocumentDelivery_(body, subject) {
-    const rawSubject = String(subject || '');
-    const bodyText = String(body || '');
-    const isReplySubject = /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+[-–—]\s+)/i.test(rawSubject.trim());
-    const documentText = `${rawSubject} ${bodyText}`;
-    const deliveryText = `${isReplySubject ? '' : rawSubject} ${bodyText}`;
-    const documentPattern = /\b(?:scheda|sched[ae]|modul\w*|document\w*|certificat\w*|attestat\w*|iscrizion\w*)\b/i;
-    const deliveryPattern = /\b(?:alleg\w*|invi(?:o|amo|a)\b|trasmett(?:o|iamo)\b|mando|mandiamo|inoltro|inoltriamo|ecco|riport(?:o|iamo)\b|compilat[oaie])\b/i;
-    return documentPattern.test(documentText) && deliveryPattern.test(deliveryText);
   }
 
   _formatExpectedDocumentLabel_(description) {
@@ -5513,6 +5449,8 @@ Usa currentDate per stabilire se gli eventi sono trascorsi e messageDate per int
     category = null,
     requestType = null,
     requestPurpose = null,
+    senderName = '',
+    senderEmail = '',
     conversationHistory = '',
     userThreadContext = ''
   } = {}) {
@@ -5531,6 +5469,13 @@ Usa currentDate per stabilire se gli eventi sono trascorsi e messageDate per int
       ? null
       : (String(rawRequestType).trim() || null);
     const normalizedResponseMode = String(responseMode || 'standard_operational').trim() || 'standard_operational';
+    const normalizeHeaderValue = (value, limit) => String(value || '')
+      .replace(/[\u0000-\u001f\u007f]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, limit);
+    const normalizedSenderName = normalizeHeaderValue(senderName, 120);
+    const normalizedSenderEmail = normalizeHeaderValue(senderEmail, 254);
     const normalizedOperationalConstraints = Array.isArray(operationalConstraints)
       ? operationalConstraints.slice(0, 12)
       : [];
@@ -5574,6 +5519,8 @@ Usa currentDate per stabilire se gli eventi sono trascorsi e messageDate per int
       category: normalizedCategory,
       requestType: normalizedRequestType,
       requestPurpose: normalizedRequestPurpose,
+      ...(normalizedSenderName ? { senderName: normalizedSenderName } : {}),
+      ...(normalizedSenderEmail ? { senderEmail: normalizedSenderEmail } : {}),
       requestCoverage: requestPurpose && requestPurpose.requestCoverage || null,
       // Evidenza grezza e limitata del thread: serve al validatore semantico per
       // riconoscere dati esplicitamente presenti nei messaggi precedenti. Non è

@@ -592,17 +592,17 @@ ${lines.join('\n')}
       both: true,
       unclear: true
     };
-    const expectedDescription = String(source.expected_document_description || '').trim().slice(0, 240);
+    const expectedDocument = EmailQuickCheckPolicy.normalizeBoolean(source.expected_document) === true;
+    const expectedDescription = expectedDocument
+      ? String(source.expected_document_description || '').trim().slice(0, 240)
+      : '';
     const rawChannel = String(source.delivery_channel || '').trim().toLowerCase();
     const deliveryChannel = allowedChannels[rawChannel] ? rawChannel : 'unclear';
     const bodyContainsFilledDocument = EmailQuickCheckPolicy.normalizeBoolean(source.body_contains_filled_document) === true;
-    const requiresFileAttachment = EmailQuickCheckPolicy.normalizeBoolean(source.requires_file_attachment) === true;
-    const missingDocumentIfNoAttachment = EmailQuickCheckPolicy.normalizeBoolean(source.missing_document_if_no_attachment) === true;
-    const expectedDocument = EmailQuickCheckPolicy.normalizeBoolean(source.expected_document) === true ||
-      expectedDescription.length > 0 ||
-      bodyContainsFilledDocument ||
-      requiresFileAttachment ||
-      missingDocumentIfNoAttachment;
+    const requiresFileAttachment = expectedDocument &&
+      EmailQuickCheckPolicy.normalizeBoolean(source.requires_file_attachment) === true;
+    const missingDocumentIfNoAttachment = expectedDocument &&
+      EmailQuickCheckPolicy.normalizeBoolean(source.missing_document_if_no_attachment) === true;
 
     return {
       expected_document: expectedDocument,
@@ -769,12 +769,11 @@ COMPITI:
    - reason: breve motivo osservabile.
    - Se non ci sono allegati/documenti menzionati: tutti i boolean a FALSE e stringhe vuote.
 9. Determina document_delivery:
-   - expected_document: TRUE se l'utente afferma, annuncia o implica che sta consegnando/inviando una scheda, modulo, documento, certificato, iscrizione o dati documentali compilati.
-   - expected_document_description: breve descrizione in italiano del documento atteso o consegnato, es. "scheda di iscrizione al corso prematrimoniale"; stringa vuota se non emerge.
+   - Distingui la direzione e il momento della consegna: expected_document è TRUE solo se l'utente presenta o invia un documento/dati compilati nel messaggio corrente. Una richiesta di ottenere o ricevere un documento dalla parrocchia, una domanda su come richiederlo o la sola menzione nell'oggetto non sono una consegna in entrata.
+   - expected_document_description: descrivi il documento solo se expected_document è TRUE; altrimenti usa una stringa vuota.
    - delivery_channel: "attachment" se il documento dovrebbe essere in allegato/file; "body" se i dati compilati sono riportati nel testo; "both" se entrambi; "unclear" se il canale non e chiaro.
    - body_contains_filled_document: TRUE solo se nel corpo ci sono dati compilati utilizzabili, non un semplice annuncio. Esempi forti: Nome/Cognome, Telefono, Email, Data di nascita, Luogo di nascita, Indirizzo, Parrocchia, Data matrimonio, Sposo/Sposa/Fidanzato/Fidanzata con valori.
-   - requires_file_attachment: TRUE se l'utente dichiara che il documento e allegato/file o il flusso richiede proprio un file.
-   - missing_document_if_no_attachment: TRUE solo quando dal testo risulta che il documento dovrebbe esserci come file/allegato e non sono presenti dati compilati nel corpo.
+   - requires_file_attachment e missing_document_if_no_attachment possono essere TRUE solo se expected_document è TRUE. Mantieni coerenti tutti i campi con la consegna corrente.
    - reason: breve motivo osservabile.
 10. Fornisci un breve ragionamento (reason)
 10b. Descrivi lo scopo attuale, distinto dall'argomento: information_request per spiegazioni; operational_request per eseguire un'azione richiesta, anche nel solo oggetto; status_update per dati o modifiche comunicati; acknowledgment per sola conferma/ringraziamento; mixed per azione e domande informative ancora aperte. Fornisci request_purpose_confidence (0.0-1.0).
