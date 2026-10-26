@@ -18,9 +18,12 @@ var ThreadAttachments = {
     let attachmentPreCheckFailed = false;
     let usedLookbackAttachments = false;
     let attachmentAnalysis;
+    const receivedAttachments = [];
+    let inventoryComplete = false;
 
     if (typeof CONFIG !== 'undefined' && CONFIG.ATTACHMENT_CONTEXT && CONFIG.ATTACHMENT_CONTEXT.enabled) {
       if (deps._isNearDeadline(deps.config.maxExecutionTimeMs)) {
+        inventoryComplete = false;
         attachmentSkipped.push({ reason: 'near_deadline' });
         console.warn('   ⏳ Allegati multimodali saltati: tempo residuo insufficiente.');
       } else {
@@ -38,8 +41,10 @@ var ThreadAttachments = {
           // Controlla le dimensioni di ogni sorgente anche quando è già presente un allegato.
           // Il budget dei file include il controllo dei messaggi successivi di dimensioni eccessive.
           hasAttachments = attachmentSourceMessages.reduce((found, message) => {
+            if (found && message !== candidate) return true;
             const sizeEstimate = deps._getMessageSizeEstimateForAttachmentDownload_(message, threadLogger);
             if (Number.isFinite(sizeEstimate) && sizeEstimate > maxAttachmentMessageBytes) {
+              inventoryComplete = false;
               let messageId = 'unknown';
               try {
                 messageId = message && typeof message.getId === 'function' ? message.getId() : 'unknown';
@@ -53,14 +58,18 @@ var ThreadAttachments = {
               console.warn(`   📎 Allegati saltati per ${messageId}: messaggio troppo grande (${sizeEstimate}/${maxAttachmentMessageBytes} byte)`);
               return found;
             }
-            if (found) return true;
             const attachments = (typeof filterDocumentAttachments_ === 'function' ? filterDocumentAttachments_ : value => value)(message.getAttachments({ includeInlineImages: true, includeAttachments: true }) || []);
-            return attachments.length > 0;
+            if (message === candidate) {
+              receivedAttachments.push(...attachments.map(file => ({ name: file.getName() })));
+              inventoryComplete = true;
+            }
+            return found || attachments.length > 0;
           }, false);
         } catch (e) {
           ThreadAttachments.propagateServiceFailure(deps, e);
           console.warn(`⚠️ Impossibile leggere allegati per pre-check: ${e.message}`);
           attachmentPreCheckFailed = true;
+          inventoryComplete = false;
           attachmentSkipped.push({ reason: 'attachment_precheck_failed' });
         }
 
@@ -161,6 +170,24 @@ var ThreadAttachments = {
       }
     }
 
+    if (receivedAttachments.length || attachmentSkipped.some(item => item.reason !== 'no_attachments')) {
+      const remainingAttachments = receivedAttachments.map(file => file.name);
+      for (const item of attachmentItems) {
+        const index = remainingAttachments.indexOf(item.name);
+        if (index >= 0) remainingAttachments.splice(index, 1);
+      }
+      attachmentIntentContext = Object.assign({}, attachmentIntentContext, {
+        acquisition: {
+          received: receivedAttachments,
+          processed: attachmentItems.map(item => item.name),
+          notProcessed: remainingAttachments,
+          inventoryComplete,
+          historicalContent: usedLookbackAttachments,
+          limits: attachmentSkipped.filter(item => !['micro_image_ignored', 'no_attachments'].includes(item.reason))
+            .map(item => ({ name: item.name || '', reason: item.reason }))
+        }
+      });
+    }
     return {
       attachmentBlobs, textFromAttachments, attachmentItems, physicalAttachmentsDetected,
       attachmentPreCheckFailed, attachmentIntentContext, categoryHintSource, forceReceiptOnlyForSubmission,

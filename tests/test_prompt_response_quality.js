@@ -226,8 +226,8 @@ assert(
   'il ruolo base non deve proporre venire in segreteria come opzione generale'
 );
 assert(
-  litePrompt.includes('Gestione multi-intento') &&
-  litePrompt.includes('rispondi comunque alle altre domande'),
+  litePrompt.includes('Passo successivo') &&
+  litePrompt.includes('Rispondi anche alle altre domande trattabili'),
   'il contratto qualità deve impedire early exit su problemi tecnici'
 );
 assert(
@@ -247,7 +247,7 @@ for (const lang of ['it', 'en', 'es', 'fr', 'de', 'pt']) {
   assert(engine._renderLanguageInstruction(lang) === null, 'nessun blocco lingua duplicato: ' + lang);
   const checklist = engine._renderContextualChecklist(lang, null, 'full');
   assertMatches(checklist, /italiano|English|español|français|Deutsch|português/, 'la checklist mantiene la lingua');
-  assertMatches(checklist, /verifica della completezza.*solo se completa.*successiva registrazione.*azioni future della segreteria/, 'verifica e registrazione restano future e condizionate');
+  assertMatches(checklist, /Distingui ricezione, verifica e registrazione.*solo se effettivamente attivate/, 'ricezione distinta dalle attività realmente attivate');
   for (const mode of ['full', 'soft', 'none_or_continuity', 'full_warm']) {
     const prompt = engine.buildPrompt({ detectedLanguage: lang, emailContent: 'Richiesta informazioni.', knowledgeBase: '', promptProfile: 'heavy', salutationMode: mode, salutation: '', closing: '' });
     assertDoesNotMatch(prompt, /Good morning|Kind regards|Buenos días|Bom dia|Guten Morgen/, 'nessun saluto esemplificativo nel prompt operativo');
@@ -1069,17 +1069,17 @@ assert(
   'il prompt deve indicare una risposta predefinita di ricezione'
 );
 assert(
-  attachmentPrompt.includes('verifica della completezza e, solo se completa') &&
-    attachmentPrompt.includes('successiva registrazione negli archivi come azioni future della segreteria'),
-  'il prompt deve guidare i moduli verso verifica e registrazione futura, non gia conclusa'
+  attachmentPrompt.includes('distingui ricezione, verifica e registrazione') &&
+    attachmentPrompt.includes('annuncia attività successive solo se attivate'),
+  'il prompt distingue ricezione e attività successive effettivamente attivate'
 );
 assert(
-  attachmentPrompt.includes('Non elencare i requisiti per fare da padrino/madrina'),
+  attachmentPrompt.includes('Spiega requisiti e procedure solo se richiesti o indispensabili'),
   'il prompt deve bloccare requisiti non richiesti dagli allegati'
 );
 assert(
-  attachmentPrompt.includes('non citare il contenuto OCR nel testo finale'),
-  'il prompt deve evitare citazioni OCR non necessarie'
+  attachmentPrompt.includes('Usa dati utili, maschera quelli sensibili'),
+  'il prompt deve mantenere solo dati utili e proteggere quelli sensibili'
 );
 assert(
   attachmentPrompt.includes('Rispondi alla richiesta effettiva') &&
@@ -1830,8 +1830,7 @@ assert(
   temporalPrompt.includes('Prima di descrivere un evento') &&
   temporalPrompt.includes('confrontalo rigidamente con la data odierna') &&
   temporalPrompt.includes('anno pastorale') &&
-  temporalPrompt.includes('Correzione giorno/data morbida') &&
-  temporalPrompt.includes('Desideriamo segnalarLe'),
+  temporalPrompt.includes('Correzione giorno/data morbida'),
   'il prompt deve formulare l\'obiettivo di confronto temporale'
 );
 

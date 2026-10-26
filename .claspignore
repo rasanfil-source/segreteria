@@ -23,6 +23,8 @@ package*.json
 scripts/**
 scratch/**
 outputs/**
+output/**
+tmp/**
 *.txt
 *.log
 *.md

@@ -24,4 +24,7 @@ final_test_results.txt
 smoke_out.txt
 scratch/
 outputs/
+output/collaudo_email_*
+output/*.zip
+tmp/
 *.log
