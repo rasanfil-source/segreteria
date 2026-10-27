@@ -83,6 +83,7 @@ const report = {};
 // 2. Le espressioni negate sono distinte dalle affermazioni positive sul territorio.
 {
   const ctx = validatorContext(false);
+  ctx.CONFIG.SEMANTIC_VALIDATION.enabled = false;
   const v = new ctx.ResponseValidator();
   v.semanticValidator = null;
   const context = { currentDate: '2026-09-28', currentTime: '12:00', territoryContext: 'NON RIENTRA' };

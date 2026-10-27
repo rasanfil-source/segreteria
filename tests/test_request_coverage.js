@@ -21,6 +21,7 @@ function setup(mode = 'enforce', extra = {}) {
 }
 function payload(status = 'addressed', changes = {}) {
   return {isValid:status!=='missing',confidence:0.95,hallucinations:{unsupportedClaims:[]},irrelevantDetails:[],
+    presence:{state:'compatible',reason:'Nessuno spostamento proposto.',requestEvidence:'',responseEvidence:''},
     coverage:{evaluated:true,purpose:'informational',goal:'ottenere documenti',
       requests:[{...request,status,reason:'motivazione della valutazione',sourceRef:kb}],
       additionalRequests:[],unsupportedExtractedRequests:[],undeterminableReason:null},...changes};
@@ -33,6 +34,7 @@ function parse(s,p,opts=options(),knowledge=kb) {
 }
 function noOpenPayload(changes = {}) {
   return {isValid:true,confidence:0.95,hallucinations:{unsupportedClaims:[]},irrelevantDetails:[],
+    presence:{state:'compatible',reason:'Nessuno spostamento proposto.',requestEvidence:'',responseEvidence:''},
     coverage:{evaluated:true,purpose:'update',goal:'',requests:[],additionalRequests:[],unsupportedExtractedRequests:[],
       noOpenRequests:true,noOpenRequestsReason:'Messaggio di cortesia senza richieste.',undeterminableReason:null,...changes}};
 }
@@ -258,8 +260,8 @@ for (const mode of ['observe','enforce']) for (const state of ['addressed','miss
     const out=v.validateResponse(reply,'it',kb,body,'Informazioni','full',false,
       {validationContext:{requestCoverage:{openRequests:[request]}}});
     assert.equal(calls,1);assert.equal(thinking,0);assert.equal(out.score,1);
-      assert.equal(out.isValid,mode==='enforce'&&state!=='addressed'?false:true);
-    assert.equal(Boolean(out.pendingSemanticReview),mode==='enforce'&&['undeterminable','contract_error','unavailable'].includes(state));
+      assert.equal(out.isValid,['contract_error','unavailable'].includes(state)?false:mode==='enforce'&&state!=='addressed'?false:true);
+    assert.equal(Boolean(out.pendingSemanticReview),['contract_error','unavailable'].includes(state)||(mode==='enforce'&&state==='undeterminable'));
     if(mode==='observe'){assert.equal(out.errors.length,0);assert.equal(out.warnings.length,0);}
     if(state==='missing'&&mode==='enforce') {
       assert.equal(out.reasonCode,'semantic_omission');
@@ -288,10 +290,10 @@ test('pipeline enforce manda in verifica la copertura vuota senza indicatore',()
   assert.equal(out.isValid,false);assert.equal(out.pendingSemanticReview,'semantic_contract_error');
   assert.equal(out.details.coverage.state,'contract_error');
 });
-test('flag spento preserva il salto a punteggio uno',()=>{
+test('copertura spenta conserva la verifica semantica della presenza',()=>{
   const {v,s}=setup('observe',{completenessAlways:false});
   v.semanticValidator._generateSemantic=()=>{throw new Error('non deve chiamare');};
-  assert.equal(v.validateResponse(reply,'it',kb,body,'','full',false).isValid,true);
+  assert.equal(v.validateResponse(reply,'it',kb,body,'','full',false).pendingSemanticReview,'semantic_unavailable');
   assert.equal(s.validateHallucinations('r',kb,{score:1,errors:[]},body).skipped,true);
 });
 test('estrazione: normalizzazione, condizione e nessun limite inventato',()=>{

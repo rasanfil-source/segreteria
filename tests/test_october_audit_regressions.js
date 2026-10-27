@@ -16,13 +16,14 @@ for(const text of ['Le invio il certificato di battesimo','Invio il certificato 
 for(const text of ['Vi mando il modulo: se può andare bene','Vi mando il modulo: se può andare bene'.normalize('NFD')]) assert.equal(p._deriveAttachmentIntentContext_(text,'',[],'').hasQuestions,true);
 assert.equal(p._isTerritoryRequest('','al mio rientro dalle ferie'),false);
 assert.equal(p._isTerritoryRequest('','La mia via rientra nel territorio?'),true);
-for(const street of ['via Gramsci','via ignota']) {
+for(const street of ['via ignota']) {
  assert.equal(t.verifyAddress(street,10).inTerritory,null);
  assert.equal(t.verifyStreetWithoutCivic(street).inParish,null);
 }
 assert.equal(t.verifyAddress('piazza della marina',23).inTerritory,false);
 assert.equal(t.verifyAddress('via antonio gramsci',10).inTerritory,true);
-const unknown=t.analyzeEmailForAddress('Abito in via Gramsci 10','');
+assert.equal(t.verifyAddress('via Gramsci',10).inTerritory,true);
+const unknown=t.analyzeEmailForAddress('Abito in via ignota 10','');
 assert.equal(unknown.addresses[0].verification.inParish,null);
 const engine=Object.create(ctx.PromptEngine.prototype);
 assert(!engine._renderTerritoryVerification('VERIFICA MANUALE NECESSARIA').includes('È ASSOLUTAMENTE VIETATO'));

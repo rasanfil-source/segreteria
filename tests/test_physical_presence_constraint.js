@@ -215,53 +215,5 @@ console.log('--- Test physical presence constraint: PromptEngine keeps condition
   );
 }
 
-console.log('--- Test physical presence constraint: validator blocks direct invitation ---');
-{
-  const validator = new ResponseValidator();
-  const direct = validator._checkPhysicalPresenceConstraint(
-    'Puo chiamarci al numero 06 320 19 23 oppure venire in segreteria dal lunedi al venerdi.',
-    {
-      physicalPresenceConstraint: {
-        has_constraint: true,
-        type: 'geographic_distance',
-        visit_policy: 'conditional_only'
-      }
-    }
-  );
-
-  assert(direct.score === 0.0, 'direct visit invitation must be blocking');
-  assert(direct.errors.length === 1, 'direct visit invitation must produce an error');
-
-  const conditional = validator._checkPhysicalPresenceConstraint(
-    'Puo chiamarci al numero 06 320 19 23. Qualora le capitasse di trovarsi a Roma, saremo lieti di incontrarla anche di persona.',
-    {
-      physicalPresenceConstraint: {
-        has_constraint: true,
-        type: 'geographic_distance',
-        visit_policy: 'conditional_only'
-      }
-    }
-  );
-
-  assert(conditional.score === 1.0, 'conditional in-person wording must be accepted');
-  assert(conditional.errors.length === 0, 'conditional in-person wording must not produce errors');
-
-  const avoidInvitationConditional = validator._checkPhysicalPresenceConstraint(
-    'Puo chiamarci al numero 06 320 19 23. Qualora le fosse possibile passare in parrocchia, potremo parlarne anche di persona.',
-    {
-      physicalPresenceConstraint: {
-        has_constraint: true,
-        type: 'health',
-        visit_policy: 'avoid_invitation'
-      }
-    }
-  );
-
-  assert(avoidInvitationConditional.score === 0.0, 'avoid_invitation must block conditional in-person wording too');
-  assert(
-    avoidInvitationConditional.errors.some(error => error.includes('avoid_invitation')),
-    'avoid_invitation violation must be explicit for retry guidance'
-  );
-}
-
-console.log('OK physical presence constraint tests passed');
+require('./test_semantic_presence_contract');
+console.log('OK physical presence context tests passed');

@@ -312,9 +312,11 @@ var ResponseValidator = class ResponseValidator {
     const semanticSettings = typeof CONFIG !== 'undefined' && CONFIG.SEMANTIC_VALIDATION || {};
     const coverageRequired = semanticSettings.enabled === true && semanticSettings.completenessAlways === true;
     const coverageEnforced = coverageRequired && semanticSettings.completenessMode === 'enforce';
+    const presenceRequired = semanticSettings.enabled !== false;
     const forceKnowledgeRelevanceReview = knowledgeContextualization.requiresSemanticReview === true ||
       /\b(?:dispensa|nullit[aà]|invalid[oa]|garantiamo|garantito|non\s+(?:serve|occorre|[eè]\s+necessario)\s+(?:il\s+|un\s+)?(?:certificato|documento|permesso)|(?:pu[oò]|puoi|potete)\s+(?:comunque\s+)?(?:sposar[\p{L}]*|ricevere\s+il\s+sacramento))(?![\p{L}\p{N}_])/iu.test(currentResponse.normalize('NFC'));
     if (!hasDeterministicBlocker && forceKnowledgeRelevanceReview && !this.semanticValidator) {
+      validationResult.pendingSemanticReview = 'semantic_unavailable';
       validationResult.isValid = false;
       validationResult.errors.push('Semantica: controllo necessario non disponibile');
     }
@@ -342,7 +344,7 @@ var ResponseValidator = class ResponseValidator {
     if (
       !hasDeterministicBlocker &&
       this.semanticValidator &&
-      (legacySemanticReview || (coverageRequired && validationResult.isValid))
+      (presenceRequired || legacySemanticReview || (coverageRequired && validationResult.isValid))
     ) {
       console.log(
         forceKnowledgeRelevanceReview
@@ -358,6 +360,7 @@ var ResponseValidator = class ResponseValidator {
         semanticGroundingContext,
         {
           forceRelevanceReview: forceKnowledgeRelevanceReview,
+          presenceRequired,
           coverageRequired,
           attachments: Array.isArray(semanticAttachments) ? semanticAttachments : [],
           requestCoverage: procedureContext.requestCoverage || null,
@@ -389,6 +392,22 @@ var ResponseValidator = class ResponseValidator {
         }
       );
 
+      // La compatibilità degli spostamenti dipende dai soggetti e dalle disponibilità dichiarate.
+      const presence = semHalluc.presence;
+      validationResult.details.physicalPresenceConstraint = presence || { state: 'uncertain' };
+      if (presenceRequired) console.log('SEMANTIC_PRESENCE ' + JSON.stringify(validationResult.details.physicalPresenceConstraint));
+      if (presenceRequired && (!presence || presence.state === 'uncertain')) {
+        validationResult.pendingSemanticReview = semHalluc.fallback || semHalluc.skipped
+          ? (semHalluc.coverageState === 'contract_error' ? 'semantic_contract_error' : 'semantic_unavailable')
+          : 'semantic_presence_uncertain';
+      } else if (presenceRequired && presence.state === 'incompatible') {
+        validationResult.isValid = false;
+        validationResult.score = 0;
+        validationResult.reasonCode = 'semantic_presence_conflict';
+        validationResult.errors.push('Presenza fisica: ' + presence.reason +
+          ' — Risposta: ' + presence.responseEvidence + ' — Richiesta: ' + presence.requestEvidence);
+      }
+
       const semThinking = !legacySemanticReview ? { isValid: true, skipped: true } : this.semanticValidator.validateThinkingLeak(
         currentResponse,
         validationResult.details.exposedReasoning
@@ -399,45 +418,7 @@ var ResponseValidator = class ResponseValidator {
         ['unavailable', 'contract_error'].includes(semHalluc.coverageState);
       const semanticValid = (observeOnlyCall || unavailableCoverageCheck ||
         (coverageRequired ? semHalluc.contentValid !== false : semHalluc.isValid)) && semThinking.isValid;
-      const physicalConstraint = temporalContext && (
-        temporalContext.physicalPresenceConstraint ||
-        temporalContext.physical_presence_constraint
-      );
-      const semanticDetails = semHalluc && semHalluc.details && typeof semHalluc.details === 'object'
-        ? semHalluc.details
-        : {};
-      const irrelevantDetails = Array.isArray(semanticDetails.irrelevantDetails)
-        ? semanticDetails.irrelevantDetails
-        : [];
-      const hasGroundingHallucinations = Object.keys(semanticDetails).some(key => {
-        if (key === 'irrelevantDetails') return false;
-        const value = semanticDetails[key];
-        if (Array.isArray(value)) return value.length > 0;
-        if (value && typeof value === 'object') return Object.keys(value).length > 0;
-        return Boolean(value);
-      });
-      const constraintType = String(physicalConstraint && physicalConstraint.type || '').toLowerCase();
-      const visitPolicy = String(physicalConstraint && physicalConstraint.visit_policy || '').toLowerCase();
-      const supportsRemoteHandling = /\b(?:email|e-mail|posta\s+elettronica|telefon|online|digitale|a\s+distanza|da\s+remoto)\b/i.test(currentResponse);
-      const hasMobilityContext = physicalConstraint && physicalConstraint.has_constraint === true && (
-        ['health', 'mobility', 'geographic_distance', 'caregiving', 'temporary_unavailability', 'remote_request'].includes(constraintType) ||
-        ['avoid_invitation', 'conditional_only'].includes(visitPolicy)
-      );
-      const qualitativeMobilityObservation =
-        validationResult.isValid === true &&
-        validationResult.score >= 0.85 &&
-        semThinking.isValid === true &&
-        semHalluc.isValid === false &&
-        irrelevantDetails.length > 0 &&
-        !hasGroundingHallucinations &&
-        hasMobilityContext &&
-        supportsRemoteHandling;
-
-      if (!semanticValid && qualitativeMobilityObservation) {
-        const qualitativeReason = semHalluc.reason || 'suggerimento operativo remoto giudicato non essenziale';
-        console.warn(`⚠️ Osservazione semantica qualitativa non bloccante in presenza di vincolo fisico: ${qualitativeReason}`);
-        validationResult.warnings.push(`Semantica qualitativa: ${qualitativeReason}`);
-      } else if (!semanticValid) {
+      if (!semanticValid) {
         console.warn('❌ Il validatore semantico ha rilevato problemi non catturati da regex');
         validationResult.isValid = false;
         // La confidenza misura la certezza del giudizio semantico; la qualità della risposta ha una valutazione distinta.
@@ -742,11 +723,7 @@ var ResponseValidator = class ResponseValidator {
     score *= deadlineResult.score;
 
     // === CONTROLLO 12: vincolo presenza fisica ===
-    const physicalPresenceResult = this._checkPhysicalPresenceConstraint(response, temporalContext);
-    errors.push(...physicalPresenceResult.errors);
-    warnings.push(...physicalPresenceResult.warnings);
-    details.physicalPresenceConstraint = physicalPresenceResult;
-    score *= physicalPresenceResult.score;
+    // Gli spostamenti sono valutati nel controllo semantico insieme alle fonti originali.
 
     // === CONTROLLO 13: coerenza esito territorio ===
     const territoryResult = this._checkTerritoryConsistency(response, temporalContext);
@@ -2079,100 +2056,6 @@ var ResponseValidator = class ResponseValidator {
       .filter(Boolean).join('\n');
   }
 
-  _checkPhysicalPresenceConstraint(response, temporalContext = null) {
-    const constraint = temporalContext && (
-      temporalContext.physicalPresenceConstraint ||
-      temporalContext.physical_presence_constraint
-    );
-    if (!constraint || constraint.has_constraint !== true) {
-      return {
-        errors: [],
-        warnings: [],
-        score: 1.0,
-        active: false,
-        violations: []
-      };
-    }
-
-    const visitPolicy = String(constraint.visit_policy || 'conditional_only').trim().toLowerCase();
-    const source = this._stripDiacritics_(String(response || '').toLowerCase());
-    const scheduledPresence = constraint.scheduled_presence ||
-      (temporalContext && temporalContext.scheduled_presence) || {};
-    const scheduledLabel = this._stripDiacritics_(String(scheduledPresence.label || '').toLowerCase()).trim();
-    const invitationPatterns = [
-      /\b(?:puo|potra|puoi|potete|potrete)\s+(?:venire|passare|recarsi|presentarsi)\b[^.\n]{0,120}\b(?:segreteria|parrocchia|di\s+persona|persona)\b/i,
-      /\b(?:puo|potra|puoi|potete|potrete)\s+(?:anche\s+|eventualmente\s+)?(?:ritirar\w*|consegnar\w*)\b[^.\n]{0,100}\b(?:in|presso|alla)\s+(?:segreteria|parrocchia)\b/i,
-      /\b(?:venga|passi|si\s+rechi|si\s+presenti)\b[^.\n]{0,120}\b(?:segreteria|parrocchia|di\s+persona|persona)\b/i,
-      /\b(?:venire|passare|recarsi|presentarsi)\b[^.\n]{0,80}\b(?:in|presso|alla)\s+(?:segreteria|parrocchia)\b/i,
-      /\b(?:venire|passare)\s+a\s+trovarci\b/i,
-      /\b(?:please\s+)?(?:come|visit|stop\s+by|go)\b[^.\n]{0,120}\b(?:parish\s+office|parish|office|in\s+person)\b/i,
-      /\b(?:puede|puedes|podra|venga|pase|acuda|venir|pasar)\b[^.\n]{0,120}\b(?:secretaria|parroquia|en\s+persona)\b/i,
-      /\b(?:pouvez|pourrez|venez|passez|venir|vous\s+rendre)\b[^.\n]{0,120}\b(?:secretariat|paroisse|en\s+personne)\b/i,
-      /\b(?:konnen|konnten|kommen|vorbeikommen|aufsuchen)\b[^.\n]{0,120}\b(?:pfarrburo|pfarrei|personlich)\b/i,
-      /\b(?:pode|podera|venha|passe|compareca|vir)\b[^.\n]{0,120}\b(?:secretaria|paroquia|pessoalmente)\b/i
-    ];
-    const conditionalPatterns = [
-      /\bqualora\b/i,
-      /\bnel\s+caso\s+in\s+cui\b/i,
-      /\bnel\s+caso\b/i,
-      /\bse\s+(?:le|vi|ti)?\s*(?:fosse|sara|capitasse|capiti|dovesse|riuscisse|fossero|capitasse)\b/i,
-      /\bse\s+(?:ha|avete|avesse|aveste)\s+occasione\b/i,
-      /\bse\s+(?:si|vi)\s+trovasse\b/i,
-      /\bquando\s+(?:le|vi)?\s*(?:fosse|sara)\s+possibile\b/i,
-      /\b(?:if|when)\b[^.\n]{0,80}\b(?:possible|able|happen\s+to\s+be|are\s+in)\b/i,
-      /\bsi\b[^.\n]{0,80}\b(?:posible|puede|esta\s+en)\b/i,
-      /\bsi\b[^.\n]{0,80}\b(?:possible|pouvez|etes\s+a)\b/i,
-      /\b(?:falls|wenn)\b[^.\n]{0,80}\b(?:moglich|konnen|in\s+rom)\b/i,
-      /\bse\b[^.\n]{0,80}\b(?:possivel|puder|estiver\s+em)\b/i
-    ];
-    const violations = [];
-    // La negazione vale per il singolo invito; una seconda proposta resta verificabile.
-    const clauses = source.split(/[.\n!?;]|,\s*(?:ma|pero|but|mais|aber|mas)\b|\b(?:ma|pero|but|mais|aber)\b/);
-    for (const sentence of clauses) {
-      let hasInvitation = false;
-      for (const pattern of invitationPatterns) {
-        const matches = sentence.matchAll(new RegExp(pattern.source.replace(/\{0,(\d+)\}/g, '{0,$1}?'), 'gi'));
-        for (const match of matches) {
-          const prefix = sentence.slice(0, match.index);
-          const negated = /\b(?:non\s+(?:e\s+)?(?:necessari\w*|obbligatori\w*|indispensabil\w*|richiest\w*|occorre|serve|bisogna)|senza(?:\s+dover)?|nessun\s+bisogno\s+di|evit\w+\s+di)\s*$/.test(prefix);
-          if (!negated) hasInvitation = true;
-        }
-      }
-      const scheduledMention = (scheduledLabel && sentence.includes(scheduledLabel)) ||
-        (String(scheduledPresence.type || '').toLowerCase() === 'appointment' && /\b(?:appuntamento|incontro|colloquio)\b/.test(sentence));
-      const scheduledTimingCue = /\b(?:giorno|data|durante|in\s+occasione|nel\s+corso|all['’]?inizio|in\s+concomitanza)\b/.test(sentence);
-      const scheduledCue = scheduledPresence.detected === true && scheduledMention && scheduledTimingCue;
-      const additionalVisitCue = /\b(?:prima|in anticipo|ulteriore|un altro momento|anche in precedenza)\b/.test(sentence);
-      if (scheduledCue && !additionalVisitCue) hasInvitation = false;
-      if (hasInvitation && (visitPolicy === 'avoid_invitation' || !conditionalPatterns.some(pattern => pattern.test(sentence)))) {
-        violations.push(sentence.trim().substring(0, 220));
-      }
-    }
-
-    if (violations.length === 0) {
-      return {
-        errors: [],
-        warnings: [],
-        score: 1.0,
-        active: true,
-        violations: []
-      };
-    }
-
-    return {
-      errors: [visitPolicy === 'avoid_invitation'
-        ? 'Vincolo presenza fisica avoid_invitation: la risposta propone una presenza fisica anche se la policy richiede di evitarla del tutto.'
-        : 'Vincolo presenza fisica: la risposta invita il mittente a venire/passare di persona senza formula condizionale.'],
-      warnings: [],
-      score: 0.0,
-      active: true,
-      violations: violations,
-      constraint: {
-        type: constraint.type || 'other',
-        visit_policy: visitPolicy
-      }
-    };
-  }
 
   _checkTerritoryConsistency(response, temporalContext = null) {
     const context = temporalContext && (
@@ -4026,7 +3909,7 @@ var SemanticValidator = class SemanticValidator {
    * Valida allucinazioni usando similitudine semantica
    */
   validateHallucinations(response, knowledgeBase, regexResult, emailContent, options = {}) {
-    const required = options.forceRelevanceReview === true;
+    const required = options.forceRelevanceReview === true || options.presenceRequired === true;
     const coverageRequired = options.coverageRequired === true || this.completenessAlways;
     if (!this.runtimeSemanticAvailable) {
       return {
@@ -4039,7 +3922,7 @@ var SemanticValidator = class SemanticValidator {
       };
     }
 
-    const forceRelevanceReview = options && options.forceRelevanceReview === true;
+    const forceRelevanceReview = required;
     if (!coverageRequired && !forceRelevanceReview && !this.shouldRun(regexResult.score) && regexResult.errors.length === 0) {
       console.log('   ⚠ Validazione semantica allucinazioni ignorata (alta confidenza base)');
       return { isValid: true, confidence: regexResult.score, skipped: true };
@@ -4057,7 +3940,8 @@ var SemanticValidator = class SemanticValidator {
         ? options.requestPurpose.type
         : (options ? options.requestPurpose : '');
       const cacheMaterial = [
-        'grounding_relevance_coverage_schema_v22',
+        'grounding_relevance_coverage_schema_v23',
+        String(options.presenceRequired === true),
         response || '',
         knowledgeBase || '',
         emailContent || '',
@@ -4071,13 +3955,13 @@ var SemanticValidator = class SemanticValidator {
         metrics: { generatedCalls: 0, cacheHit: true, latencyMs: Date.now() - startedAt, inputTokensEstimate: 0 }
       });
 
-      const prompt = this._buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose, options.groundingParts, coverageContext, visualAttachmentNames);
+      const prompt = this._buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose, options.groundingParts, coverageContext, visualAttachmentNames, options.presenceRequired);
       inputTokensEstimate = typeof estimateTokenCount === 'function'
         ? estimateTokenCount(prompt, semanticAttachments)
         : Math.ceil(prompt.length / 3.2);
       generatedCalls = 1;
       const apiResponse = this._generateSemantic(prompt, { attachments: semanticAttachments });
-      const result = this._parseSemanticResponse(apiResponse, { coverageRequired, coverageContext, knowledgeBase, responseText: response || '' });
+      const result = this._parseSemanticResponse(apiResponse, { coverageRequired, coverageContext, knowledgeBase, responseText: response || '', presenceRequired: options.presenceRequired, presenceSource: coverageContext ? Object.values(coverageContext.sources).join('\n') : emailContent });
       if (coverageContext) {
         result.sourceCompleteness = coverageContext.completeness;
         result.visualAttachmentCount = coverageContext.visualAttachments.length;
@@ -4088,7 +3972,7 @@ var SemanticValidator = class SemanticValidator {
       });
     } catch (error) {
       console.warn(`⚠️ API Semantica fallita: ${error.message}`);
-      if (!coverageRequired && !this.fallbackOnError) throw error;
+      if (!options.presenceRequired && !coverageRequired && !this.fallbackOnError) throw error;
       return {
         isValid: !required && regexResult.score >= 0.6,
         contentValid: !required && regexResult.score >= 0.6,
@@ -4196,7 +4080,7 @@ var SemanticValidator = class SemanticValidator {
     };
   }
 
-  _buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose = '', groundingParts = null, coverageContext = null, visualAttachmentNames = []) {
+  _buildHallucinationPrompt(response, knowledgeBase, emailContent, requestPurpose = '', groundingParts = null, coverageContext = null, visualAttachmentNames = [], presenceRequired = false) {
     const bounded = (value, limit) => {
       const text = String(value || '');
       if (text.length <= limit) return text;
@@ -4252,6 +4136,8 @@ ${response}
 COMPITO A — RADICAMENTO:
 Distingui fatti, pertinenza e incertezza: unsupportedClaims riguarda solo fatti senza riscontro o contrari alle fonti, mai il semplice fatto che non siano richiesti; un fatto documentato ma superfluo va solo in irrelevantDetails. Scomponi le frasi composte: se ogni proposizione è attestata nelle fonti, segnala l'eventuale superfluità solo in irrelevantDetails. Se una frase composta è tutta supportata, mantienila solo in irrelevantDetails anche quando descrive più fatti; non suddividerne le clausole tra unsupportedClaims e irrelevantDetails. Non duplicare la stessa proposizione nei due campi senza indicare quale contenuto specifico sia infondato. Se la KB non riporta un dato richiesto, dichiarare «non posso confermare» quel dato (per esempio se il certificato sarà pronto entro venerdì) è explicit_limit_info, non un fatto infondato: non inserirlo in unsupportedClaims e non richiedere una frase della KB che autorizzi l'incertezza. Vicinanza pastorale e firma generica della segreteria sono formule relazionali/di chiusura: non inserirle in unsupportedClaims o irrelevantDetails, salvo che la firma attribuisca un impegno o un ruolo concreto. Un limite del servizio vale solo se la KB nega esplicitamente proprio quel servizio o canale; orari parziali e silenzio non bastano a provare una chiusura o un divieto: riferisci come non specificato ciò che la KB non conferma. Richieste, possibilità e impegni restano distinti; le promesse richiedono procedura autorizzante o accordo applicabile. Oggetto, corpo, allegati e storico autorizzano dati personali, date e vincoli dichiarati, non conferme di appuntamenti; l'intestazione Da autorizza nome e recapito del mittente, ma non ruolo o altri fatti. Lo storico non autorizza procedure, requisiti o capacità istituzionali.
 
+${presenceRequired ? `PRESENZA FISICA: valuta ogni spostamento proposto rispetto a chi lo compie e alla disponibilità dichiarata nelle fonti. Distingui mittente e delegato, impossibilità, viaggio possibile e presenza già dichiarata o programmata; un viaggio dichiarato non conferma appuntamento, orari o disponibilità del documento. Verifica separatamente nella KB l'ammissibilità di deleghe e procedure. In presence indica compatible, incompatible o uncertain, con reason e citazioni letterali brevi requestEvidence e responseEvidence. Un conflitto richiede entrambe le evidenze; un'ambiguità non risolvibile è uncertain. In assenza di spostamenti proposti usa compatible con evidenze vuote. Riporta i conflitti di presenza soltanto in presence, mantenendo separati gli altri rilievi.` : ''}
+
 COMPITO B — PERTINENZA CONTESTUALE${coverageContext ? ' E C — COPERTURA' : ''}:
 Individua obiettivo, domande e vincoli attuali con lo storico: copri l'essenziale. Richieste risolte restano chiuse salvo nuova domanda. Seleziona unità informative separate, non ogni alternativa KB. irrelevantDetails segnala ridondanze e procedure già eseguite, preservando aiuti concreti ai vincoli.
 ${coverageContext ? `Riporta ogni openRequest con lo stesso id e need in requests, anche se omessa o condizionale. Per una conditional, not_applicable vale solo se appliesWhen è falsa; quando è falsa assegna not_applicable anche se la risposta non ripete il ripiego, e non segnalarlo come missing. Se appliesWhen è vera, valutala come primaria e usa missing se resta senza risposta. Tieni distinti bisogni autonomi della stessa email: un limite su scadenza o tempi non copre il diverso bisogno di sapere chi può ritirare, come o con quali requisiti. Assegna explicit_limit_info solo alla richiesta del dato mancante; le altre richieste restano da valutare separatamente. Ogni request deve avere reason non vuota e specifica. unsupportedExtractedRequests serve solo per estrazioni senza base nella richiesta attuale. additionalRequests aggiunge esigenze sfuggite. evidence riporta una citazione letterale breve dall'originale corrente. Esamina anche gli allegati visivi disponibili. Per una richiesta fondata su un allegato visivo, riporta in evidence un breve testo leggibile e in sourceRef il nome esatto dell'allegato; se la parte rilevante non è leggibile, usa undeterminable. Se gli indizi non contengono openRequest e non emerge alcuna esigenza attuale dopo aver valutato il materiale completo, usa noOpenRequests=true con una motivazione breve; in quel caso requests, additionalRequests e unsupportedExtractedRequests restano vuoti. Se manca materiale necessario, indica undeterminableReason. Cortesia e riscontro non sostituiscono risposte, né costituiscono promesse operative.
@@ -4263,12 +4149,13 @@ ${coverageContext ? `Riporta ogni openRequest con lo stesso id e need in request
 - undeterminable: materiale necessario assente, indicandolo.
 Un rinvio richiede una ragione concreta. Corpo troncato: undeterminableReason obbligatorio; storico/allegati parziali: solo se manca materiale indispensabile al turno. Estrazione parziale con originale completo: valuta l'originale.` : ''}
 
-isValid richiede assenza di allucinazioni e dettagli irrilevanti${coverageContext ? ', richieste coperte e valutabili' : ''}.
+isValid richiede assenza di allucinazioni e dettagli irrilevanti${coverageContext ? ', richieste coperte e valutabili' : ''}${presenceRequired ? '; presence ha un esito autonomo' : ''}.
 
 Rispondi SOLO con questo JSON (senza markdown):
 {
   "hallucinations": {"times": [], "dates": [], "emails": [], "phones": [], "urls": [], "unsupportedClaims": [], "entityRoleMismatches": []},
   "irrelevantDetails": [],
+${presenceRequired ? '  "presence": {"state":"compatible|incompatible|uncertain","reason":"","requestEvidence":"","responseEvidence":""},' : ''}
 ${coverageContext ? `  "coverage": {
     "evaluated": true, "purpose": "informational|operational|update|mixed", "goal": "",
     "requests": [{"id":"r1","need":"","evidence":"","status":"","reason":"Motivo breve e specifico","sourceRef":"","uncoveredRequest":"","why":""}],
@@ -4501,11 +4388,31 @@ Rispondi SOLO con questo JSON (senza markdown):
     }
     return {
       isValid: normalizedIsValid,
+      ...(options.presenceRequired ? { presence: this._normalizePresence_(payload.presence, options) } : {}),
       ...(options.coverageRequired ? { contentValid, coverage, coverageState, coverageError } : {}),
       confidence: confidence,
       details: Object.keys(normalizedDetails).length > 0 ? normalizedDetails : (examples || {}),
       reason: payload.reason || 'Nessuna motivazione fornita'
     };
+  }
+
+  _normalizePresence_(value, options) {
+    const uncertain = reason => ({ state: 'uncertain', reason, requestEvidence: '', responseEvidence: '' });
+    if (!value || !['compatible', 'incompatible', 'uncertain'].includes(value.state) ||
+        typeof value.reason !== 'string' || !value.reason.trim() ||
+        typeof value.requestEvidence !== 'string' || typeof value.responseEvidence !== 'string') {
+      return uncertain('Valutazione della presenza assente o incompleta.');
+    }
+    const normalize = text => String(text || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+    const request = normalize(value.requestEvidence);
+    const response = normalize(value.responseEvidence);
+    if ((value.state === 'incompatible' && (!request || !response)) ||
+        (request && !normalize(options.presenceSource).includes(request)) ||
+        (response && !normalize(options.responseText).includes(response))) {
+      return uncertain('Evidenze della presenza non riscontrabili nelle fonti.');
+    }
+    return { state: value.state, reason: value.reason.trim(),
+      requestEvidence: value.requestEvidence, responseEvidence: value.responseEvidence };
   }
 
   _normalizeCoveragePayload_(payload, context = {}, knowledgeBase = '') {

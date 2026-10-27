@@ -87,8 +87,8 @@ if (process.env.RETRY_PROMPT_BASELINE_SOURCE) {
   assert.match(prompts.hallucination[1], /Conserva o correggi solo dati supportati dalle fonti pertinenti e procedure autorizzate dalla KB; elimina gli altri/);
   assert.match(prompts.contacts[1], /errata@example.org.*0612345678/);
   assert.match(prompts.technical[1], /Ometti l'ora tecnica di sistema o di ricezione senza sostituirla con altri orari/);
-  assert.match(prompts.remote[1], /Ometti inviti in sede anche condizionali, salvo obbligo procedurale esplicito e inevitabile/);
-  assert.match(prompts.conditional[1], /solo in forma condizionale, nella lingua della risposta, per un passaggio operativo necessario/);
+  assert.match(prompts.remote[1], /distinguendo mittente e delegato/);
+  assert.match(prompts.conditional[1], /Mantieni eventuale un viaggio ipotetico e acquisita una presenza dichiarata/);
   assert.match(prompts.sensitive[1], /senza nominare memoria, lutto o vissuti non ripresi dall'utente/);
   assert.match(prompts.sensitive[1], /procedurale e non persuasivo/);
   assert.match(prompts.sensitive[1], /nei casi pastorale-tecnici mantieni una frase umana breve/);

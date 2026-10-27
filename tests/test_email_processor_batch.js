@@ -3316,7 +3316,19 @@ function runAttachmentConsistencyFlowScenario({
     geminiService: {
       primaryKey: 'primary-key',
       backupKey: 'backup-key',
-      shouldRespondToEmail: () => ({ shouldRespond: true, language: 'it', classification: { topic: 'allegato', category: 'document_submission', confidence: 0.9 } }),
+      shouldRespondToEmail: () => ({
+        shouldRespond: true,
+        language: 'it',
+        classification: { topic: 'allegato', category: 'document_submission', confidence: 0.9 },
+        document_delivery: {
+          expected_document: true,
+          expected_document_description: subject,
+          delivery_channel: 'attachment',
+          body_contains_filled_document: false,
+          requires_file_attachment: true,
+          missing_document_if_no_attachment: false
+        }
+      }),
       detectEmailLanguage: () => ({ lang: 'it' }),
       getAdaptiveGreeting: () => ({ greeting: 'Buongiorno', closing: 'Cordiali saluti' }),
       getAdaptiveClosing: () => 'Cordiali saluti',

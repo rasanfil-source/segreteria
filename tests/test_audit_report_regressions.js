@@ -26,14 +26,7 @@ assert.equal(ctx.EmailQuickCheckPolicy.normalizeBoolean('si'), true);
 const missingDecision = ctx.EmailQuickCheckPolicy.normalizeDecisionData({ language: 'it' }, { lang: 'it' });
 assert.equal(missingDecision.reason, 'quick_check_failed');
 
-const presence = validator._checkPhysicalPresenceConstraint(
-  'Non è necessario venire in segreteria: può inviarci il modulo via email.',
-  { physicalPresenceConstraint: { has_constraint: true, visit_policy: 'conditional_only' } });
-assert.equal(presence.score, 1);
-assert.equal(validator._checkPhysicalPresenceConstraint(
-  'Non è necessario venire in segreteria, ma può passare in segreteria domani.',
-  { physicalPresenceConstraint: { has_constraint: true, visit_policy: 'conditional_only' } }).score, 0);
-
+// Il contratto semantico della presenza è verificato in test_semantic_presence_contract.js.
 const temporal = validator._checkTemporalConsistency(
   'L’incontro del 12 ottobre 2026 si è già tenuto; il prossimo si terrà il 10 novembre 2026.',
   'it', { currentDate: '2026-10-20' });

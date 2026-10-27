@@ -16,7 +16,7 @@ const checks = {
   capitalAfterComma: '_checkCapitalAfterComma', exposedReasoning: '_checkExposedReasoning',
   greeting: '_checkTimeBasedGreeting', temporalConsistency: '_checkTemporalConsistency',
   currentPopeReference: '_checkCurrentPopeReferences', originalDateQualification: '_checkOriginalDateQualification',
-  sacramentalDeadline: '_checkSacramentalDeadline', physicalPresenceConstraint: '_checkPhysicalPresenceConstraint',
+  sacramentalDeadline: '_checkSacramentalDeadline',
   territoryConsistency: '_checkTerritoryConsistency', sensitiveContinuity: '_checkSensitiveContinuityQuality',
   documentMismatchTemplate: '_checkDocumentMismatchTemplate', expectedDocumentMissingTemplate: '_checkExpectedDocumentMissingTemplate'
 };
@@ -26,6 +26,8 @@ for (const [first, firstMethod] of Object.entries(checks)) for (const [second, s
   if (first === second) continue;
   for (const blocking of bools) row(`aggregate ${first}/${second}/${blocking}`, () => {
     const v = new context.ResponseValidator();
+  v.semanticValidator = {shouldRun:()=>false, validateHallucinations:()=>({isValid:true,
+    presence:{state:'compatible',reason:'Nessun conflitto nel test di orchestrazione.',requestEvidence:'',responseEvidence:''}})};
     for (const method of Object.values(checks)) v[method] = () => ({ score: 1, errors: [], warnings: [] });
     v._checkKnowledgeContextualizationRisk = () => ({ requiresSemanticReview: false });
     v[firstMethod] = () => ({ score: 0.8, errors: [], warnings: first === 'sacramentalDeadline' ? [] : ['warning-a'] });
@@ -44,6 +46,8 @@ for (const [first, firstMethod] of Object.entries(checks)) for (const [second, s
 
 for (const initialValid of bools) for (const attempt of bools) for (const fixed of bools) for (const finalValid of bools) row(`refinement ${initialValid}/${attempt}/${fixed}/${finalValid}`, () => {
   const v = new context.ResponseValidator();
+  v.semanticValidator = {shouldRun:()=>false, validateHallucinations:()=>({isValid:true,
+    presence:{state:'compatible',reason:'Nessun conflitto nel test di orchestrazione.',requestEvidence:'',responseEvidence:''}})};
   let checksRun = 0;
   let refinements = 0;
   const texts = [];
@@ -66,38 +70,13 @@ for (const initialValid of bools) for (const attempt of bools) for (const fixed 
   assert.equal(texts.at(-1), refined ? 'Corrected response' : 'Original response');
 });
 
-// Tabella completa dell’eccezione semantica per mobilità: varia ogni prerequisito
-// indipendentemente, così la verifica rileva qualsiasi requisito congiunto mancante.
-for (let mask = 0; mask < 256; mask++) row(`mobility exception mask=${mask}`, () => {
-  const flags = Array.from({ length: 8 }, (_, i) => Boolean(mask & (1 << i)));
-  const [baseValid, highScore, thinkingValid, irrelevant, grounded, constrained, remote, recognized] = flags;
-  const v = new context.ResponseValidator();
-  const baseScore = highScore ? 0.85 : 0.849;
-  v._runValidationChecks = () => ({ isValid: baseValid, score: baseScore, errors: baseValid ? [] : ['base error'], warnings: [], details: {} });
-  let calls = 0;
-  v.semanticValidator = {
-    shouldRun: () => true,
-    validateHallucinations: () => {
-      calls++;
-      return { isValid: false, confidence: 0.4, reason: 'semantic issue', details: { irrelevantDetails: irrelevant ? ['remote suggestion'] : [], unsupportedClaims: grounded ? [] : ['invented fact'] } };
-    },
-    validateThinkingLeak: () => ({ isValid: thinkingValid, confidence: 0.7, reason: 'thinking issue' })
-  };
-  const result = v.validateResponse(remote ? 'Rispondiamo via email.' : 'Grazie per il messaggio.', 'it', '', '', '', 'full', false, {
-    physicalPresenceConstraint: { has_constraint: constrained, type: recognized ? 'mobility' : 'other' }
-  });
-  const exception = flags.every(Boolean);
-  assert.equal(calls, 1);
-  assert.equal(result.isValid, exception);
-  assert.equal(result.score, exception ? baseScore : 0);
-  assert.equal(result.warnings.length, Number(exception));
-  if (!exception) assert.equal(result.reasonCode, !thinkingValid ? 'semantic_thinking_leak' : !grounded ? 'semantic_unsupported_claim' : irrelevant ? 'semantic_irrelevant_detail' : 'semantic_validation_failed');
-});
-
+// I conflitti di presenza seguono il contratto semantico dedicato.
 // Verifica i controlli reali tramite API pubblica e tabelle decisionali isolate.
 const validText = 'Gentile signora, grazie per il suo messaggio. Restiamo a disposizione per rispondere alle sue domande. Cordiali saluti, Segreteria Parrocchia Sant\'Eugenio';
 for (const threshold of [0, 0.6, 1]) for (const wrapper of ['plain', 'email', 'analysis']) for (const blocked of bools) row(`public ${threshold}/${wrapper}/${blocked}`, () => {
   const v = new context.ResponseValidator();
+  v.semanticValidator = {shouldRun:()=>false, validateHallucinations:()=>({isValid:true,
+    presence:{state:'compatible',reason:'Nessun conflitto nel test di orchestrazione.',requestEvidence:'',responseEvidence:''}})};
   v.MIN_VALID_SCORE = threshold;
   const body = validText + (blocked ? ' [NOME]' : '');
   const input = wrapper === 'email' ? `<analisi>Internal reasoning</analisi><email>${body}</email>` : wrapper === 'analysis' ? `<analisi>Internal reasoning</analisi>${body}` : body;

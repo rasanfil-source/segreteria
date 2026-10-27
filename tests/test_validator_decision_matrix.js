@@ -82,22 +82,7 @@ for (const invalid of ['24:00', '-1', '12:60', 'noon']) row(`invalid time ${inva
   assert.equal(result.score, 1);
 });
 
-const invitations = [
-  ['Può venire in segreteria', 'Qualora le fosse possibile, '],
-  ['Please visit the parish office', 'If possible, '],
-  ['Puede venir a la parroquia', 'Si es posible, '],
-  ['Vous pouvez venir au secretariat', 'Si possible, '],
-  ['Sie konnen zum Pfarrburo kommen', 'Falls moglich, '],
-  ['Pode vir a secretaria', 'Se possivel, ']
-];
-for (const key of ['physicalPresenceConstraint', 'physical_presence_constraint']) for (const active of bools) for (const policy of ['avoid_invitation', 'conditional_only']) for (const conditional of bools) for (const invite of bools) for (const [text, prefix] of invitations) row(`presence ${key}/${active}/${policy}/${conditional}/${invite}/${text}`, () => {
-  const result = v._checkPhysicalPresenceConstraint(invite ? (conditional ? prefix : '') + text : 'Grazie, rispondiamo via email.', { [key]: { has_constraint: active, visit_policy: policy } });
-  const blocked = active && invite && (policy === 'avoid_invitation' || !conditional);
-  assert.equal(result.active, active);
-  assert.equal(result.score, blocked ? 0 : 1);
-  assert.equal(result.errors.length, Number(blocked));
-});
-
+// La presenza è valutata dal contratto semantico, non da tabelle lessicali.
 // Verifica ogni requisito dei modelli per allegati, inclusi attivazione e divieti.
 for (const active of bools) for (const first of bools) for (const second of bools) for (const forbidden of bools) {
   for (const kind of ['documentMismatch', 'expectedDocumentMissing']) row(`document ${kind}/${active}/${first}/${second}/${forbidden}`, () => {

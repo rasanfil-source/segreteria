@@ -2263,7 +2263,7 @@ var EmailProcessor = class EmailProcessor {
       body_contains_filled_document: false,
       requires_file_attachment: false,
       missing_document_if_no_attachment: false,
-      reason: 'document_delivery non disponibile nel quick-check',
+      reason: '',
       source: 'quick_check_fallback'
     };
   }
@@ -2278,19 +2278,32 @@ var EmailProcessor = class EmailProcessor {
     textFromAttachments,
     attachmentSkipped = []
   } = {}) {
-    const quickExpectsDocument = Boolean(
-      quickDocumentDelivery && quickDocumentDelivery.expected_document === true
-    );
     const bodyContainsUsableDocumentContent = Boolean(
       this._bodyLooksLikeFilledDocument_(body) ||
-      (quickExpectsDocument && quickDocumentDelivery.body_contains_filled_document === true)
+      (quickDocumentDelivery && quickDocumentDelivery.body_contains_filled_document === true)
     );
+    const announcedByBody = this._bodyAnnouncesDocumentDelivery_(body, subject);
     const hasPhysicalAttachment = Boolean(
       physicalAttachmentsDetected ||
       (Array.isArray(attachmentItems) && attachmentItems.length > 0)
     );
-    // La direzione della consegna viene dal quick-check; il codice verifica solo la presenza effettiva di dati o file.
-    const expectsDocument = bodyContainsUsableDocumentContent || quickExpectsDocument;
+    const quickExpectsDocument = Boolean(
+      quickDocumentDelivery && (
+        quickDocumentDelivery.expected_document === true ||
+        quickDocumentDelivery.missing_document_if_no_attachment === true
+      )
+    );
+    const bodyRefersToPendingDocument = /\b(?:sono|siamo)\s+in\s+attesa\s+di\s+(?:ricever|ottener)|\bnon\s+(?:ho|abbiamo)\s+ancora\s+(?:ricevut|ottenut)|\bappena\s+(?:lo|la|li|le)\s+(?:ricever|otterr)/i.test(String(body || ''));
+    const groundedQuickExpectation = quickExpectsDocument && Boolean(
+      announcedByBody ||
+      bodyContainsUsableDocumentContent ||
+      (hasPhysicalAttachment && !bodyRefersToPendingDocument)
+    );
+    const expectsDocument = Boolean(
+      bodyContainsUsableDocumentContent ||
+      announcedByBody ||
+      groundedQuickExpectation
+    );
     const normalizedAttachmentText = String(textFromAttachments || '').trim();
     const hasAttachmentAnalyzedContent = Boolean(normalizedAttachmentText);
     const hasUsableAttachmentText = Boolean(
@@ -2302,13 +2315,11 @@ var EmailProcessor = class EmailProcessor {
     const hasUsableAttachmentContent = hasUsableAttachmentText;
     const hasAttachmentContent = hasUsableAttachmentContent;
     const hasDocumentContentAvailable = Boolean(hasUsableAttachmentContent || bodyContainsUsableDocumentContent);
-    const expectedDescription = quickExpectsDocument
-      ? String(
-        (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
-        (quickAttachmentIntent && quickAttachmentIntent.expected_attachment_description) ||
-        ''
-      ).trim()
-      : '';
+    const expectedDescription = String(
+      (quickDocumentDelivery && quickDocumentDelivery.expected_document_description) ||
+      (quickAttachmentIntent && quickAttachmentIntent.expected_attachment_description) ||
+      ''
+    ).trim();
     const expectedLabel = this._formatExpectedDocumentLabel_(expectedDescription);
 
     let status = 'none';
@@ -2347,7 +2358,7 @@ var EmailProcessor = class EmailProcessor {
     return {
       expectedDocumentDescription: expectedDescription,
       expectedDocumentLabel: expectedLabel,
-      announcedByBody: quickExpectsDocument,
+      announcedByBody: announcedByBody,
       expectsDocument: expectsDocument,
       bodyContainsUsableDocumentContent: bodyContainsUsableDocumentContent,
       hasPhysicalAttachment: hasPhysicalAttachment,
@@ -2366,6 +2377,18 @@ var EmailProcessor = class EmailProcessor {
         ? 'body'
         : 'attachment'
     };
+  }
+
+
+  _bodyAnnouncesDocumentDelivery_(body, subject) {
+    const rawSubject = String(subject || '');
+    const bodyText = String(body || '');
+    const isReplySubject = /^(?:re|rif|r|ris|risp|aw|sv|fw|fwd|tr|i|wg|inc)(?:\s*:|\s+[-–—]\s+)/i.test(rawSubject.trim());
+    const documentText = `${rawSubject} ${bodyText}`;
+    const deliveryText = `${isReplySubject ? '' : rawSubject} ${bodyText}`;
+    const documentPattern = /\b(?:scheda|sched[ae]|modul\w*|document\w*|certificat\w*|attestat\w*|iscrizion\w*)\b/i;
+    const deliveryPattern = /\b(?:alleg\w*|invi(?:o|amo|a)\b|trasmett(?:o|iamo)\b|mando|mandiamo|inoltro|inoltriamo|ecco|riport(?:o|iamo)\b|compilat[oaie])\b/i;
+    return documentPattern.test(documentText) && deliveryPattern.test(deliveryText);
   }
 
   _bodyLooksLikeFilledDocument_(body) {
@@ -4460,7 +4483,8 @@ var EmailProcessor = class EmailProcessor {
       details.physicalPresenceConstraint.constraint.visit_policy
         ? String(details.physicalPresenceConstraint.constraint.visit_policy).toLowerCase()
         : '';
-    const hasPhysicalPresence = physicalPresenceErrors.length > 0 || errorText.some(e => e.includes('vincolo presenza fisica'));
+    const hasPhysicalPresence = details.physicalPresenceConstraint?.state === 'incompatible' ||
+      physicalPresenceErrors.length > 0 || errorText.some(e => e.includes('vincolo presenza fisica'));
     const sensitiveQualityErrors = (details.sensitiveContinuityQuality && Array.isArray(details.sensitiveContinuityQuality.errors))
       ? details.sensitiveContinuityQuality.errors
       : [];
@@ -4636,11 +4660,9 @@ var EmailProcessor = class EmailProcessor {
     }
 
     if (flags.physical_presence) {
-      const avoidInvitation = String(flags.physicalPresencePolicy || '').toLowerCase() === 'avoid_invitation';
       correctionInstructions.push(
-        (avoidInvitation
-          ? 'PRESENZA: Privilegia telefono/email o presa in carico a distanza. Ometti inviti in sede anche condizionali, salvo obbligo procedurale esplicito e inevitabile.'
-          : 'PRESENZA: Privilegia telefono/email. Cita la presenza solo in forma condizionale, nella lingua della risposta, per un passaggio operativo necessario; ometti inviti diretti o di sola cortesia.')
+        'PRESENZA: Rispetta la disponibilità dichiarata da chi compie lo spostamento, distinguendo mittente e delegato. Mantieni eventuale un viaggio ipotetico e acquisita una presenza dichiarata; verifica separatamente procedure, orari e appuntamenti. Rimuovi il conflitto segnalato: ' +
+          JSON.stringify(details.physicalPresenceConstraint || {})
       );
     }
 
@@ -4707,12 +4729,6 @@ var EmailProcessor = class EmailProcessor {
     const runtimeReminder = rawRuntimeReminder.length > 4000
       ? `${rawRuntimeReminder.substring(0, 4000)}\n[...contesto runtime abbreviato...]`
       : rawRuntimeReminder;
-    const physicalConstraint = (runtimeContext && runtimeContext.physicalPresenceConstraint) ||
-      (details.physicalPresenceConstraint && details.physicalPresenceConstraint.constraint) ||
-      null;
-    const physicalReminder = flags.physical_presence && physicalConstraint
-      ? `\n- Vincolo presenza: type=${physicalConstraint.type || 'other'}, visit_policy=${physicalConstraint.visit_policy || 'unknown'}.`
-      : '';
     // L'email dell'utente (e la KB) servono anche per thinking_leak/lingua/
     // sensitive_quality: senza, il modello deve "indovinare" la domanda dalla
     // sola risposta fallita.
@@ -4725,7 +4741,7 @@ var EmailProcessor = class EmailProcessor {
       : '';
 
     return `### CORREZIONE MIRATA ###
-Lingua: ${language || 'it'} | Modalità saluto: ${effectiveSalutationMode}.${physicalReminder}${runtimeReminder}${groundingReminder}
+Lingua: ${language || 'it'} | Modalità saluto: ${effectiveSalutationMode}.${runtimeReminder}${groundingReminder}
 
 Riscrivi applicando questi criteri:
 - ${correctionInstructions.join('\n- ')}

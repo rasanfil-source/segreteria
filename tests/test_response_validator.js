@@ -2134,9 +2134,9 @@ console.log('--- Test semantic quality: supporto email per mobilita resta warnin
       }
     );
 
-    assert(result.isValid === true, 'un suggerimento remoto fondato e coerente con il vincolo di mobilita non deve bloccare la risposta');
-    assert(result.score >= 0.85, 'l osservazione qualitativa non deve abbassare artificialmente lo score alto');
-    assert(result.warnings.some(warning => warning.includes('Semantica qualitativa')), 'il rilievo deve restare osservabile come warning');
+    assert(result.isValid === false, 'la mobilità non deve scavalcare un rilievo semantico di pertinenza');
+    assert(result.score === 0, 'il rilievo semantico mantiene il suo punteggio');
+    assert(result.reasonCode === 'semantic_irrelevant_detail', 'la pertinenza resta distinta dalla presenza');
   } finally {
     validator.semanticValidator = previousSemanticValidator;
   }
@@ -2275,7 +2275,7 @@ console.log('--- Test SemanticValidator: grounding include oggetto, corpo e thre
     'information_request'
   );
   assert(prompt.includes('Oggetto, corpo, allegati e storico autorizzano dati personali'), 'il prompt deve autorizzare la ripetizione di entità presenti nell input');
-  assert(prompt.toLowerCase().includes('un nome non prova il ruolo'), 'il prompt deve separare esistenza del nome e ruolo personale');
+  assert(prompt.toLowerCase().includes('non ruolo'), 'il prompt deve separare esistenza del nome e ruolo personale');
   assert(prompt.includes('"entityRoleMismatches": []'), 'lo schema semantico deve distinguere i mismatch nome-ruolo');
 }
 

@@ -53,11 +53,12 @@ for (const fragment of ['<', '</', '<user_', '</user_email']) {
   assert.equal(p._stripDanglingRetryPromptTagFragment_('testo ' + fragment), 'testo');
 }
 assert.equal(p._stripDanglingRetryPromptTagFragment_('testo <user_email>'), 'testo <user_email>');
-const constraint = {type: 'health', visit_policy: 'avoid_invitation'};
+const presence = {state: 'incompatible', reason: 'Invito rivolto al mittente impossibilitato.', requestEvidence: 'Non posso muovermi', responseEvidence: 'Venga in ufficio.'};
 const correction = p._buildCorrectionPrompt('Originale', 'Venga in ufficio.', {
-  errors: ['vincolo presenza fisica'], details: {physicalPresenceConstraint: {constraint, errors: ['invito incompatibile']}}
+  errors: [], details: {physicalPresenceConstraint: presence}
 }, 'it', 'full', Object.freeze({temporal: null, papal: null}));
-assert.match(correction, /type=health, visit_policy=avoid_invitation/);
+assert(correction.includes(JSON.stringify(presence)));
+assert(correction.includes('mittente e delegato'));
 assert.match(p._addTimeDiscrepancyNoteIfNeeded('The Mass is at 6 pm.', {body: 'I thought it was at 5 pm'}, 'en_US'), /Note:/);
 assert.match(p._addTimeDiscrepancyNoteIfNeeded('A reunião tem lugar às 18.', {body: 'Pensava às 17'}, 'pt_BR'), /indicado por si/);
 assert.deepEqual(Array.from(p._computeUserReaction('Grazie', ['orari_messe', '', null]).topics), ['orari_messe']);

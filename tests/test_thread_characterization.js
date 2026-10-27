@@ -63,11 +63,14 @@ if (process.argv.includes('--record-baseline')) {
 const originalExpected = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 // Il contratto di copertura viene verificato dalla suite dedicata; qui restano
 // confrontati integralmente gli effetti preesistenti di invio, memoria e revisione.
-function withoutCoverage(value) {
-  if (Array.isArray(value)) return value.map(withoutCoverage);
+function withoutCoverage(value, parentKey = '') {
+  if (Array.isArray(value)) return value.map(item => withoutCoverage(item, parentKey));
   if (!value || typeof value !== 'object') return value;
-  return Object.fromEntries(Object.entries(value).filter(([key]) =>
-    !['requestCoverage', 'coverageSources', 'userThreadContext'].includes(key)).map(([key, item]) => [key, withoutCoverage(item)]));
+  return Object.fromEntries(Object.entries(value).filter(([key]) => {
+    if (['requestCoverage', 'coverageSources', 'userThreadContext'].includes(key)) return false;
+    if (parentKey === 'validationContext' && ['senderName', 'senderEmail'].includes(key)) return false;
+    return true;
+  }).map(([key, item]) => [key, withoutCoverage(item, key)]));
 }
 const expected = JSON.parse(JSON.stringify(originalExpected));
 // Un quick check negativo non chiude messaggi antecedenti di mittenti distinti.
@@ -210,6 +213,21 @@ for (const [name, snapshot] of Object.entries(expected)) {
         delete value[7].validationContext.documentMismatch;
         delete value[7].validationContext.expectedDocumentMissing;
       }
+    }
+    if (name === 'near_deadline' && event === 'prompt') {
+      value.attachmentIntentContext = {
+        acquisition: {
+          received: [],
+          processed: [],
+          notProcessed: [],
+          inventoryComplete: false,
+          historicalContent: false,
+          limits: [{ name: '', reason: 'near_deadline' }]
+        },
+        hasPhysicalAttachments: false,
+        bodyContainsUsableDocumentContent: false,
+        hasExpectedDocumentMissing: false
+      };
     }
   }
 }
