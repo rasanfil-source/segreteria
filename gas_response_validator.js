@@ -3940,7 +3940,7 @@ var SemanticValidator = class SemanticValidator {
         ? options.requestPurpose.type
         : (options ? options.requestPurpose : '');
       const cacheMaterial = [
-        'grounding_relevance_coverage_schema_v23',
+        'grounding_relevance_coverage_schema_v24',
         String(options.presenceRequired === true),
         response || '',
         knowledgeBase || '',
@@ -3961,7 +3961,7 @@ var SemanticValidator = class SemanticValidator {
         : Math.ceil(prompt.length / 3.2);
       generatedCalls = 1;
       const apiResponse = this._generateSemantic(prompt, { attachments: semanticAttachments });
-      const result = this._parseSemanticResponse(apiResponse, { coverageRequired, coverageContext, knowledgeBase, responseText: response || '', presenceRequired: options.presenceRequired, presenceSource: coverageContext ? Object.values(coverageContext.sources).join('\n') : emailContent });
+      const result = this._parseSemanticResponse(apiResponse, { coverageRequired, coverageContext, knowledgeBase, responseText: response || '', presenceRequired: options.presenceRequired, visualAttachmentNames, presenceSource: coverageContext ? Object.values(coverageContext.sources).join('\n') : emailContent });
       if (coverageContext) {
         result.sourceCompleteness = coverageContext.completeness;
         result.visualAttachmentCount = coverageContext.visualAttachments.length;
@@ -4136,7 +4136,7 @@ ${response}
 COMPITO A — RADICAMENTO:
 Distingui fatti, pertinenza e incertezza: unsupportedClaims riguarda solo fatti senza riscontro o contrari alle fonti, mai il semplice fatto che non siano richiesti; un fatto documentato ma superfluo va solo in irrelevantDetails. Scomponi le frasi composte: se ogni proposizione è attestata nelle fonti, segnala l'eventuale superfluità solo in irrelevantDetails. Se una frase composta è tutta supportata, mantienila solo in irrelevantDetails anche quando descrive più fatti; non suddividerne le clausole tra unsupportedClaims e irrelevantDetails. Non duplicare la stessa proposizione nei due campi senza indicare quale contenuto specifico sia infondato. Se la KB non riporta un dato richiesto, dichiarare «non posso confermare» quel dato (per esempio se il certificato sarà pronto entro venerdì) è explicit_limit_info, non un fatto infondato: non inserirlo in unsupportedClaims e non richiedere una frase della KB che autorizzi l'incertezza. Vicinanza pastorale e firma generica della segreteria sono formule relazionali/di chiusura: non inserirle in unsupportedClaims o irrelevantDetails, salvo che la firma attribuisca un impegno o un ruolo concreto. Un limite del servizio vale solo se la KB nega esplicitamente proprio quel servizio o canale; orari parziali e silenzio non bastano a provare una chiusura o un divieto: riferisci come non specificato ciò che la KB non conferma. Richieste, possibilità e impegni restano distinti; le promesse richiedono procedura autorizzante o accordo applicabile. Oggetto, corpo, allegati e storico autorizzano dati personali, date e vincoli dichiarati, non conferme di appuntamenti; l'intestazione Da autorizza nome e recapito del mittente, ma non ruolo o altri fatti. Lo storico non autorizza procedure, requisiti o capacità istituzionali.
 
-${presenceRequired ? `PRESENZA FISICA: valuta ogni spostamento proposto rispetto a chi lo compie e alla disponibilità dichiarata nelle fonti. Distingui mittente e delegato, impossibilità, viaggio possibile e presenza già dichiarata o programmata; un viaggio dichiarato non conferma appuntamento, orari o disponibilità del documento. Verifica separatamente nella KB l'ammissibilità di deleghe e procedure. In presence indica compatible, incompatible o uncertain, con reason e citazioni letterali brevi requestEvidence e responseEvidence. Un conflitto richiede entrambe le evidenze; un'ambiguità non risolvibile è uncertain. In assenza di spostamenti proposti usa compatible con evidenze vuote. Riporta i conflitti di presenza soltanto in presence, mantenendo separati gli altri rilievi.` : ''}
+${presenceRequired ? `PRESENZA FISICA: confronta gli spostamenti proposti con soggetti e disponibilità nelle fonti. Distingui mittente e delegato, impossibilità, viaggio possibile e presenza già dichiarata o programmata. Verifica nella KB deleghe, procedure, orari e appuntamenti: il viaggio non li conferma. In presence indica compatible, incompatible o uncertain, reason e citazioni letterali brevi requestEvidence e responseEvidence. Per evidenze visive cita in sourceRef il nome esatto dell'allegato disponibile; contenuto illeggibile o ambiguo è uncertain. Un conflitto richiede entrambe le citazioni; senza spostamenti usa compatible con evidenze vuote. Riporta i conflitti di presenza soltanto in presence.` : ''}
 
 COMPITO B — PERTINENZA CONTESTUALE${coverageContext ? ' E C — COPERTURA' : ''}:
 Individua obiettivo, domande e vincoli attuali con lo storico: copri l'essenziale. Richieste risolte restano chiuse salvo nuova domanda. Seleziona unità informative separate, non ogni alternativa KB. irrelevantDetails segnala ridondanze e procedure già eseguite, preservando aiuti concreti ai vincoli.
@@ -4155,7 +4155,7 @@ Rispondi SOLO con questo JSON (senza markdown):
 {
   "hallucinations": {"times": [], "dates": [], "emails": [], "phones": [], "urls": [], "unsupportedClaims": [], "entityRoleMismatches": []},
   "irrelevantDetails": [],
-${presenceRequired ? '  "presence": {"state":"compatible|incompatible|uncertain","reason":"","requestEvidence":"","responseEvidence":""},' : ''}
+${presenceRequired ? '  "presence": {"state":"compatible|incompatible|uncertain","reason":"","requestEvidence":"","responseEvidence":"","sourceRef":""},' : ''}
 ${coverageContext ? `  "coverage": {
     "evaluated": true, "purpose": "informational|operational|update|mixed", "goal": "",
     "requests": [{"id":"r1","need":"","evidence":"","status":"","reason":"Motivo breve e specifico","sourceRef":"","uncoveredRequest":"","why":""}],
@@ -4406,13 +4406,16 @@ Rispondi SOLO con questo JSON (senza markdown):
     const normalize = text => String(text || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
     const request = normalize(value.requestEvidence);
     const response = normalize(value.responseEvidence);
+    const sourceRef = typeof value.sourceRef === 'string' ? value.sourceRef.trim() : '';
+    const visualEvidence = request && sourceRef &&
+      (options.visualAttachmentNames || []).some(name => normalize(name) === normalize(sourceRef));
     if ((value.state === 'incompatible' && (!request || !response)) ||
-        (request && !normalize(options.presenceSource).includes(request)) ||
+        (request && !normalize(options.presenceSource).includes(request) && !visualEvidence) ||
         (response && !normalize(options.responseText).includes(response))) {
       return uncertain('Evidenze della presenza non riscontrabili nelle fonti.');
     }
     return { state: value.state, reason: value.reason.trim(),
-      requestEvidence: value.requestEvidence, responseEvidence: value.responseEvidence };
+      requestEvidence: value.requestEvidence, responseEvidence: value.responseEvidence, sourceRef };
   }
 
   _normalizeCoveragePayload_(payload, context = {}, knowledgeBase = '') {

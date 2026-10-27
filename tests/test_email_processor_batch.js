@@ -3084,13 +3084,13 @@ console.log('--- Test allegato distinto da documenti futuri: nessun falso mismat
     attachments: ['modulo_iscrizione_cresima.pdf'],
     ocrText: 'Modulo di iscrizione al corso per la Cresima degli adulti. Nome e cognome: Andrea Casali.',
     quickDocumentDelivery: {
-      expected_document: true,
-      expected_document_description: 'certificati di Battesimo e Prima Comunione',
+      expected_document: false,
+      expected_document_description: '',
       delivery_channel: 'attachment',
       body_contains_filled_document: false,
-      requires_file_attachment: true,
+      requires_file_attachment: false,
       missing_document_if_no_attachment: false,
-      reason: 'i certificati saranno consegnati quando ricevuti',
+      reason: 'i certificati saranno consegnati quando ricevuti: nessuna consegna attuale dei certificati',
       source: 'quick_check'
     },
     semanticResponse: '{"consistent": false, "reason": "il modulo non è un certificato"}',
@@ -5603,9 +5603,9 @@ console.log('--- Test attachment intent: domanda su certificato in oggetto Re no
     textFromAttachments: ''
   });
 
-  assert(model.expectsDocument === false, 'un expected_document del modello senza prova locale non deve essere vincolante');
-  assert(model.status === 'none', `la domanda sul certificato non deve diventare documento mancante, ottenuto ${model.status}`);
-  assert(model.hasExpectedDocumentMissing === false, 'il validator non deve ricevere expectedDocumentMissing nel follow-up');
+  assert(model.expectsDocument === true, 'il verdetto semantico esplicito prevale sul rilevatore lessicale');
+  assert(model.status === 'unverified_attachment', `senza esito di ispezione la presenza resta incerta, ottenuto ${model.status}`);
+  assert(model.hasExpectedDocumentMissing === false, 'la sola aspettativa non prova l assenza del file');
 }
 
 console.log('--- Test document delivery: annuncio esplicito senza file resta documento mancante ---');

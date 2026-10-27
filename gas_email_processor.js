@@ -2293,16 +2293,13 @@ var EmailProcessor = class EmailProcessor {
         quickDocumentDelivery.missing_document_if_no_attachment === true
       )
     );
-    const bodyRefersToPendingDocument = /\b(?:sono|siamo)\s+in\s+attesa\s+di\s+(?:ricever|ottener)|\bnon\s+(?:ho|abbiamo)\s+ancora\s+(?:ricevut|ottenut)|\bappena\s+(?:lo|la|li|le)\s+(?:ricever|otterr)/i.test(String(body || ''));
-    const groundedQuickExpectation = quickExpectsDocument && Boolean(
-      announcedByBody ||
-      bodyContainsUsableDocumentContent ||
-      (hasPhysicalAttachment && !bodyRefersToPendingDocument)
-    );
-    const expectsDocument = Boolean(
-      bodyContainsUsableDocumentContent ||
-      announcedByBody ||
-      groundedQuickExpectation
+    // Il contratto semantico distingue una consegna attuale da negazioni e impegni futuri.
+    const hasDeliveryVerdict = quickDocumentDelivery &&
+      quickDocumentDelivery.source !== 'quick_check_fallback' &&
+      typeof quickDocumentDelivery.expected_document === 'boolean';
+    const expectsDocument = hasDeliveryVerdict
+      ? (quickExpectsDocument || quickDocumentDelivery.body_contains_filled_document === true) : Boolean(
+      bodyContainsUsableDocumentContent || announcedByBody
     );
     const normalizedAttachmentText = String(textFromAttachments || '').trim();
     const hasAttachmentAnalyzedContent = Boolean(normalizedAttachmentText);

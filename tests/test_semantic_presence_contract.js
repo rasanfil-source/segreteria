@@ -15,6 +15,25 @@ assert.equal(semantic._normalizePresence_(verdict('incompatible', 'non posso muo
 assert.equal(semantic._normalizePresence_(verdict('incompatible'), options).state, 'uncertain');
 assert.equal(semantic._normalizePresence_(verdict('compatible', 'citazione inventata', response), options).state, 'uncertain');
 assert.equal(semantic._normalizePresence_(null, options).state, 'uncertain');
+// Il riferimento visivo vale solo per i file realmente forniti al controllo.
+const visualVerdict = {...verdict('incompatible', 'Non posso recarmi in parrocchia', 'Venga in parrocchia.'), sourceRef:'richiesta.png'};
+const visualOptions = {presenceSource:'Leggete la foto allegata.',responseText:'Venga in parrocchia.',visualAttachmentNames:['richiesta.png']};
+assert.equal(semantic._normalizePresence_(visualVerdict, visualOptions).state, 'incompatible');
+assert.equal(semantic._normalizePresence_(visualVerdict, {...visualOptions,visualAttachmentNames:[]}).state, 'uncertain');
+assert.equal(semantic._normalizePresence_({...visualVerdict,sourceRef:'inventato.png'}, visualOptions).state, 'uncertain');
+assert.equal(semantic._normalizePresence_({...visualVerdict,requestEvidence:''}, visualOptions).state, 'uncertain');
+assert.equal(semantic._normalizePresence_({...visualVerdict,responseEvidence:'Risposta inventata'}, visualOptions).state, 'uncertain');
+assert.equal(semantic._normalizePresence_({...visualVerdict,state:'uncertain'}, visualOptions).state, 'uncertain');
+// La chiamata reale al parser riceve i riferimenti degli allegati anche senza copertura.
+semantic.runtimeSemanticAvailable = true;
+semantic.completenessAlways = false;
+semantic._cacheKey = () => 'test';
+semantic._readCache = () => null;
+semantic._writeCache = () => {};
+semantic._generateSemantic = () => JSON.stringify({isValid:true,confidence:1,presence:visualVerdict});
+const visualResult = semantic.validateHallucinations(visualOptions.responseText, '', {score:1,errors:[]},
+  visualOptions.presenceSource, {presenceRequired:true,attachments:[{getName:()=> 'richiesta.png'}]});
+assert.equal(visualResult.presence.state, 'incompatible');
 const prompt = semantic._buildHallucinationPrompt(response, 'KB', source, '', null, null, [], true);
 assert(prompt.includes('mittente e delegato'));
 assert(prompt.includes('presenza già dichiarata o programmata'));

@@ -254,6 +254,21 @@ for (const [name, snapshot] of Object.entries(expected)) {
   const target = effects.findIndex(([event]) => event === 'request.classify');
   if (target >= 0) effects.splice(target, 0, ...reservation);
 }
+// Il verdetto positivo del quick-check attiva la verifica anche senza parole italiane di invio.
+for (const [event, value] of expected.document_missing.effects) {
+  if (event === 'prompt') {
+    value.attachmentsContext = 'ATTENZIONE: il documento atteso non è disponibile: non risultano allegati fisici né dati compilati utilizzabili nel corpo del messaggio.';
+    value.documentConsistency = {expected:'scheda_iscrizione_catechesi_comunione_cresima_ragazzi',mode:'unknown_received',received:'unknown'};
+    Object.assign(value.documentDelivery, {blockReason:'expected_document_missing',blocksReceiptOnly:true,
+      expectsDocument:true,hasExpectedDocumentMissing:true,isCoherent:false,source:'announced',status:'missing'});
+    value.systemDirectives = ['DOCUMENTO ATTESO NON DISPONIBILE: Scrivi: "Non troviamo allegata né riportata nel testo la documentazione richiesta («scheda di iscrizione»). Può cortesemente reinviarla o inserirne i dati nel corpo del messaggio?" Usa questa richiesta come contenuto principale, con saluto istituzionale.'];
+  }
+  if (event === 'validate') {
+    value[7].validationContext.documentMismatch = null;
+    value[7].validationContext.expectedDocumentMissing = {active:true,bodyContainsUsableDocumentContent:false,
+      deliveryChannel:'attachment',expected:'scheda di iscrizione'};
+  }
+}
 for (const [name, output] of Object.entries(actual)) {
   // Con modello non configurato, il controllo semantico simulato usa la risposta generica.
   for (const [event, value] of expected[name].effects) {
