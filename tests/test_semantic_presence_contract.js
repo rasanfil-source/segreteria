@@ -38,4 +38,15 @@ for (const state of ['compatible', 'incompatible', 'uncertain', 'unavailable']) 
   if (state === 'uncertain') assert.equal(result.pendingSemanticReview, 'semantic_presence_uncertain');
   if (state === 'unavailable') assert.equal(result.pendingSemanticReview, 'semantic_unavailable');
 }
+// L'assenza del servizio blocca il controllo richiesto, anche senza copertura obbligatoria.
+for (const enabled of [true, false]) {
+  ctx.CONFIG.SEMANTIC_VALIDATION = { enabled, completenessAlways: false };
+  const validator = vm.runInContext('new ResponseValidator()', ctx);
+  validator.semanticValidator = null;
+  validator._runValidationChecks = () => ({isValid:true,score:1,errors:[],warnings:[],details:{hallucinations:{score:1,errors:[]}}});
+  const result = validator.validateResponse(response, 'it', 'KB', source, 'Certificato', 'full', false);
+  assert.equal(result.isValid, !enabled);
+  assert.equal(result.pendingSemanticReview, enabled ? 'semantic_unavailable' : null);
+  assert.equal(result.errors.includes('Semantica: controllo necessario non disponibile'), enabled);
+}
 console.log('Contratto presenza semantica: verifiche superate.');

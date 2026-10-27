@@ -315,7 +315,7 @@ var ResponseValidator = class ResponseValidator {
     const presenceRequired = semanticSettings.enabled !== false;
     const forceKnowledgeRelevanceReview = knowledgeContextualization.requiresSemanticReview === true ||
       /\b(?:dispensa|nullit[aà]|invalid[oa]|garantiamo|garantito|non\s+(?:serve|occorre|[eè]\s+necessario)\s+(?:il\s+|un\s+)?(?:certificato|documento|permesso)|(?:pu[oò]|puoi|potete)\s+(?:comunque\s+)?(?:sposar[\p{L}]*|ricevere\s+il\s+sacramento))(?![\p{L}\p{N}_])/iu.test(currentResponse.normalize('NFC'));
-    if (!hasDeterministicBlocker && forceKnowledgeRelevanceReview && !this.semanticValidator) {
+    if (!hasDeterministicBlocker && (presenceRequired || forceKnowledgeRelevanceReview) && !this.semanticValidator) {
       validationResult.pendingSemanticReview = 'semantic_unavailable';
       validationResult.isValid = false;
       validationResult.errors.push('Semantica: controllo necessario non disponibile');
