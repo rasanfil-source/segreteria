@@ -117,7 +117,8 @@ var ThreadDocuments = {
         goal: [current.goal, document.goal].filter(Boolean).join('; '),
         openRequests: current.openRequests.concat(document.openRequests.map(item =>
           Object.assign({}, item, { id: `doc_${item.id}`, source: 'attachment' }))),
-        extractionTruncated: current.extractionTruncated || document.extractionTruncated
+        extractionTruncated: current.extractionTruncated || document.extractionTruncated,
+        extractionIncomplete: current.extractionIncomplete || document.extractionIncomplete
       });
     }
     // Il riepilogo dell'analisi non sostituisce l'evidenza documentale originale.

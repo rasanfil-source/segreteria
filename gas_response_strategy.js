@@ -25,7 +25,8 @@ function normalizeRequestCoverage_(value) {
   const requests = Array.isArray(input.openRequests) ? input.openRequests : [];
   const seen = new Set();
   const openRequests = [];
-  let extractionIncomplete = Object.prototype.hasOwnProperty.call(input, 'openRequests') && !Array.isArray(input.openRequests);
+  let extractionIncomplete = input.extractionIncomplete === true ||
+    (Object.prototype.hasOwnProperty.call(input, 'openRequests') && !Array.isArray(input.openRequests));
   for (const item of requests.slice(0, 24)) {
     if (!item || !text(item.need, 300) || !text(item.evidence, 400)) {
       extractionIncomplete = true;

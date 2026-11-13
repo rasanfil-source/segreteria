@@ -303,6 +303,26 @@ test('estrazione: normalizzazione, condizione e nessun limite inventato',()=>{
   assert.equal(result.requestCoverage.openRequests[0].appliesWhen,'email insufficiente');
   assert.equal(result.requestCoverage.extractionTruncated,true);
 });
+test('normalizzazioni ripetute conservano i segnali di estrazione incompleta',()=>{
+  const {c}=setup();
+  for (const raw of [
+    {openRequests:'elenco non valido'},
+    {openRequests:[{...request,evidence:''}]},
+    {openRequests:[request,request]},
+    {openRequests:[],extractionIncomplete:true,extractionTruncated:true}
+  ]) {
+    const first=c.normalizeRequestCoverage_(raw);
+    assert.equal(first.extractionIncomplete,true);
+    const snapshot=JSON.stringify(first);
+    const repeated=c.normalizeRequestCoverage_(c.normalizeRequestCoverage_(first));
+    assert.deepEqual(repeated,first);
+    assert.equal(JSON.stringify(first),snapshot);
+  }
+  const complete=c.normalizeRequestCoverage_({openRequests:[request]});
+  assert.equal(complete.extractionIncomplete,false);
+  assert.deepEqual(c.normalizeRequestCoverage_(complete),complete);
+});
+
 test('trasporto nel thread senza seconda classificazione',()=>{
   const out=runScenario(root,{quick:{requestCoverage:{goal:'documenti',openRequests:[request]}}});
   const prompt=out.effects.find(([event])=>event==='prompt')[1];
@@ -311,6 +331,36 @@ test('trasporto nel thread senza seconda classificazione',()=>{
   assert.equal(typeof checked.coverageSources.currentBody,'string');
   assert.equal(out.effects.filter(([event])=>event==='send').length,1);
 });
+for (const source of ['email','allegato']) test('estrazione incompleta da '+source+' arriva al controllo finale',()=>{
+  const {c,v}=setup();
+  const malformed={goal:'documenti',openRequests:[{...request,evidence:''}]};
+  const extracted=c.EmailQuickCheckPolicy.normalizeDecisionData(malformed,{},null,
+    {emailContent:body,emailSubject:'Informazioni'}).requestCoverage;
+  assert.equal(extracted.extractionIncomplete,true);
+  const scenario=source==='email'
+    ? {subject:'Informazioni',body,quick:{requestCoverage:extracted}}
+    : {subject:'Documento',body:'Vedete allegato.',attachment:true,ocr:body,
+      quick:{requestCoverage:{goal:'',openRequests:[]}},
+      attachmentAnalysis:{consistent:true,reason:'',requestPurpose:'information_request',confidence:0.95,
+        category:'information',documents:[{index:0,role:'request',request:body}],...malformed}};
+  v.semanticValidator._generateSemantic=()=>JSON.stringify(noOpenPayload());
+  const out=runScenario(root,{...scenario,response:`<email>${reply}</email>`},{setup(context,services){
+    const validate=services.validator.validateResponse;
+    services.validator.validateResponse=(...args)=>{
+      validate(...args);
+      return v.validateResponse(...args);
+    };
+  }});
+  const prompt=out.effects.find(([event])=>event==='prompt')[1];
+  const runtime=out.effects.find(([event])=>event==='validate')[1][7];
+  assert.equal(prompt.requestCoverage.extractionIncomplete,true);
+  assert.equal(runtime.validationContext.requestCoverage.extractionIncomplete,true);
+  assert.equal(out.result.status,'validation_review');
+  assert.equal(out.result.reason,'semantic_contract_error');
+  assert.equal(out.effects.some(([event])=>event==='send'),false);
+  assert.equal(out.effects.some(([event])=>event==='label.review'),true);
+});
+
 for (const reason of ['semantic_unavailable','semantic_context_insufficient','semantic_contract_error']) test('thread sospende '+reason,()=>{
   const out=runScenario(root,{}, {setup(c,services){services.validator.validateResponse=()=>({isValid:true,score:1,errors:[],warnings:[],details:{},pendingSemanticReview:reason});}});
   assert.equal(out.result.reason,reason);assert.equal(out.effects.some(([event])=>event==='send'),false);
