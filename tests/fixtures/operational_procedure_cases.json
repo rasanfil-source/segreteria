@@ -1,0 +1,81 @@
+{
+  "defaults": {
+    "detectedLanguage": "it", "currentDate": "2026-11-15", "currentTime": "19:33",
+    "salutation": "Buona domenica.", "closing": "Cordiali saluti,", "salutationMode": "full",
+    "senderName": "Maria Esempio", "senderEmail": "maria@example.invalid", "responseRegister": "warm_institutional"
+  },
+  "cases": [
+    {
+      "id": "guadalupe_una", "purpose": "operational_request", "category": "appointment",
+      "emailSubject": "Proiezione Guadalupe", "emailContent": "Buonasera, vorrei prenotare per vedere il film sulla Madonna di Guadalupe il prossimo 22. Grazie. Maria Esempio",
+      "knowledgeBase": "Domenica 22 novembre, ore 16, presso Aula Magna parrocchiale, viale delle Belle Arti 8/10. Ingresso gratuito. Offerta libera. Si raccomanda di prenotarsi al seguente collegamento: https://www.parrocchiasanteugenio.it/v/guadalupe Se richiesto: massimo 4 persone a prenotazione, non raccogliamo iscrizioni via email: solo attraverso il collegamento. Posti non numerati.",
+      "criteria": ["Indicare il collegamento per prenotare online.", "Nessuna presa in carico o prenotazione tramite questa email.", "Risposta breve senza dettagli accessori sull'evento."]
+    },
+    {
+      "id": "guadalupe_due", "purpose": "operational_request", "category": "appointment",
+      "emailSubject": "Proiezione Guadalupe", "emailContent": "Buongiorno, vorrei prenotare due posti per il film in questione. Maria Esempio e Lucia Prova. Grazie infinite.",
+      "knowledgeBase": "Domenica 22 novembre, ore 16, proiezione Guadalupe presso l'Aula Magna parrocchiale, viale delle Belle Arti 8/10. Ingresso gratuito a offerta libera. Prenotazioni solo su https://www.parrocchiasanteugenio.it/v/guadalupe; massimo 4 persone per prenotazione. Non raccogliamo iscrizioni via email. Posti non numerati.",
+      "criteria": ["Indicare il collegamento per prenotare due posti online.", "Stessa procedura del caso con una persona.", "Nessuna conferma di registrazione, disponibilità dei posti o presa in carico via email."]
+    },
+    {
+      "id": "guadalupe_mista", "purpose": "mixed", "category": "appointment",
+      "emailSubject": "Prenotazione e accesso", "emailContent": "Vorrei prenotare due posti per Guadalupe. A che ora comincia? I posti sono numerati?",
+      "knowledgeBase": "Proiezione Guadalupe domenica 22 novembre alle 16:00. Posti non numerati. Prenotazioni esclusivamente su https://www.parrocchiasanteugenio.it/v/guadalupe, massimo 4 persone per prenotazione. Le email non registrano prenotazioni.",
+      "criteria": ["Indicare il modulo online senza confermare prenotazioni via email.", "Rispondere a entrambe le domande: ore 16:00, posti non numerati."]
+    },
+    {
+      "id": "evento_email_consentita", "purpose": "operational_request", "category": "appointment",
+      "emailSubject": "Laboratorio parrocchiale", "emailContent": "Vorrei prenotare due posti per il laboratorio. Maria Esempio e Lucia Prova.",
+      "knowledgeBase": "Per il laboratorio la segreteria raccoglie le richieste via email con i nomi dei partecipanti. L'assegnazione dei posti dipende dalla disponibilità e richiede una conferma successiva.",
+      "criteria": ["Confermare ricezione e presa in carico della richiesta tramite email.", "Distinguere presa in carico da assegnazione dei posti.", "Nessun modulo online o divieto di email inventato."]
+    },
+    {
+      "id": "certificato_autorizzato", "purpose": "operational_request", "category": "document_request",
+      "emailSubject": "Certificato di battesimo", "emailContent": "Richiedo il certificato di battesimo per matrimonio, da inviare via email. Maria Esempio, nata a Roma il 3 maggio 1980, battezzata qui il 15 giugno 1980. Mi servirebbe entro venerdì.",
+      "knowledgeBase": "La segreteria prende in carico le richieste di certificati e verifica nei registri battesimali prima del rilascio. L'invio via email è consentito se richiesto. Chiedere nome, cognome, nascita e data del battesimo solo se mancanti. I tempi di rilascio non sono predeterminati.",
+      "criteria": ["Confermare la presa in carico autorizzata e mantenere l'invio email richiesto.", "Non richiedere dati già forniti né riaprire la procedura preliminare.", "Lasciare da confermare il rilascio entro venerdì e la verifica dei registri."]
+    },
+    {
+      "id": "certificato_dati_mancanti", "purpose": "operational_request", "category": "document_request",
+      "emailSubject": "Richiesta certificato", "emailContent": "Vorrei il certificato di battesimo. Maria Esempio.",
+      "knowledgeBase": "La segreteria prende in carico le richieste di certificato di battesimo. Servono nome e cognome, data di nascita e data del battesimo; il rilascio richiede la verifica nei registri.",
+      "criteria": ["Confermare la ricezione e chiedere solo le date mancanti.", "Non attestare verifica già effettuata o certificato pronto."]
+    },
+    {
+      "id": "idoneita_padrino", "purpose": "operational_request", "category": "document_request",
+      "emailSubject": "Idoneità per padrino", "emailContent": "Vorrei il certificato per fare da padrino. Può passare mio fratello al posto mio?",
+      "knowledgeBase": "L'idoneità padrino/madrina richiede un'assunzione personale di impegno ecclesiale e non è delegabile. Per concordare le modalità occorre contattare personalmente un sacerdote.",
+      "criteria": ["Spiegare che l'idoneità richiede l'impegno personale e non è delegabile.", "Indicare il contatto con un sacerdote.", "Nessuna conferma di ritiro delegato o rilascio già avviato."]
+    },
+    {
+      "id": "azione_non_documentata", "purpose": "operational_request", "category": "collaboration",
+      "emailSubject": "Locandina", "emailContent": "Potete stampare venti copie della locandina e pubblicarla sul sito?",
+      "knowledgeBase": "La parrocchia dispone di un sito istituzionale. Non sono indicate modalità per richiedere stampe o pubblicazioni.",
+      "criteria": ["Riconoscere entrambe le richieste senza promettere stampa o pubblicazione.", "Chiarire che la possibilità e le modalità restano da verificare.", "Nessuna promessa di presa in carico, ricontatto o attività non autorizzata."]
+    },
+    {
+      "id": "online_raccomandato", "purpose": "operational_request", "category": "appointment",
+      "emailSubject": "Prenotazione concerto", "emailContent": "Vorrei prenotare due posti per il concerto.",
+      "knowledgeBase": "Per il concerto si raccomanda la prenotazione su https://example.invalid/concerto. Non sono specificate altre modalità.",
+      "criteria": ["Indicare la modalità online documentata.", "Non inventare un divieto esplicito di prenotazione via email.", "Nessuna prenotazione confermata tramite questa email."]
+    },
+    {
+      "id": "solo_informazioni", "purpose": "information_request", "category": "information",
+      "emailSubject": "Orari segreteria", "emailContent": "A che ora riceve la segreteria il lunedì?",
+      "knowledgeBase": "La segreteria riceve il lunedì dalle 10:00 alle 12:00.",
+      "criteria": ["Rispondere con gli orari richiesti.", "Nessuna pratica o presa in carico aggiunta."]
+    },
+    {
+      "id": "solo_ringraziamento", "purpose": "acknowledgment", "category": "information", "salutationMode": "none_or_continuity",
+      "emailSubject": "Re: Informazioni", "emailContent": "Perfetto, grazie!",
+      "knowledgeBase": "Prenotazioni per Guadalupe solo online.",
+      "criteria": ["Riscontro breve senza riaprire la procedura né aggiungere un impegno."]
+    },
+    {
+      "id": "aggiornamento", "purpose": "status_update", "category": "information",
+      "emailSubject": "Aggiornamento recapito", "emailContent": "Vi comunico il nuovo indirizzo per questa pratica: maria@example.invalid.",
+      "knowledgeBase": "Le comunicazioni sulla pratica possono avvenire via email.",
+      "criteria": ["Prendere atto del recapito comunicato.", "Nessuna attestazione di modifica già effettuata su archivi o sistemi."]
+    }
+  ]
+}

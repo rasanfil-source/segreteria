@@ -3690,6 +3690,8 @@ var ResponseValidator = class ResponseValidator {
     // Itera su tutte le fasce orarie per trovare saluti errati
     const patterns = this.greetingPatterns[language];
     for (const [timeSlot, greetings] of Object.entries(patterns)) {
+      // I saluti neutri conservano la precedenza sulla fascia oraria.
+      if (timeSlot === 'neutral') continue;
       if (timeSlot === correctTimeSlot) continue; // Salta la fascia corretta
 
       for (const greeting of greetings) {
