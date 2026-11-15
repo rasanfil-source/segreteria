@@ -53,8 +53,11 @@ for (const status of ['addressed','not_applicable','explicit_limit_info','explic
 test('limite senza fonte contro limite informativo',()=>{
   const {s}=setup();
   const out=parse(s,payload('explicit_limit_service'),options(),'Nessuna procedura indicata.');
-  assert.equal(out.coverageState,'missing'); assert.equal(out.contentValid,false);
-  assert.equal(out.details.unsupportedClaims.length,1);
+  // La mancata verifica della fonte declassa la copertura a missing senza inquinare contentValid.
+  assert.equal(out.coverageState,'missing');
+  assert.equal(out.contentValid,true);
+  assert.equal(out.coverage.itemsDiag[0].sourceRefVerified,false);
+  assert.equal(out.coverage.itemsDiag[0].reclassifiedFrom,'explicit_limit_service');
   assert.equal(parse(s,payload('explicit_limit_info'),options(),'Nessuna procedura indicata.').isValid,true);
 });
 test('prompt distingue divieti espliciti e richieste condizionali',()=>{

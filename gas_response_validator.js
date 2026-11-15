@@ -424,10 +424,33 @@ var ResponseValidator = class ResponseValidator {
         // La confidenza misura la certezza del giudizio semantico; la qualità della risposta ha una valutazione distinta.
         validationResult.score = 0;
         let semanticReason = 'Validazione semantica fallita senza motivo esplicito';
-        if (!semHalluc.isValid) {
-          semanticReason = semHalluc.reason || semanticReason;
+        const isPositiveAppraisal = text => /gestisce corrett|risposta corrett|conforme|rispetta la regola|risposta gestisce/i.test(String(text || ''));
+        if (semHalluc.contentValid === false) {
+          if (semHalluc.reason && !isPositiveAppraisal(semHalluc.reason)) {
+            semanticReason = semHalluc.reason;
+          } else if (semHalluc.details && Array.isArray(semHalluc.details.unsupportedClaims) && semHalluc.details.unsupportedClaims.length > 0) {
+            semanticReason = 'Affermazioni senza riscontro nelle fonti';
+          } else if (semHalluc.details && Array.isArray(semHalluc.details.irrelevantDetails) && semHalluc.details.irrelevantDetails.length > 0) {
+            semanticReason = 'Dettagli non pertinenti rispetto alla richiesta';
+          } else {
+            semanticReason = 'Contenuto della risposta non supportato dalle fonti disponibili';
+          }
+        } else if (!semHalluc.isValid) {
+          if (coverageRequired && semHalluc.coverageState === 'missing') {
+            semanticReason = 'Copertura incompleta: richieste essenziali non affrontate';
+          } else if (coverageRequired && semHalluc.coverageState === 'undeterminable') {
+            semanticReason = 'Copertura non determinabile: fonti o evidenze insufficienti';
+          } else if (coverageRequired && semHalluc.coverageState === 'contract_error') {
+            semanticReason = semHalluc.coverageError || 'Errore di conformità nel contratto semantico';
+          } else if (semHalluc.reason && !isPositiveAppraisal(semHalluc.reason)) {
+            semanticReason = semHalluc.reason;
+          } else if (coverageRequired) {
+            semanticReason = 'Requisiti di copertura semantica non soddisfatti';
+          } else {
+            semanticReason = 'Validazione semantica fallita';
+          }
         } else if (!semThinking.isValid) {
-          semanticReason = semThinking.reason || semanticReason;
+          semanticReason = semThinking.reason || 'Tracce di ragionamento interno dell\'AI rilevate';
         }
         validationResult.errors.push(`Semantica: ${semanticReason}`);
         validationResult.reasonCode = this._deriveSemanticFailureReasonCode_(semHalluc, semThinking);
@@ -456,11 +479,26 @@ var ResponseValidator = class ResponseValidator {
             row.status === 'undeterminable' && row.reason === sourceEvidenceMismatchReason
           ).length
         } : null;
+        const requestDiagnostics = evaluatedCoverageRows.map(row => ({
+          id: row.id,
+          status: row.status,
+          ...(row.reclassifiedFrom ? { reclassifiedFrom: row.reclassifiedFrom } : {}),
+          reason: row.reason ? row.reason.slice(0, 100) : ''
+        }));
+        const itemsDiag = (coverage && Array.isArray(coverage.itemsDiag)) ? coverage.itemsDiag : evaluatedCoverageRows.map(row => ({
+          id: row.id,
+          status: row.status,
+          reclassifiedFrom: row.reclassifiedFrom || null,
+          sourceRefVerified: row.sourceRefVerified !== false,
+          procedureAuthorized: row.procedureAuthorized !== false
+        }));
         console.log('SEMANTIC_COVERAGE ' + JSON.stringify({
           mode: coverageEnforced ? 'enforce' : 'observe', state: coverageState,
           additionalCall: !legacyGroundingReview,
           sourceCompleteness: semHalluc.sourceCompleteness || null,
           visualAttachmentCount: Number(semHalluc.visualAttachmentCount) || 0,
+          requests: requestDiagnostics,
+          itemsDiag: itemsDiag,
           ...(undeterminableDiagnostics ? { undeterminableDiagnostics } : {}),
           ...(semHalluc.metrics || {})
         }));
@@ -4143,10 +4181,10 @@ ${presenceRequired ? `PRESENZA FISICA: valuta la compatibilità dello spostament
 COMPITO B — PERTINENZA CONTESTUALE${coverageContext ? ' E C — COPERTURA' : ''}:
 Individua obiettivo, domande e vincoli attuali con lo storico: copri l'essenziale. Richieste risolte restano chiuse salvo nuova domanda. Seleziona unità informative separate, non ogni alternativa KB. irrelevantDetails segnala ridondanze e procedure già eseguite, preservando aiuti concreti ai vincoli.
 ${coverageContext ? `Riporta ogni openRequest con lo stesso id e need in requests, anche se omessa o condizionale. Per una conditional, not_applicable vale solo se appliesWhen è falsa; quando è falsa assegna not_applicable anche se la risposta non ripete il ripiego, e non segnalarlo come missing. Se appliesWhen è vera, valutala come primaria e usa missing se resta senza risposta. Tieni distinti bisogni autonomi della stessa email: un limite su scadenza o tempi non copre il diverso bisogno di sapere chi può ritirare, come o con quali requisiti. Assegna explicit_limit_info solo alla richiesta del dato mancante; le altre richieste restano da valutare separatamente. Ogni request deve avere reason non vuota e specifica. unsupportedExtractedRequests serve solo per estrazioni senza base nella richiesta attuale. additionalRequests aggiunge esigenze sfuggite. evidence riporta una citazione letterale breve dall'originale corrente. Esamina anche gli allegati visivi disponibili. Per una richiesta fondata su un allegato visivo, riporta in evidence un breve testo leggibile e in sourceRef il nome esatto dell'allegato; se la parte rilevante non è leggibile, usa undeterminable. Se gli indizi non contengono openRequest e non emerge alcuna esigenza attuale dopo aver valutato il materiale completo, usa noOpenRequests=true con una motivazione breve; in quel caso requests, additionalRequests e unsupportedExtractedRequests restano vuoti. Se manca materiale necessario, indica undeterminableReason. Cortesia e riscontro non sostituiscono risposte, né costituiscono promesse operative.
-- addressed: risposta concreta o chiarimento indispensabile; mai per una risposta che nega o limita il servizio;
+- addressed: risposta concreta, chiarimento indispensabile o indicazione della procedura/canale autorizzato dalla KB per accedere al servizio (fornire la procedura, link o modulo specifico previsto dalla KB per la richiesta soddisfa l'esigenza, mai per una risposta che nega o limita il servizio senza indicare la procedura autorizzata);
 - not_applicable: ripiego non necessario o richiesta risolta;
 - explicit_limit_info: la risposta dichiara il dato mancante proprio per quel need; include la verifica di un allegato quando sourceCompleteness.expectedDocumentMissing=true e segnala l'assenza chiedendone il reinvio; non copre altri need;
-- explicit_limit_service: la risposta nega il servizio e la KB nega esplicitamente lo stesso servizio; cita la prova in sourceRef;
+- explicit_limit_service: la risposta nega il servizio (senza canali alternativi) e la KB nega esplicitamente lo stesso servizio; cita la prova in sourceRef;
 - missing: esigenza essenziale non trattata; un divieto non sostenuto dalla KB è missing e va anche in unsupportedClaims;
 - undeterminable: materiale necessario assente, indicandolo.
 Un rinvio richiede una ragione concreta. Corpo troncato: undeterminableReason obbligatorio; storico/allegati parziali: solo se manca materiale indispensabile al turno. Estrazione parziale con originale completo: valuta l'originale.` : ''}
@@ -4165,6 +4203,7 @@ ${coverageContext ? `  "coverage": {
     "noOpenRequests": false, "noOpenRequestsReason": "", "undeterminableReason": null
   },
 ` : ''}
+  "contentValid": true,
   "isValid": true,
   "confidence": 0.95,
   "reason": "motivazione"
@@ -4369,32 +4408,73 @@ Rispondi SOLO con questo JSON (senza markdown):
         coverageError = error.message;
       }
     }
-    let contentValid = normalizedIsValid;
+    const rawContentValid = payload.contentValid !== undefined
+      ? Boolean(payload.contentValid)
+      : !(hasThinkingLeak || hasHallucinations || hasIrrelevantDetails);
+    let contentValid = rawContentValid && !(hasThinkingLeak || hasHallucinations || hasIrrelevantDetails);
     let coverageState;
+    let coverageReconciled = false;
     if (coverage) {
-      if (coverage.unsupportedClaims.length) {
-        normalizedDetails.unsupportedClaims = (normalizedDetails.unsupportedClaims || []).concat(coverage.unsupportedClaims);
+      // Separazione tra allucinazioni della risposta e copertura:
+      // se il modello nativamente ha confermato l'assenza di allucinazioni (rawContentValid = true),
+      // eventuali difetti di riscontro di un limite procedurale restano confinati alla copertura
+      // e non declassano contentValid a false.
+      if (coverage.unsupportedClaims && coverage.unsupportedClaims.length > 0) {
+        if (!rawContentValid) {
+          normalizedDetails.unsupportedClaims = (normalizedDetails.unsupportedClaims || []).concat(coverage.unsupportedClaims);
+          contentValid = false;
+        }
       }
-      contentValid = !(hasThinkingLeak || hasHallucinations || hasIrrelevantDetails || coverage.unsupportedClaims.length);
       const rows = coverage.requests.concat(coverage.additionalRequests);
       coverageState = coverage.undeterminableReason || rows.some(row => row.status === 'undeterminable')
         ? 'undeterminable' : rows.some(row => row.status === 'missing') ? 'missing' : 'complete';
       normalizedIsValid = contentValid && coverageState === 'complete';
+
+      // Riconciliazione disaccordo del modello: se la copertura normalizzata risulta completa
+      // (es. reindirizzamento conforme alla procedura autorizzata dalla KB) e non ci sono allucinazioni,
+      // non creare un artificiale contract_error anche se il modello aveva restituito isValid: false.
       if (payload.isValid === false && normalizedIsValid && !ignoredGenericSignature) {
-        coverageError = 'Verdetto negativo senza rilievi coerenti nel contratto semantico.';
+        const allCoveredOrAuthorized = rows.every(row =>
+          row.status === 'addressed' || row.status === 'not_applicable' || row.status === 'explicit_limit_info'
+        );
+        if (allCoveredOrAuthorized) {
+          coverageReconciled = true;
+        } else {
+          coverageError = 'Verdetto negativo senza rilievi coerenti nel contratto semantico.';
+        }
       }
     }
     if (coverageError) {
       coverageState = 'contract_error';
       normalizedIsValid = false;
     }
+    let finalReason = payload.reason || 'Nessuna motivazione fornita';
+    const isAppraisal = text => /gestisce corrett|risposta corrett|conforme|rispetta la regola|risposta gestisce/i.test(String(text || ''));
+    if (!normalizedIsValid) {
+      if (coverageError) {
+        finalReason = coverageError;
+      } else if (normalizedDetails.unsupportedClaims && normalizedDetails.unsupportedClaims.length > 0) {
+        finalReason = 'Affermazioni non supportate o contrarie alle fonti disponibili';
+      } else if (normalizedDetails.irrelevantDetails && normalizedDetails.irrelevantDetails.length > 0) {
+        finalReason = 'Dettagli non pertinenti o ridondanti rispetto al contesto';
+      } else if (coverageState === 'missing') {
+        finalReason = 'Copertura incompleta: richieste essenziali non affrontate';
+      } else if (coverageState === 'undeterminable') {
+        finalReason = 'Copertura non determinabile: fonti o evidenze insufficienti';
+      } else if (isAppraisal(payload.reason)) {
+        finalReason = 'Validazione semantica non superata dopo normalizzazione del contratto';
+      }
+    }
     return {
       isValid: normalizedIsValid,
+      contentValid,
+      rawContentValid,
+      coverageReconciled,
       ...(options.presenceRequired ? { presence: this._normalizePresence_(payload.presence, options) } : {}),
-      ...(options.coverageRequired ? { contentValid, coverage, coverageState, coverageError } : {}),
+      ...(options.coverageRequired ? { contentValid, rawContentValid, coverage, coverageState, coverageError } : {}),
       confidence: confidence,
       details: Object.keys(normalizedDetails).length > 0 ? normalizedDetails : (examples || {}),
-      reason: payload.reason || 'Nessuna motivazione fornita'
+      reason: finalReason
     };
   }
 
@@ -4476,11 +4556,30 @@ Rispondi SOLO con questo JSON (senza markdown):
       if ((!evidenceIsGrounded && !originalEvidenceIsGroundedInText) || !originalEvidenceIsGrounded) {
         row.status = 'undeterminable';
         row.reason = 'Evidenza della richiesta non riscontrabile nelle fonti correnti disponibili.';
-      } else if (row.status === 'explicit_limit_service' &&
-          (!row.sourceRef || !normalize(knowledgeBase).includes(normalize(row.sourceRef)))) {
-        row.status = 'missing';
-        row.reason = 'Limite del servizio privo di una fonte verificabile.';
-        unsupportedClaims.push({ text: row.need, reason: row.reason });
+      } else if (row.status === 'explicit_limit_service') {
+        const normRef = normalize(row.sourceRef);
+        const normKb = normalize(knowledgeBase);
+        const directMatch = Boolean(normRef && normKb.includes(normRef));
+        const tokens = normRef.split(/\s+/).filter(t => t.length > 3);
+        const significantOverlap = tokens.length >= 2 && tokens.filter(t => normKb.includes(t)).length >= Math.ceil(tokens.length * 0.7);
+        const groundedInKb = directMatch || significantOverlap;
+        row.sourceRefVerified = groundedInKb;
+        row.procedureAuthorized = groundedInKb;
+        if (!groundedInKb) {
+          row.reclassifiedFrom = row.status;
+          row.reclassificationReason = 'unverified_service_limit';
+          row.status = 'missing';
+          row.reason = 'Limite del servizio privo di una fonte verificabile nella KB.';
+        }
+      } else {
+        // Per altri stati (es. addressed, not_applicable), se c'è un sourceRef controlliamo la verificabilità
+        const normRef = normalize(row.sourceRef);
+        const normKb = normalize(knowledgeBase);
+        const directMatch = Boolean(normRef && normKb.includes(normRef));
+        const tokens = normRef.split(/\s+/).filter(t => t.length > 3);
+        const significantOverlap = tokens.length >= 2 && tokens.filter(t => normKb.includes(t)).length >= Math.ceil(tokens.length * 0.7);
+        row.sourceRefVerified = Boolean(!row.sourceRef || directMatch || significantOverlap);
+        row.procedureAuthorized = true;
       }
       if (row.status === 'missing') {
         row.uncoveredRequest = typeof item.uncoveredRequest === 'string' && item.uncoveredRequest.trim() || row.need;
@@ -4523,12 +4622,20 @@ Rispondi SOLO con questo JSON (senza markdown):
     if (completeness.bodyTruncated || completeness.subjectTruncated) {
       undeterminableReason = 'Messaggio corrente parziale: impossibile certificare la copertura globale.';
     }
+    const itemsDiag = requests.concat(additionalRequests).map(row => ({
+      id: row.id,
+      status: row.status,
+      reclassifiedFrom: row.reclassifiedFrom || null,
+      reclassificationReason: row.reclassificationReason || null,
+      sourceRefVerified: row.sourceRefVerified !== false,
+      procedureAuthorized: row.procedureAuthorized !== false
+    }));
     return {
       evaluated: true, purpose: String(payload.purpose || ''), goal: String(payload.goal || ''),
       requests, additionalRequests, unsupportedExtractedRequests,
       noOpenRequests: noOpenRequestsAccepted,
       noOpenRequestsReason: noOpenRequestsAccepted ? noOpenRequestsReason : '',
-      undeterminableReason, unsupportedClaims
+      undeterminableReason, unsupportedClaims, itemsDiag
     };
   }
 
