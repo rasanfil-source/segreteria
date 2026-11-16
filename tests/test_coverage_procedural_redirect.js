@@ -252,8 +252,8 @@ Segreteria Parrocchia Sant'Eugenio`;
   assert.ok(validationResult.errors.some(e => e.includes('Affermazioni non supportate') || e.includes('Affermazioni senza riscontro') || e.includes('Contenuto')), 'Deve segnalare affermazioni non supportate');
 });
 
-// Una parafrasi non verificabile mantiene distinto il contenuto dall'incertezza sulla fonte.
-test('Caso 3: Procedura corretta ma sourceRef parafrasato richiede revisione senza allucinazioni fittizie', () => {
+// La conformità semantica e il riscontro letterale della citazione restano distinti.
+test('Caso 3: Procedura corretta con sourceRef parafrasato approvata dal giudizio semantico', () => {
   const { semanticValidator, validator } = setupContext();
   const requestItem = {
     id: 'req_prenotazione_3',
@@ -311,9 +311,10 @@ Segreteria Parrocchia Sant'Eugenio`;
 
   // La parafrasi non intacca contentValid, ma non certifica la citazione.
   assert.equal(parsed.contentValid, true, 'contentValid deve rimanere true');
-  assert.equal(parsed.coverageState, 'undeterminable');
-  assert.equal(parsed.isValid, false);
-  assert.equal(parsed.coverage.itemsDiag[0].procedureAuthorized, null);
+  assert.equal(parsed.coverageState, 'complete');
+  assert.equal(parsed.isValid, true);
+  assert.equal(parsed.coverage.itemsDiag[0].procedureAuthorized, true);
+  assert.equal(parsed.coverage.itemsDiag[0].sourceRefVerified, false);
 
   validator.semanticValidator.validateHallucinations = () => parsed;
   validator.semanticValidator.validateThinkingLeak = () => ({ isValid: true, skipped: true });
@@ -331,8 +332,8 @@ Segreteria Parrocchia Sant'Eugenio`;
     }
   });
 
-  assert.equal(validationResult.isValid, false);
-  assert.equal(validationResult.pendingSemanticReview, 'semantic_context_insufficient');
+  assert.equal(validationResult.isValid, true);
+  assert.equal(validationResult.pendingSemanticReview, null);
   assert.equal(validationResult.errors.length, 0, 'Una citazione incerta non diventa un fatto inventato');
 });
 

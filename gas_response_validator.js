@@ -24,6 +24,27 @@ function normalizeValidationScore(score) {
   return Math.max(0, Math.min(1, normalized));
 }
 
+// La diagnostica di copertura usa solo indici, stati e codici, senza identificativi o testo libero.
+function buildCoverageItemDiagnostics_(rows) {
+  const statuses = ['addressed', 'not_applicable', 'explicit_limit_info', 'explicit_limit_service', 'missing', 'undeterminable'];
+  const procedures = ['supported', 'unsupported', 'uncertain', 'not_applicable'];
+  const reasons = ['unverified_request_evidence', 'uncertain_procedure', 'missing_procedure_source'];
+  return rows.map((row, idx) => {
+    const rawStatus = [row.rawStatus, row.reclassifiedFrom, row.status].find(value => statuses.includes(value)) || null;
+    const normalizedStatus = statuses.includes(row.status) ? row.status : null;
+    return {
+      idx, rawStatus, normalizedStatus,
+      procedureStatus: procedures.includes(row.procedureStatus) ? row.procedureStatus : null,
+      sourceRefPresent: Boolean(row.procedureSourceRef || row.sourceRef),
+      sourceRefVerified: typeof row.sourceRefVerified === 'boolean' ? row.sourceRefVerified : null,
+      procedureAuthorized: typeof row.procedureAuthorized === 'boolean' ? row.procedureAuthorized : null,
+      reclassified: rawStatus !== normalizedStatus,
+      reclassificationReason: rawStatus !== normalizedStatus && reasons.includes(row.reclassificationReason)
+        ? row.reclassificationReason : ''
+    };
+  });
+}
+
 var ITALIAN_FORBIDDEN_CAPS = [
   'Siamo', 'Restiamo', 'Sono', 'È', 'Era', 'Sarà',
   'Ho', 'Hai', 'Ha', 'Abbiamo', 'Avete', 'Hanno',
@@ -473,26 +494,14 @@ var ResponseValidator = class ResponseValidator {
             row.status === 'undeterminable' && row.reason === sourceEvidenceMismatchReason
           ).length
         } : null;
-        const requestDiagnostics = evaluatedCoverageRows.map(row => ({
-          id: row.id,
-          status: row.status,
-          ...(row.reclassifiedFrom ? { reclassifiedFrom: row.reclassifiedFrom } : {}),
-          reason: row.reason ? row.reason.slice(0, 100) : ''
-        }));
-        const itemsDiag = (coverage && Array.isArray(coverage.itemsDiag)) ? coverage.itemsDiag : evaluatedCoverageRows.map(row => ({
-          id: row.id,
-          status: row.status,
-          reclassifiedFrom: row.reclassifiedFrom || null,
-          procedureStatus: row.procedureStatus || null,
-          sourceRefVerified: row.sourceRefVerified ?? null,
-          procedureAuthorized: row.procedureAuthorized ?? null
-        }));
+        const itemsDiag = buildCoverageItemDiagnostics_(evaluatedCoverageRows);
         console.log('SEMANTIC_COVERAGE ' + JSON.stringify({
           mode: coverageEnforced ? 'enforce' : 'observe', state: coverageState,
+          rawContentValid: typeof semHalluc.rawContentValid === 'boolean' ? semHalluc.rawContentValid : null,
+          finalContentValid: typeof semHalluc.contentValid === 'boolean' ? semHalluc.contentValid : null,
           additionalCall: !legacyGroundingReview,
           sourceCompleteness: semHalluc.sourceCompleteness || null,
           visualAttachmentCount: Number(semHalluc.visualAttachmentCount) || 0,
-          requests: requestDiagnostics,
           itemsDiag: itemsDiag,
           ...(undeterminableDiagnostics ? { undeterminableDiagnostics } : {}),
           ...(semHalluc.metrics || {})
@@ -3969,7 +3978,7 @@ var SemanticValidator = class SemanticValidator {
         ? options.requestPurpose.type
         : (options ? options.requestPurpose : '');
       const cacheMaterial = [
-        'grounding_relevance_coverage_schema_v25',
+        'grounding_relevance_coverage_schema_v26',
         String(options.presenceRequired === true),
         response || '',
         knowledgeBase || '',
@@ -4176,7 +4185,7 @@ ${coverageContext ? `Riporta ogni openRequest con lo stesso id e need in request
 - explicit_limit_service: la risposta nega il servizio (senza canali alternativi) e la KB nega esplicitamente lo stesso servizio; cita la prova in sourceRef;
 - missing: esigenza essenziale non trattata; un divieto non sostenuto dalla KB è missing e va anche in unsupportedClaims;
 - undeterminable: materiale necessario assente, indicandolo.
-Per ogni voce valuta procedure, canali, impegni e limiti affermati nella risposta: procedureStatus=supported se la KB li autorizza, unsupported se inventati o contrari alle fonti, uncertain se non valutabili, not_applicable se assenti. Rispetta negazioni, soggetti e condizioni; reason motiva il giudizio e sourceRef cita letteralmente la KB per supported. Indicare il canale autorizzato copre la richiesta; riceverla non equivale a eseguirla. Per evidenze visive sourceRef resta il nome dell'allegato: cita la KB in procedureSourceRef.
+Per ogni voce valuta procedure, canali, impegni e limiti per la specifica richiesta: procedureStatus=supported se autorizzati dalla KB, unsupported se inventati o contrari alle fonti, uncertain se non valutabili, not_applicable se assenti. Valuta negazioni, soggetti, condizioni ed evento, anche con parole diverse; reason motiva e sourceRef cita la KB per supported. Indicare il canale corretto copre la richiesta, riceverla non equivale a eseguirla. Per evidenze visive sourceRef identifica l'allegato; procedureSourceRef cita la KB.
 Un rinvio richiede una ragione concreta. Corpo troncato: undeterminableReason obbligatorio; storico/allegati parziali: solo se manca materiale indispensabile al turno. Estrazione parziale con originale completo: valuta l'originale.` : ''}
 
 contentValid valuta radicamento e pertinenza. isValid richiede contentValid=true${coverageContext ? ', richieste coperte e valutabili, procedure supported o not_applicable' : ''}${presenceRequired ? '; presence ha un esito autonomo' : ''}. Mantieni coerenti verdetti, stati e motivazione.
@@ -4496,7 +4505,7 @@ Rispondi SOLO con questo JSON (senza markdown):
       ids.add(item.id);
       const row = {
         id: item.id, need: item.need, evidence: typeof item.evidence === 'string' ? item.evidence : '',
-        status: item.status, reason: typeof item.reason === 'string' ? item.reason.trim() : '',
+        rawStatus: item.status, status: item.status, reason: typeof item.reason === 'string' ? item.reason.trim() : '',
         sourceRef: typeof item.sourceRef === 'string' ? item.sourceRef.trim() : '',
         procedureStatus: item.procedureStatus,
         procedureSourceRef: typeof item.procedureSourceRef === 'string' ? item.procedureSourceRef.trim() : ''
@@ -4509,10 +4518,12 @@ Rispondi SOLO con questo JSON (senza markdown):
       if (row.status === 'explicit_limit_service' && row.procedureStatus === 'not_applicable') {
         fail('limite del servizio senza giudizio procedurale per ' + row.id);
       }
-      const procedureRef = row.procedureSourceRef || row.sourceRef;
+      const procedureRef = row.procedureSourceRef ||
+        (visualAttachmentReferences.has(normalize(row.sourceRef)) ? '' : row.sourceRef);
       row.sourceRefVerified = row.procedureStatus === 'not_applicable' ? null
         : Boolean(procedureRef && normalize(knowledgeBase).includes(normalize(procedureRef)));
-      row.procedureAuthorized = row.procedureStatus === 'supported' && row.sourceRefVerified ? true
+      // L'autorizzazione è il giudizio del modello; il riscontro letterale della citazione resta separato.
+      row.procedureAuthorized = row.procedureStatus === 'supported' ? true
         : row.procedureStatus === 'unsupported' ? false : null;
       if (row.procedureStatus === 'unsupported') {
         unsupportedClaims.push({ text: row.need, reason: row.reason });
@@ -4546,13 +4557,18 @@ Rispondi SOLO con questo JSON (senza markdown):
       }
       if ((!evidenceIsGrounded && !originalEvidenceIsGroundedInText) || !originalEvidenceIsGrounded) {
         row.status = 'undeterminable';
+        row.reclassificationReason = 'unverified_request_evidence';
         row.reason = 'Evidenza della richiesta non riscontrabile nelle fonti correnti disponibili.';
       } else if (row.procedureStatus === 'uncertain' ||
-          (row.procedureStatus === 'supported' && !row.sourceRefVerified)) {
-        row.reclassifiedFrom = row.status;
-        row.reclassificationReason = row.procedureStatus === 'uncertain' ? 'uncertain_procedure' : 'unverified_procedure_source';
+          (row.procedureStatus === 'supported' && (!procedureRef || !normalize(knowledgeBase)))) {
+        row.reclassificationReason = row.procedureStatus === 'uncertain' ? 'uncertain_procedure' : 'missing_procedure_source';
         row.status = 'undeterminable';
-        row.reason = row.procedureStatus === 'uncertain' ? row.reason : 'Citazione della procedura non riscontrabile nella KB.';
+        row.reason = row.procedureStatus === 'uncertain' ? row.reason : 'Fonte della procedura assente.';
+      }
+      if (row.status !== row.rawStatus) {
+        row.reclassifiedFrom = row.rawStatus;
+      } else {
+        delete row.reclassificationReason;
       }
       if (row.status === 'missing') {
         row.uncoveredRequest = typeof item.uncoveredRequest === 'string' && item.uncoveredRequest.trim() || row.need;
@@ -4595,15 +4611,7 @@ Rispondi SOLO con questo JSON (senza markdown):
     if (completeness.bodyTruncated || completeness.subjectTruncated) {
       undeterminableReason = 'Messaggio corrente parziale: impossibile certificare la copertura globale.';
     }
-    const itemsDiag = requests.concat(additionalRequests).map(row => ({
-      id: row.id,
-      status: row.status,
-      reclassifiedFrom: row.reclassifiedFrom || null,
-      reclassificationReason: row.reclassificationReason || null,
-      procedureStatus: row.procedureStatus,
-      sourceRefVerified: row.sourceRefVerified,
-      procedureAuthorized: row.procedureAuthorized
-    }));
+    const itemsDiag = buildCoverageItemDiagnostics_(requests.concat(additionalRequests));
     return {
       evaluated: true, purpose: String(payload.purpose || ''), goal: String(payload.goal || ''),
       requests, additionalRequests, unsupportedExtractedRequests,

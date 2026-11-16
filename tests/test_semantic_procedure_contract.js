@@ -11,12 +11,13 @@ const kb = 'Prenotazioni esclusivamente online su https://example.invalid/prenot
 const response = "Buona domenica. Per prenotare un posto compili il modulo online. Cordiali saluti, Segreteria Parrocchia Sant'Eugenio";
 let checked = 0;
 function setup() {
-  const c = vm.createContext({ console: { log() {}, warn() {}, error() {} }, UrlFetchApp: {},
+  const logs = [];
+  const c = vm.createContext({ console: { log(...args) { logs.push(args.join(' ')); }, warn() {}, error() {} }, UrlFetchApp: {},
     CONFIG: { SEMANTIC_VALIDATION: { enabled: true, completenessAlways: true, completenessMode: 'enforce', cacheEnabled: false } } });
   vm.runInContext(fs.readFileSync(path.join(root, 'gas_response_validator.js'), 'utf8'), c);
   const s = new c.SemanticValidator();
   const context = s._prepareCoverageContext_(body, { requestCoverage: { openRequests: [request] } });
-  return { c, s, context, v: new c.ResponseValidator() };
+  return { c, s, context, logs, v: new c.ResponseValidator() };
 }
 function payload(changes = {}, rowChanges = {}) {
   return { isValid: true, contentValid: true, confidence: .95, reason: 'Giudizio del modello.',
@@ -62,28 +63,36 @@ for (const procedureStatus of ['supported', 'unsupported', 'uncertain', 'not_app
     checked++;
   }
 }
-// La presenza di tutte le parole non verifica una citazione con significato opposto.
-for (const [knowledge, reference] of [
-  ['Raccogliamo prenotazioni via email.', 'Non raccogliamo prenotazioni via email.'],
-  ['Il ritiro è consentito al richiedente. La delega riguarda altri servizi.', 'Il ritiro è consentito al delegato.'],
-  [kb, 'Il modulo di iscrizione telematico è obbligatorio.'], [kb, ''],
-  [kb, 'Prenotazioni esclusivamente online su https://example.invalid/altro.']
-]) {
+// Il modello giudica la procedura, mentre il codice registra soltanto il riscontro letterale.
+for (const reference of [kb, 'Il modulo di iscrizione telematico è obbligatorio.', 'Prenotazione mediante modulo online']) {
   const env = setup();
-  const result = parse(env, payload({}, { status: 'explicit_limit_service', sourceRef: reference }), knowledge);
-  // L'inclusione letterale verifica soltanto la citazione: il significato resta un giudizio del modello.
-  const exact = reference && knowledge.toLowerCase().includes(reference.toLowerCase());
-  assert.equal(result.coverageState, exact ? 'complete' : 'undeterminable');
-  assert.equal(result.coverage.requests[0].sourceRefVerified, Boolean(exact));
+  const result = parse(env, payload({}, { sourceRef: reference }));
+  assert.equal(result.coverageState, 'complete');
+  assert.equal(result.isValid, true);
+  assert.equal(result.contentValid, true);
+  assert.equal(result.coverage.requests[0].sourceRefVerified, kb.includes(reference));
+  assert.equal(result.coverage.itemsDiag[0].reclassified, false);
   checked++;
 }
-// Una negazione contraria alla fonte viene respinta dal giudizio semantico anche se ne cita le parole esatte.
-for (const knowledge of ['Raccogliamo prenotazioni via email.', 'Non raccogliamo prenotazioni via email.']) {
+// Negazioni, condizioni ed eventi errati sono rilievi semantici, anche con citazioni letterali.
+for (const knowledge of [
+  'Raccogliamo prenotazioni via email.', 'Non raccogliamo prenotazioni via email.',
+  'Il ritiro è consentito solo al richiedente.',
+  'Il modulo https://example.invalid/altro è riservato al concerto, non alla proiezione.'
+]) {
   const env = setup();
   const result = parse(env, payload({}, { procedureStatus: 'unsupported', sourceRef: knowledge,
-    reason: 'La risposta attribuisce al canale email il significato opposto a quello della KB.' }), knowledge);
+    status: 'missing', reason: 'La procedura proposta contraddice il canale, le condizioni o l’evento della fonte.' }), knowledge);
   assert.equal(result.isValid, false);
   assert.equal(result.contentValid, false);
+  assert.equal(result.coverageState, 'missing');
+  checked++;
+}
+for (const [knowledge, reference] of [[kb, ''], ['', 'Iscrizione online.']]) {
+  const result = parse(setup(), payload({}, { sourceRef: reference }), knowledge);
+  assert.equal(result.coverageState, 'undeterminable');
+  assert.equal(result.contentValid, true);
+  assert.equal(result.coverage.itemsDiag[0].reclassificationReason, 'missing_procedure_source');
   checked++;
 }
 // Procedure e prove visive hanno fonti indipendenti nella stessa voce.
@@ -93,7 +102,10 @@ for (const knowledge of ['Raccogliamo prenotazioni via email.', 'Non raccogliamo
     attachments: [{ getName: () => 'richiesta.png' }], requestCoverage: { openRequests: [{ ...request, source: 'attachment' }] } });
   const value = payload({}, { sourceRef: 'richiesta.png', procedureSourceRef: kb });
   assert.equal(parse(env, value).isValid, true);
-  value.coverage.requests[0].procedureSourceRef = 'Procedura non citata nella KB';
+  value.coverage.requests[0].procedureSourceRef = 'Le iscrizioni si effettuano attraverso il modulo online';
+  assert.equal(parse(env, value).isValid, true);
+  assert.equal(parse(env, value).coverage.itemsDiag[0].sourceRefVerified, false);
+  value.coverage.requests[0].procedureSourceRef = '';
   assert.equal(parse(env, value).coverageState, 'undeterminable');
   checked++;
 }
@@ -115,18 +127,76 @@ for (const contentValid of ['false', 'true', null, 0, 1, {}]) {
 // Il giudizio esplicito sul contenuto vale anche quando la copertura non è richiesta.
 assert.equal(setup().s._parseSemanticResponse(JSON.stringify(payload({ contentValid: false }))).isValid, false);
 checked++;
-// Una citazione incerta e un disaccordo arrivano al blocco invio del thread, senza rigenerazioni aggiuntive.
-for (const rowChanges of [{ sourceRef: 'Parafrasi non verificabile' }, { procedureStatus: 'uncertain' }]) {
+// Fonti assenti, giudizi incerti e verdetti discordanti bloccano l'invio senza rigenerazioni aggiuntive.
+for (const [changes, rowChanges, reason] of [
+  [{}, { sourceRef: '' }, 'semantic_context_insufficient'],
+  [{}, { procedureStatus: 'uncertain' }, 'semantic_context_insufficient'],
+  [{ isValid: false }, { sourceRef: 'Citazione parafrasata' }, 'semantic_contract_error']
+]) {
   const env = setup();
   let calls = 0;
-  env.v.semanticValidator._generateSemantic = () => { calls++; return JSON.stringify(payload({}, rowChanges)); };
+  env.v.semanticValidator._generateSemantic = () => { calls++; return JSON.stringify(payload(changes, rowChanges)); };
   const out = runScenario(root, { body }, { setup(c, services) {
     services.validator.validateResponse = (...args) => env.v.validateResponse(...args);
   } });
   assert.equal(out.result.status, 'validation_review');
-  assert.equal(out.result.reason, 'semantic_context_insufficient');
+  assert.equal(out.result.reason, reason);
   assert.equal(out.effects.some(([event]) => event === 'send'), false);
   assert.equal(calls, 1);
+  checked++;
+}
+// Il canale autorizzato con citazione parafrasata supera anche il percorso del thread.
+{
+  const env = setup(); let calls = 0;
+  env.v.semanticValidator._generateSemantic = () => { calls++; return JSON.stringify(payload({}, { sourceRef: 'Il modulo online è il canale previsto.' })); };
+  const out = runScenario(root, { body }, { setup(c, services) {
+    services.validator.validateResponse = (...args) => env.v.validateResponse(...args);
+  } });
+  assert.equal(out.result.status, 'replied');
+  assert.equal(out.effects.filter(([event]) => event === 'send').length, 1);
+  assert.equal(calls, 1);
+  checked++;
+}
+// Il riepilogo pubblico esclude gli identificativi e le motivazioni libere, anche con cache pregresse.
+for (const [procedureStatus, status, originalEvidence, expectedStatus, expectedCode] of [
+  ['supported', 'addressed', body, 'addressed', ''],
+  ['uncertain', 'addressed', body, 'undeterminable', 'uncertain_procedure'],
+  ['uncertain', 'undeterminable', body, 'undeterminable', ''],
+  ['unsupported', 'missing', body, 'missing', ''],
+  ['supported', 'addressed', 'Estratto non presente nella richiesta', 'undeterminable', 'unverified_request_evidence']
+]) {
+  const env = setup();
+  const privateText = 'Nome Privato riservato@example.invalid';
+  const privateRequest = { ...request, id: privateText, need: privateText, evidence: originalEvidence };
+  const value = payload({}, { ...privateRequest, status, procedureStatus,
+    reason: privateText, sourceRef: 'Iscrizione attraverso il modulo online.' });
+  env.v.semanticValidator._generateSemantic = () => JSON.stringify(value);
+  const result = env.v.validateResponse(response, 'it', kb, body, 'Prenotazione', 'full', false,
+    { validationContext: { requestCoverage: { openRequests: [privateRequest] } } });
+  const log = env.logs.find(line => line.startsWith('SEMANTIC_COVERAGE '));
+  assert(log);
+  const summary = JSON.parse(log.slice('SEMANTIC_COVERAGE '.length));
+  assert.equal(summary.requests, undefined);
+  assert.equal(summary.rawContentValid, true);
+  assert.equal(summary.finalContentValid, procedureStatus !== 'unsupported');
+  assert.equal(log.includes(privateText), false);
+  assert.equal(log.includes('Iscrizione attraverso'), false);
+  assert.deepEqual(summary.itemsDiag[0], {
+    idx: 0, rawStatus: status, normalizedStatus: expectedStatus, procedureStatus,
+    sourceRefPresent: true, sourceRefVerified: false,
+    procedureAuthorized: procedureStatus === 'supported' ? true : procedureStatus === 'unsupported' ? false : null,
+    reclassified: status !== expectedStatus, reclassificationReason: expectedCode
+  });
+  assert.equal(result.details.coverage.evaluation.requests[0].id, privateText, 'Il risultato mantiene i dettagli utili alla revisione');
+  checked++;
+}
+{
+  const env = setup();
+  const row = { id: 'id-riservato', reason: 'testo-riservato', status: 'missing', rawStatus: 'testo-riservato',
+    reclassifiedFrom: 'addressed', reclassificationReason: 'testo-riservato', procedureStatus: 'testo-riservato',
+    sourceRef: 'citazione-riservata', sourceRefVerified: 'testo-riservato', procedureAuthorized: 'testo-riservato' };
+  const result = JSON.stringify(env.c.buildCoverageItemDiagnostics_([row]));
+  for (const secret of ['id-riservato', 'testo-riservato', 'citazione-riservata']) assert(!result.includes(secret));
   checked++;
 }
 console.log(`Contratto procedurale semantico: ${checked} prove superate; un solo controllo del modello per risposta.`);

@@ -53,12 +53,14 @@ for (const status of ['addressed','not_applicable','explicit_limit_info','explic
 }
 test('limite senza fonte contro limite informativo',()=>{
   const {s}=setup();
-  const out=parse(s,payload('explicit_limit_service'),options(),'Nessuna procedura indicata.');
-  // Una citazione non verificabile richiede revisione senza inventare un'allucinazione.
+  const p=payload('explicit_limit_service');p.coverage.requests[0].sourceRef='';
+  const out=parse(s,p,options(),'Nessuna procedura indicata.');
+  // Una fonte assente richiede revisione senza inventare un'allucinazione.
   assert.equal(out.coverageState,'undeterminable');
   assert.equal(out.contentValid,true);
   assert.equal(out.coverage.itemsDiag[0].sourceRefVerified,false);
-  assert.equal(out.coverage.itemsDiag[0].reclassifiedFrom,'explicit_limit_service');
+  assert.equal(out.coverage.itemsDiag[0].rawStatus,'explicit_limit_service');
+  assert.equal(out.coverage.itemsDiag[0].reclassificationReason,'missing_procedure_source');
   assert.equal(parse(s,payload('explicit_limit_info'),options(),'Nessuna procedura indicata.').isValid,true);
 });
 test('prompt distingue divieti espliciti e richieste condizionali',()=>{

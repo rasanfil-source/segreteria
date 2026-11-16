@@ -28,8 +28,10 @@ resta semantico. Nella stessa chiamata ogni richiesta riceve `procedureStatus`:
 `supported`, `unsupported`, `uncertain` o `not_applicable`. La motivazione spiega
 l'esito e `sourceRef` cita la KB per le procedure supportate. Se `sourceRef`
 identifica un allegato visivo, `procedureSourceRef` conserva la citazione KB.
-Una citazione mancante o parafrasata richiede revisione; una procedura giudicata
-infondata resta un errore di contenuto. Un verdetto negativo contraddittorio non
+Una citazione parafrasata non blocca un giudizio semantico positivo e coerente:
+`sourceRefVerified` registra solo il riscontro letterale. Una fonte assente o un
+giudizio incerto richiedono revisione; una procedura giudicata infondata resta un
+errore di contenuto. Un verdetto negativo contraddittorio non
 viene promosso automaticamente. Il codice non deduce autorizzazioni dalla
 somiglianza lessicale. Le conoscenze generali del modello non autorizzano limiti,
 requisiti o capacità del servizio.
@@ -75,7 +77,11 @@ diretto, quindi non misura le latenze del limitatore GAS.
 
 Il log `SEMANTIC_COVERAGE` registra esito, modalità, cache, latenza, completezza
 delle fonti, stato delle procedure, verificabilità delle citazioni e chiamate
-logiche aggiuntive. Il contratto usa una nuova versione della cache per evitare
+logiche aggiuntive. `rawContentValid` e `finalContentValid` distinguono i verdetti;
+`itemsDiag` contiene indici, stati originali/finali, presenza della citazione e
+codici di riclassificazione, senza identificativi, citazioni o motivazioni libere.
+I dettagli testuali restano nel risultato di validazione, fuori da questo riepilogo.
+Il contratto usa una nuova versione della cache per evitare
 il riuso di giudizi privi dei campi procedurali. `inputTokensEstimate` è una stima
 da caratteri, non un costo fatturato; i retry interni del servizio possono
 produrre più richieste HTTP per una chiamata logica.
