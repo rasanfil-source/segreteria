@@ -23,7 +23,8 @@ function payload(status = 'addressed', changes = {}) {
   return {isValid:status!=='missing',confidence:0.95,hallucinations:{unsupportedClaims:[]},irrelevantDetails:[],
     presence:{state:'compatible',reason:'Nessuno spostamento proposto.',requestEvidence:'',responseEvidence:''},
     coverage:{evaluated:true,purpose:'informational',goal:'ottenere documenti',
-      requests:[{...request,status,reason:'motivazione della valutazione',sourceRef:kb}],
+      requests:[{...request,status,reason:'motivazione della valutazione',sourceRef:kb,
+        procedureStatus:status==='explicit_limit_service'?'supported':'not_applicable'}],
       additionalRequests:[],unsupportedExtractedRequests:[],undeterminableReason:null},...changes};
 }
 function options(changes = {}) { return {coverageRequired:true,requestCoverage:{goal:'documenti',openRequests:[request]},
@@ -53,8 +54,8 @@ for (const status of ['addressed','not_applicable','explicit_limit_info','explic
 test('limite senza fonte contro limite informativo',()=>{
   const {s}=setup();
   const out=parse(s,payload('explicit_limit_service'),options(),'Nessuna procedura indicata.');
-  // La mancata verifica della fonte declassa la copertura a missing senza inquinare contentValid.
-  assert.equal(out.coverageState,'missing');
+  // Una citazione non verificabile richiede revisione senza inventare un'allucinazione.
+  assert.equal(out.coverageState,'undeterminable');
   assert.equal(out.contentValid,true);
   assert.equal(out.coverage.itemsDiag[0].sourceRefVerified,false);
   assert.equal(out.coverage.itemsDiag[0].reclassifiedFrom,'explicit_limit_service');
@@ -72,15 +73,14 @@ test('prompt distingue divieti espliciti e richieste condizionali',()=>{
   assert.ok(prompt.includes('quando è falsa assegna not_applicable anche se la risposta non ripete il ripiego'));
   assert.ok(prompt.includes('Se appliesWhen è vera, valutala come primaria'));
   assert.ok(prompt.includes('unsupportedClaims riguarda solo fatti senza riscontro o contrari alle fonti'));
-  assert.ok(prompt.includes('mai il semplice fatto che non siano richiesti'));
+  assert.ok(prompt.includes('un fatto documentato ma superfluo va solo in irrelevantDetails'));
   assert.ok(prompt.includes('un limite su scadenza o tempi non copre il diverso bisogno'));
   assert.ok(prompt.includes('explicit_limit_info solo alla richiesta del dato mancante'));
-  assert.ok(prompt.includes('è explicit_limit_info, non un fatto infondato'));
-  assert.ok(prompt.includes('per esempio se il certificato sarà pronto entro venerdì'));
-  assert.ok(prompt.includes("non richiedere una frase della KB che autorizzi l'incertezza"));
+  assert.ok(prompt.includes("l'incertezza non è un fatto infondato né richiede autorizzazione"));
+  assert.ok(prompt.includes('Un dato richiesto assente dalla KB può essere dichiarato non confermabile (explicit_limit_info)'));
   assert.ok(prompt.includes('Scomponi le frasi composte'));
-  assert.ok(prompt.includes('non inserirle in unsupportedClaims o irrelevantDetails'));
-  assert.ok(prompt.includes('mantienila solo in irrelevantDetails anche quando descrive più fatti'));
+  assert.ok(prompt.includes('valuta solo eventuali impegni o ruoli concreti attribuiti'));
+  assert.ok(prompt.includes('resta solo in irrelevantDetails anche quando descrive più fatti'));
   assert.ok(prompt.includes('orari parziali e silenzio non bastano a provare una chiusura o un divieto'));
   assert.ok(prompt.includes('Ogni request deve avere reason non vuota e specifica'));
   assert.ok(prompt.includes('Riporta ogni openRequest con lo stesso id e need'));
@@ -111,10 +111,10 @@ test('frammento della firma generica non è un’affermazione infondata',()=>{
   assert.equal(realClaim.isValid,false);
   assert.equal(realClaim.details.unsupportedClaims.length,1);
 });
-test('reasonCode privilegia la pertinenza quando la motivazione esclude un difetto di radicamento',()=>{
+test('reasonCode segue i rilievi strutturati senza reinterpretare la motivazione',()=>{
   const {v}=setup();
   assert.equal(v._deriveSemanticFailureReasonCode_({reason:'La risposta inserisce dettagli irrilevanti e non richiesti.',
-    details:{unsupportedClaims:['frase classificata erroneamente'] }},null),'semantic_irrelevant_detail');
+    details:{unsupportedClaims:['affermazione segnalata dal modello'] }},null),'semantic_unsupported_claim');
   assert.equal(v._deriveSemanticFailureReasonCode_({reason:'La risposta contiene un’affermazione infondata e senza riscontro.',
     details:{unsupportedClaims:['divieto inventato'],irrelevantDetails:['frase superflua']}},null),'semantic_unsupported_claim');
 });
@@ -195,7 +195,7 @@ test('fonti ausiliarie incomplete richiedono una ragione di indeterminabilità',
   }
 });
 test('domanda aggiuntiva omessa non nascosta dal classificatore',()=>{
-  const {s}=setup();const p=payload();p.coverage.additionalRequests=[{id:'r2',need:'orario',evidence:'Quando?',status:'missing',reason:'manca orario'}];
+  const {s}=setup();const p=payload();p.coverage.additionalRequests=[{id:'r2',need:'orario',evidence:'Quando?',status:'missing',reason:'manca orario',procedureStatus:'not_applicable'}];
   const out=parse(s,p,options({groundingParts:{body:body+' Quando?'}}));
   assert.equal(out.coverageState,'missing');assert.equal(out.coverage.additionalRequests[0].why,'manca orario');
 });
@@ -418,7 +418,7 @@ test('esportazione dei 23 casi senza includere gli esiti attesi nel prompt',()=>
     if(item.id==='C06b') assert.ok(!context.sources.body.includes(item.message.bodyMiddleText));
   }
   const sample=suite.cases[0];const {s,context}=prepare(sample);
-  const p=payload('missing');p.coverage.requests=sample.openRequests.map((r,index)=>({...r,status:index?'missing':'addressed',reason:'domanda scoperta'}));
+  const p=payload('missing');p.coverage.requests=sample.openRequests.map((r,index)=>({...r,status:index?'missing':'addressed',reason:'domanda scoperta',procedureStatus:'not_applicable'}));
   const result=s._parseSemanticResponse(JSON.stringify(p),{coverageRequired:true,coverageContext:context,knowledgeBase:sample.kb});
   assert.deepEqual(compare(sample,result,context).failures,[]);
 });

@@ -23,8 +23,15 @@ le fonti originali. La verifica può individuare richieste sfuggite all'estrazio
 
 Un limite informativo può essere legittimo anche senza una frase nella KB. Un
 limite del servizio richiede invece una citazione della KB che lo sostenga. Il
-parser controlla la presenza della citazione; il giudizio sul suo significato
-resta semantico. Le conoscenze generali del modello non autorizzano limiti,
+parser controlla la presenza letterale della citazione; il giudizio sul suo significato
+resta semantico. Nella stessa chiamata ogni richiesta riceve `procedureStatus`:
+`supported`, `unsupported`, `uncertain` o `not_applicable`. La motivazione spiega
+l'esito e `sourceRef` cita la KB per le procedure supportate. Se `sourceRef`
+identifica un allegato visivo, `procedureSourceRef` conserva la citazione KB.
+Una citazione mancante o parafrasata richiede revisione; una procedura giudicata
+infondata resta un errore di contenuto. Un verdetto negativo contraddittorio non
+viene promosso automaticamente. Il codice non deduce autorizzazioni dalla
+somiglianza lessicale. Le conoscenze generali del modello non autorizzano limiti,
 requisiti o capacità del servizio.
 
 Un corpo corrente tagliato impedisce l'approvazione della copertura globale,
@@ -67,7 +74,9 @@ occorre leggere motivazioni e citazioni insieme agli esiti. Il runner usa HTTP
 diretto, quindi non misura le latenze del limitatore GAS.
 
 Il log `SEMANTIC_COVERAGE` registra esito, modalità, cache, latenza, completezza
-delle fonti e chiamate logiche aggiuntive. `inputTokensEstimate` è una stima
+delle fonti, stato delle procedure, verificabilità delle citazioni e chiamate
+logiche aggiuntive. Il contratto usa una nuova versione della cache per evitare
+il riuso di giudizi privi dei campi procedurali. `inputTokensEstimate` è una stima
 da caratteri, non un costo fatturato; i retry interni del servizio possono
 produrre più richieste HTTP per una chiamata logica.
 

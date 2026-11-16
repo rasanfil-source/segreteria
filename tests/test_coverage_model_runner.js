@@ -6,7 +6,7 @@ async function main() {
   const answer={hallucinations:{unsupportedClaims:['Segreteria Parrocchia']},irrelevantDetails:[],
     coverage:{evaluated:true,purpose:'operational',goal:'confermare la visita',
       requests:[{id:'r1',need:fixture.openRequests[0].need,evidence:fixture.openRequests[0].evidence,
-        status:'addressed',reason:'La risposta conferma la visita.',sourceRef:'Segreteria aperta martedì e giovedì dalle 9:00 alle 11:00.'}],
+        status:'addressed',procedureStatus:'not_applicable',reason:'La risposta conferma la visita.',sourceRef:'Segreteria aperta martedì e giovedì dalle 9:00 alle 11:00.'}],
       additionalRequests:[],unsupportedExtractedRequests:[],undeterminableReason:null},
     isValid:false,confidence:0.9,reason:'La risposta è corretta.'};
   const normalized=parseAnswer(fixture,prepared,JSON.stringify(answer));

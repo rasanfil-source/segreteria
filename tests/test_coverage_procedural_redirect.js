@@ -108,6 +108,7 @@ Segreteria Parrocchia Sant'Eugenio`;
         need: requestItem.need,
         evidence: requestItem.evidence,
         status: 'addressed',
+        procedureStatus: 'supported',
         reason: 'Indica la procedura corretta e il link autorizzato per la prenotazione.',
         sourceRef: 'https://parrocchia.it/eventi/guadalupe-prenotazioni'
       }],
@@ -127,7 +128,8 @@ Segreteria Parrocchia Sant'Eugenio`;
     coverageRequired: true,
     presenceRequired: true,
     coverageContext,
-    knowledgeBase: kbProiezione
+    knowledgeBase: kbProiezione,
+    responseText
   });
 
   assert.equal(parsed.contentValid, true, 'contentValid deve essere true');
@@ -204,6 +206,7 @@ Segreteria Parrocchia Sant'Eugenio`;
         need: requestItem.need,
         evidence: requestItem.evidence,
         status: 'addressed',
+        procedureStatus: 'unsupported',
         reason: 'Ha risposto ma con informazioni non veritiere',
         sourceRef: ''
       }],
@@ -249,8 +252,8 @@ Segreteria Parrocchia Sant'Eugenio`;
   assert.ok(validationResult.errors.some(e => e.includes('Affermazioni non supportate') || e.includes('Affermazioni senza riscontro') || e.includes('Contenuto')), 'Deve segnalare affermazioni non supportate');
 });
 
-// CASO 3: Procedura corretta ma sourceRef parafrasato dal modello
-test('Caso 3: Procedura corretta ma sourceRef parafrasato dal modello (nessuna allucinazione fittizia)', () => {
+// Una parafrasi non verificabile mantiene distinto il contenuto dall'incertezza sulla fonte.
+test('Caso 3: Procedura corretta ma sourceRef parafrasato richiede revisione senza allucinazioni fittizie', () => {
   const { semanticValidator, validator } = setupContext();
   const requestItem = {
     id: 'req_prenotazione_3',
@@ -283,6 +286,7 @@ Segreteria Parrocchia Sant'Eugenio`;
         need: requestItem.need,
         evidence: requestItem.evidence,
         status: 'addressed',
+        procedureStatus: 'supported',
         reason: 'Ha fornito il canale online',
         sourceRef: 'modulo iscrizioni telematico evento cinematografico parrocchiale' // parafrasi non testuale
       }],
@@ -305,11 +309,11 @@ Segreteria Parrocchia Sant'Eugenio`;
     knowledgeBase: kbProiezione
   });
 
-  // La parafrasi di sourceRef non deve intaccare contentValid né trasformare l'esito in errore
+  // La parafrasi non intacca contentValid, ma non certifica la citazione.
   assert.equal(parsed.contentValid, true, 'contentValid deve rimanere true');
-  assert.equal(parsed.coverageState, 'complete', 'coverageState deve rimanere complete');
-  assert.equal(parsed.isValid, true, 'isValid complessivo deve essere true');
-  assert.equal(parsed.coverage.itemsDiag[0].procedureAuthorized, true);
+  assert.equal(parsed.coverageState, 'undeterminable');
+  assert.equal(parsed.isValid, false);
+  assert.equal(parsed.coverage.itemsDiag[0].procedureAuthorized, null);
 
   validator.semanticValidator.validateHallucinations = () => parsed;
   validator.semanticValidator.validateThinkingLeak = () => ({ isValid: true, skipped: true });
@@ -327,7 +331,9 @@ Segreteria Parrocchia Sant'Eugenio`;
     }
   });
 
-  assert.equal(validationResult.isValid, true, 'La validazione non deve fallire per sola parafrasi di sourceRef');
+  assert.equal(validationResult.isValid, false);
+  assert.equal(validationResult.pendingSemanticReview, 'semantic_context_insufficient');
+  assert.equal(validationResult.errors.length, 0, 'Una citazione incerta non diventa un fatto inventato');
 });
 
 // CASO 4: Richiesta multipla parzialmente evasa
@@ -356,8 +362,8 @@ Segreteria Parrocchia Sant'Eugenio`;
       purpose: 'operational',
       goal: 'prenotazione e orario',
       requests: [
-        { id: 'r1', need: req1.need, evidence: req1.evidence, status: 'addressed', reason: 'Fornito link modulo online', sourceRef: 'https://parrocchia.it/eventi/guadalupe-prenotazioni' },
-        { id: 'r2', need: req2.need, evidence: req2.evidence, status: 'missing', reason: 'Orario di inizio omesso nella risposta', sourceRef: '' }
+        { id: 'r1', need: req1.need, evidence: req1.evidence, status: 'addressed', procedureStatus: 'supported', reason: 'Fornito link modulo online', sourceRef: 'https://parrocchia.it/eventi/guadalupe-prenotazioni' },
+        { id: 'r2', need: req2.need, evidence: req2.evidence, status: 'missing', procedureStatus: 'not_applicable', reason: 'Orario di inizio omesso nella risposta', sourceRef: '' }
       ],
       additionalRequests: [],
       unsupportedExtractedRequests: [],
@@ -406,8 +412,8 @@ Segreteria Parrocchia Sant'Eugenio`;
   assert.ok(validationResult.errors.some(e => e.includes('Copertura: esigenza essenziale non affrontata') || e.includes('Copertura incompleta')), 'Deve segnalare copertura incompleta');
 });
 
-// CASO 5: Modello restituisce isValid: false per falso disaccordo, normalizzazione riconcilia a true
-test('Caso 5: Modello restituisce isValid: false ma la copertura normalizzata è complete (nessun contract_error artificiale)', () => {
+// Un verdetto contraddittorio rimane da verificare anche quando le singole voci appaiono positive.
+test('Caso 5: Modello restituisce isValid: false con copertura completa, il disaccordo richiede revisione', () => {
   const { semanticValidator, validator } = setupContext();
   const req1 = {
     id: 'r_prenota',
@@ -442,6 +448,7 @@ Segreteria Parrocchia Sant'Eugenio`;
         need: req1.need,
         evidence: req1.evidence,
         status: 'addressed',
+        procedureStatus: 'supported',
         reason: 'Indirizza correttamente al modulo ufficiale online.',
         sourceRef: 'https://parrocchia.it/eventi/guadalupe-prenotazioni'
       }],
@@ -465,10 +472,9 @@ Segreteria Parrocchia Sant'Eugenio`;
   });
 
   assert.equal(parsed.contentValid, true, 'contentValid deve essere true');
-  assert.equal(parsed.coverageState, 'complete', 'coverageState deve essere complete');
-  assert.equal(parsed.isValid, true, 'isValid deve essere riconciliato a true');
-  assert.equal(parsed.coverageReconciled, true, 'coverageReconciled deve essere true');
-  assert.equal(parsed.coverageError, null, 'Nessun contract_error artificiale deve essere generato');
+  assert.equal(parsed.coverageState, 'contract_error');
+  assert.equal(parsed.isValid, false, 'Il codice non promuove un verdetto negativo');
+  assert.match(parsed.coverageError, /Verdetto negativo/);
 
   validator.semanticValidator.validateHallucinations = () => parsed;
   validator.semanticValidator.validateThinkingLeak = () => ({ isValid: true, skipped: true });
@@ -486,10 +492,8 @@ Segreteria Parrocchia Sant'Eugenio`;
     }
   });
 
-  if (!validationResult.isValid) {
-    console.error('DEBUG validationResult Caso 5 fallito:', validationResult.errors);
-  }
-  assert.equal(validationResult.isValid, true, 'La validazione finale deve promuovere la risposta conforme');
+  assert.equal(validationResult.isValid, false);
+  assert.equal(validationResult.pendingSemanticReview, 'semantic_contract_error');
   assert.equal(validationResult.errors.length, 0, 'Nessun errore di validazione generato');
 });
 
