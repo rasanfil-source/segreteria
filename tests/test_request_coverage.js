@@ -75,14 +75,16 @@ test('prompt distingue divieti espliciti e richieste condizionali',()=>{
   assert.ok(prompt.includes('quando è falsa assegna not_applicable anche se la risposta non ripete il ripiego'));
   assert.ok(prompt.includes('Se appliesWhen è vera, valutala come primaria'));
   assert.ok(prompt.includes('unsupportedClaims riguarda solo fatti senza riscontro o contrari alle fonti'));
-  assert.ok(prompt.includes('un fatto documentato ma superfluo va solo in irrelevantDetails'));
+  assert.ok(prompt.includes('valuta i fatti supportati solo per pertinenza (compito B)'));
   assert.ok(prompt.includes('un limite su scadenza o tempi non copre il diverso bisogno'));
   assert.ok(prompt.includes('explicit_limit_info solo alla richiesta del dato mancante'));
   assert.ok(prompt.includes("l'incertezza non è un fatto infondato né richiede autorizzazione"));
   assert.ok(prompt.includes('Un dato richiesto assente dalla KB può essere dichiarato non confermabile (explicit_limit_info)'));
   assert.ok(prompt.includes('Scomponi le frasi composte'));
   assert.ok(prompt.includes('valuta solo eventuali impegni o ruoli concreti attribuiti'));
-  assert.ok(prompt.includes('resta solo in irrelevantDetails anche quando descrive più fatti'));
+  assert.ok(prompt.includes('conserva chiarimenti di ambiguità e passi KB utili'));
+  assert.ok(prompt.includes('Considera risolto un passo solo con evidenza'));
+  assert.ok(prompt.includes('la sola superfluità stilistica è compatibile con una risposta valida'));
   assert.ok(prompt.includes('orari parziali e silenzio non bastano a provare una chiusura o un divieto'));
   assert.ok(prompt.includes('Ogni request deve avere reason non vuota e specifica'));
   assert.ok(prompt.includes('Riporta ogni openRequest con lo stesso id e need'));

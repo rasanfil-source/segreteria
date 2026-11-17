@@ -450,6 +450,11 @@ var ResponseValidator = class ResponseValidator {
           semanticReason = 'Affermazioni senza riscontro nelle fonti';
         } else if (semanticCode === 'semantic_irrelevant_detail') {
           semanticReason = 'Pertinenza KB: dettagli non pertinenti rispetto alla richiesta';
+          const relevanceDetails = semHalluc.details.irrelevantDetails.map(detail => {
+            if (typeof detail === 'string') return detail;
+            return detail && [detail.text, detail.reason].filter(value => typeof value === 'string').join(' — ');
+          }).filter(Boolean).join('; ');
+          if (relevanceDetails) semanticReason += ': ' + relevanceDetails;
         } else if (semHalluc.contentValid === false) {
           semanticReason = 'Contenuto della risposta non supportato dalle fonti disponibili';
         } else if (!semHalluc.isValid) {
@@ -3978,7 +3983,7 @@ var SemanticValidator = class SemanticValidator {
         ? options.requestPurpose.type
         : (options ? options.requestPurpose : '');
       const cacheMaterial = [
-        'grounding_relevance_coverage_schema_v26',
+        'grounding_relevance_coverage_schema_v27',
         String(options.presenceRequired === true),
         response || '',
         knowledgeBase || '',
@@ -4172,12 +4177,12 @@ ${response}
 """
 
 COMPITO A — RADICAMENTO:
-Distingui fatti, pertinenza e incertezza: unsupportedClaims riguarda solo fatti senza riscontro o contrari alle fonti; un fatto documentato ma superfluo va solo in irrelevantDetails. Scomponi le frasi composte e assegna ciascuna proposizione al rilievo pertinente: una frase tutta supportata resta solo in irrelevantDetails anche quando descrive più fatti. Un dato richiesto assente dalla KB può essere dichiarato non confermabile (explicit_limit_info): l'incertezza non è un fatto infondato né richiede autorizzazione. Vicinanza pastorale e firma generica sono formule relazionali: valuta solo eventuali impegni o ruoli concreti attribuiti. Un limite vale solo se la KB nega esplicitamente proprio quel servizio o canale; orari parziali e silenzio non bastano a provare una chiusura o un divieto. Richieste, possibilità e impegni restano distinti; le promesse richiedono procedura autorizzante o accordo applicabile. Oggetto, corpo, allegati e storico autorizzano dati personali, date e vincoli dichiarati, non conferme di appuntamenti; l'intestazione Da autorizza nome e recapito, non ruolo o altri fatti. Lo storico non autorizza procedure, requisiti o capacità istituzionali.
+unsupportedClaims riguarda solo fatti senza riscontro o contrari alle fonti. Scomponi le frasi composte: valuta i fatti supportati solo per pertinenza (compito B). Un dato richiesto assente dalla KB può essere dichiarato non confermabile (explicit_limit_info): l'incertezza non è un fatto infondato né richiede autorizzazione. Vicinanza pastorale e firma generica sono formule relazionali: valuta solo eventuali impegni o ruoli concreti attribuiti. Un limite vale solo se la KB nega esplicitamente proprio quel servizio o canale; orari parziali e silenzio non bastano a provare una chiusura o un divieto. Richieste, possibilità e impegni restano distinti; le promesse richiedono procedura autorizzante o accordo applicabile. Oggetto, corpo, allegati e storico autorizzano dati personali, date e vincoli dichiarati, non conferme di appuntamenti; l'intestazione Da autorizza nome e recapito, non ruolo o altri fatti. Lo storico non autorizza procedure, requisiti o capacità istituzionali.
 
 ${presenceRequired ? `PRESENZA FISICA: valuta la compatibilità dello spostamento proposto, distinguendo tra mittente e delegato, impossibilità e presenza già dichiarata o programmata. Verifica separatamente nella KB procedure, orari e appuntamenti. Compila sempre presence con state, una reason non vuota e citazioni brevi requestEvidence/responseEvidence. Senza spostamenti usa compatible, reason "Nessuno spostamento proposto" ed evidenze vuote. Usa incompatible solo citando sia il vincolo nella richiesta sia la proposta nella risposta; usa uncertain se manca un'evidenza necessaria o un allegato è illeggibile/ambiguo. Per evidenze visive, sourceRef riporta il nome esatto dell'allegato.` : ''}
 
 COMPITO B — PERTINENZA CONTESTUALE${coverageContext ? ' E C — COPERTURA' : ''}:
-Individua obiettivo, domande e vincoli attuali con lo storico: copri l'essenziale. Richieste risolte restano chiuse salvo nuova domanda. Seleziona unità informative separate, non ogni alternativa KB. irrelevantDetails segnala ridondanze e procedure già eseguite, preservando aiuti concreti ai vincoli.
+Valuta insieme oggetto, corpo e storico: conserva chiarimenti di ambiguità e passi KB utili all'obiettivo, anche non chiesti esplicitamente. Considera risolto un passo solo con evidenza. In irrelevantDetails cita text e reason per divagazioni o ripetizioni che ostacolano la risposta; la sola superfluità stilistica è compatibile con una risposta valida.
 ${coverageContext ? `Riporta ogni openRequest con lo stesso id e need in requests, anche se omessa o condizionale. Per una conditional, not_applicable vale solo se appliesWhen è falsa; quando è falsa assegna not_applicable anche se la risposta non ripete il ripiego, e non segnalarlo come missing. Se appliesWhen è vera, valutala come primaria e usa missing se resta senza risposta. Tieni distinti bisogni autonomi della stessa email: un limite su scadenza o tempi non copre il diverso bisogno di sapere chi può ritirare, come o con quali requisiti. Assegna explicit_limit_info solo alla richiesta del dato mancante; le altre richieste restano da valutare separatamente. Ogni request deve avere reason non vuota e specifica. unsupportedExtractedRequests serve solo per estrazioni senza base nella richiesta attuale. additionalRequests aggiunge esigenze sfuggite. evidence riporta una citazione letterale breve dall'originale corrente. Esamina anche gli allegati visivi disponibili. Per una richiesta fondata su un allegato visivo, riporta in evidence un breve testo leggibile e in sourceRef il nome esatto dell'allegato; se la parte rilevante non è leggibile, usa undeterminable. Se gli indizi non contengono openRequest e non emerge alcuna esigenza attuale dopo aver valutato il materiale completo, usa noOpenRequests=true con una motivazione breve; in quel caso requests, additionalRequests e unsupportedExtractedRequests restano vuoti. Se manca materiale necessario, indica undeterminableReason. Cortesia e riscontro non sostituiscono risposte, né costituiscono promesse operative.
 - addressed: risposta concreta, chiarimento indispensabile o procedura/link/modulo autorizzato dalla KB; mai per una risposta che nega o limita il servizio senza indicare la procedura autorizzata;
 - not_applicable: ripiego non necessario o richiesta risolta;

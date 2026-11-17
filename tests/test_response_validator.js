@@ -2051,7 +2051,7 @@ console.log('--- Test knowledge contextualization: negazione istituzionale forza
     semanticPrompt.includes('la KB nega esplicitamente proprio quel servizio o canale') &&
       semanticPrompt.includes('orari parziali e silenzio non bastano') &&
       semanticPrompt.includes('Richieste, possibilità e impegni restano distinti') &&
-      semanticPrompt.includes('un fatto documentato ma superfluo va solo in irrelevantDetails') &&
+      semanticPrompt.includes('valuta i fatti supportati solo per pertinenza (compito B)') &&
       semanticPrompt.includes('procedura autorizzante o accordo applicabile'),
     'il validatore semantico deve applicare il radicamento alle affermazioni negative e preservare la modalità della fonte'
   );
@@ -2137,6 +2137,8 @@ console.log('--- Test semantic quality: supporto email per mobilita resta warnin
     assert(result.isValid === false, 'la mobilità non deve scavalcare un rilievo semantico di pertinenza');
     assert(result.score === 0, 'il rilievo semantico mantiene il suo punteggio');
     assert(result.reasonCode === 'semantic_irrelevant_detail', 'la pertinenza resta distinta dalla presenza');
+    assert(result.errors.some(error => error.includes('può inviare la richiesta via email') &&
+      error.includes('alternativa non strettamente richiesta')), 'la segnalazione espone citazione e motivo del rilievo');
   } finally {
     validator.semanticValidator = previousSemanticValidator;
   }
@@ -2242,11 +2244,11 @@ console.log('--- Test SemanticValidator: prompt hallucination non tronca KB a 20
   assert(!prompt.includes('[TRUNCATED]'), 'una KB sotto 30000 caratteri non deve essere troncata');
   assert(
     prompt.includes('COMPITO B — PERTINENZA CONTESTUALE') &&
-      prompt.includes('unità informative separate') &&
+      prompt.includes('Valuta insieme oggetto, corpo e storico') &&
       prompt.includes('irrelevantDetails') &&
-      prompt.includes('aiuti concreti ai vincoli') &&
-      prompt.includes('Individua obiettivo, domande e vincoli') &&
-      prompt.includes('procedure già eseguite'),
+      prompt.includes("passi KB utili all'obiettivo") &&
+      prompt.includes('divagazioni o ripetizioni che ostacolano la risposta') &&
+      prompt.includes('Considera risolto un passo solo con evidenza'),
     'il validatore semantico deve controllare anche selezione e contestualizzazione dei fatti veri della KB'
   );
 }
